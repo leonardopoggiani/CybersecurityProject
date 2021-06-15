@@ -1,0 +1,4 @@
+- nomi variabili separati da underscore (mia_variabile)
+- nome classe camelCase (NomeClasse) come per i nomi delle funzioni (camelCase)
+- nomi costanti uppercase separata da underscore MIA_COSTANTE
+- quando la costante e' usata da piu' file ed e' un intero, definirla all'interno di costants.h
