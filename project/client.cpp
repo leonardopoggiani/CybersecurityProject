@@ -12,25 +12,48 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include "costants.h"
+#include "client.h"
 
 using namespace std;
 
 
 string readMessage();
 int sendMessage(string message);
+void seeOnlineUsers();
+void sendRequestToTalk(string username);
+void logout();
+
+string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
+
 
 int main(int argc, char* const argv[]) {
 
-    cout << "Welcome in the Secure-Messaging client" << endl;
+    int command = 0;
 
-    string message = readMessage();
-
-    int res = sendMessage(message);
-    if (res >= 0) {
-        cout << "Message sent\n" << endl;
-    } 
-
-    return 0;
+    while(1){
+        string username;
+        cout << menu;
+        cin >> command;
+        switch(command){
+            case 1: 
+                cout << "See online users to talk\n" << endl;
+                seeOnlineUsers();
+                break;
+            case 2:
+                cout << "Send a request to talk\n" << endl;
+                cout << "Type the username -> " << endl;
+                getline(cin, username);
+                sendRequestToTalk(username);
+                break;
+            case 3:
+                cout << "Logout..\n" << endl;  
+                logout();
+                break;
+            default:
+                cout << "Command not recognized" << endl;
+                break;
+        }
+    }
 }
 
 
@@ -70,4 +93,16 @@ int sendMessage(string message) {
     send(sock , message.c_str() , message.length() , 0 );
     valread = read( sock , buffer, 1024);
     cout << buffer << endl;
+}
+
+void logout(){
+
+}
+
+void seeOnlineUsers(){
+
+}
+
+void sendRequestToTalk(string username){
+
 }
