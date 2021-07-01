@@ -9,7 +9,6 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include "costants.h"
-
 class Crypto {
     void generateNonce(unsigned char* nonce);
 };
