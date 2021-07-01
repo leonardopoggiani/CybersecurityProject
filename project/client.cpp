@@ -24,16 +24,19 @@ void logout();
 const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
 
 int main(int argc, char* const argv[]) {
-
+    Client clt;
     int command = 0;
 
     while(1){
         string username;
-        cout << menu;
-        cin >> command;
-        cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
+        //cout << menu;
+        //cin >> command;
+        //cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
+        if (!authentication(clt)) throw runtime_error("Authentication Failed");
+        cout << "-----------------------------" << endl << endl;
 
-        switch(command){
+
+        /*switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
                 seeOnlineUsers();
@@ -56,7 +59,7 @@ int main(int argc, char* const argv[]) {
             default:
                 cout << "Command not recognized" << endl;
                 break;
-        }
+        }*/
     }
 }
 
