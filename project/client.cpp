@@ -93,9 +93,6 @@ int sendMessage(string message) {
     send(sock , message.c_str() , message.length() , 0 );
     valread = read( sock , buffer, 1024);
     cout << buffer << endl;
-<<<<<<< HEAD
-    return 0;
-=======
 }
 
 void logout(){
@@ -130,5 +127,4 @@ bool Client::isUserOnline(std::string username){
         }
     }
     return false;
->>>>>>> d40a7aa610ac7e4dd484c26cf7d7a31c3449fe3b
 }
