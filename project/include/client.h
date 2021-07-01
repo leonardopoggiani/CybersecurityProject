@@ -5,13 +5,20 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string>
-#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
+#include <vector>
+#include <array>
+#include <algorithm>
+#include <openssl/bio.h>
+#include "crypto.h"
+#include "constants.h"
+#include "socket.h"
+#include <cstring>
+#include <termios.h>
+#include <sys/select.h>
+#include "utils.h"
 #include <iostream>
-#include <fcntl.h>
-#include <poll.h>
-#include <arpa/inet.h>    //close
-#include <errno.h>
-#include "costants.h"
+
+using namespace std;
 
 using namespace std;
 
@@ -19,16 +26,20 @@ class clientConnection {
     int client_socket, valread;
     struct sockaddr_in client_address;
 
-    public:
-        int master_fd;
+class Client {
 
-        int connection(){
-            if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-                cerr << "\n Socket creation error \n" << endl;
-                return -1;
-            } else {
-                cout << "--- socket created ---" << endl;
-            }
+    public:
+    std::vector<std::string> userList;
+    EVP_PKEY* privateKeyClient;
+    std::string username;
+    Crypto* cryptoOperation;
+    Socket* clientSocket;
+
+    
+    Client() {
+        //clientSocket = new SocketClient(SOCK_STREAM);
+        cryptoOperation = new Crypto();
+    }
 
             client_address.sin_family = AF_INET;
             client_address.sin_port = htons(constants::PORT);
@@ -143,4 +154,32 @@ class clientConnection {
             cout << "--- connection closed ---" << endl;
         }
 
+
 };
+
+bool authentication(Client &clt) {
+        X509 *cert;
+        EVP_PKEY *pubKeyServer = NULL;
+    
+        // load the CA's certificate:
+        cout<< "Fatto!";
+        
+        clt.cryptoOperation->loadCertificate(cert, "ChatAppServer_cert");
+       
+        if(!clt.cryptoOperation->verifyCertificate(cert)) {
+            throw runtime_error("Certificate not valid.");
+        }
+        cout << "Server certificate verified" << endl;
+
+
+        //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
+        
+        // print the successful verification to screen:
+        char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+        char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+        std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
+        free(tmp);
+        free(tmp2);
+
+        return true;
+    }
