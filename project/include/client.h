@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <openssl/bio.h>
 #include "crypto.h"
+#include "costants.h"
 
 std::string readMessage();
 int sendMessage(std::string message);

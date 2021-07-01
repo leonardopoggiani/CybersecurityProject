@@ -11,11 +11,9 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
-#include "include/costants.h"
 #include "include/client.h"
 
 using namespace std;
-
 
 string readMessage();
 int sendMessage(string message);
@@ -23,8 +21,7 @@ void seeOnlineUsers();
 void sendRequestToTalk(string username);
 void logout();
 
-string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
-
+const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
 
 int main(int argc, char* const argv[]) {
 
@@ -34,6 +31,8 @@ int main(int argc, char* const argv[]) {
         string username;
         cout << menu;
         cin >> command;
+        cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
+
         switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
@@ -41,8 +40,13 @@ int main(int argc, char* const argv[]) {
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
-                cout << "Type the username -> " << endl;
-                getline(cin, username);
+                cout << "Type the username -> " ;
+                username = readMessage();
+
+                if(username.length() == 0){
+                    cerr << "No username inserted" << endl;
+                    exit(EXIT_FAILURE);
+                }
                 sendRequestToTalk(username);
                 break;
             case 3:
@@ -56,12 +60,10 @@ int main(int argc, char* const argv[]) {
     }
 }
 
-
 string readMessage() {
     string message;
-    cout << "Write here your message >> ";
     getline(cin, message);
-    if (message.length() > MESSAGE_MAX_SIZE) {
+    if (message.length() > constants::MAX_MESSAGE_SIZE) {
         cerr << "Error: the message must be loger than " << endl;
         exit(EXIT_FAILURE);
     }
@@ -79,10 +81,10 @@ int sendMessage(string message) {
     }
    
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
+    serv_addr.sin_port = htons(constants::PORT);
        
     // Convert IPv4 and IPv6 addresses from text to binary form
-    if(inet_pton(AF_INET, LOCALHOST.c_str(), &serv_addr.sin_addr)<=0) {
+    if(inet_pton(AF_INET, constants::LOCALHOST, &serv_addr.sin_addr)<=0) {
         cerr << "\nInvalid address/ Address not supported \n" << endl;
         return -1;
     }
@@ -96,15 +98,16 @@ int sendMessage(string message) {
 }
 
 void logout(){
+    sendMessage("logout");
 
 }
 
 void seeOnlineUsers(){
-
+    sendMessage("Let me see online users");
 }
 
-void sendRequestToTalk(string username){
-
+void sendRequestToTalk(string username){  
+    sendMessage("Let me talk with " + username);
 }
 
 void Client::addNewUser(std::string username) {
