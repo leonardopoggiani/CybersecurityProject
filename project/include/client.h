@@ -5,6 +5,12 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string>
+#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
+#include <iostream>
+#include <fcntl.h>
+#include <poll.h>
+#include <arpa/inet.h>    //close
+#include <errno.h>
 #include "costants.h"
 
 using namespace std;
@@ -13,13 +19,9 @@ class clientConnection {
     int client_socket, valread;
     struct sockaddr_in client_address;
 
-    ~clientConnection() {
-        // Chiude il socket
-        close(client_socket);
-        cout << "--- connection closed ---" << endl;
-    }
-
     public:
+        int master_fd;
+
         int connection(){
             if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
                 cerr << "\n Socket creation error \n" << endl;
@@ -39,11 +41,29 @@ class clientConnection {
                 cout << "--- address valid ---" << endl;
             }
 
-            if (connect(client_socket, (struct sockaddr *)&client_address, sizeof(client_address)) < 0) {
-                cerr << "\nConnection Failed \n" << endl;
-                return -1;
-            } else {
-                cout << "--- socket connected ---" << endl;
+            bool is_blocking;
+            int flags;
+            int ret;
+            flags = fcntl(master_fd, F_GETFL, 0);
+
+            if(flags < 0) {
+                perror("Connection error");
+                throw runtime_error("Connection Failed");
+            }
+
+            is_blocking = (flags & O_NONBLOCK) == 0;
+            ret = connect(master_fd, (struct sockaddr *)&client_address, sizeof(client_address));
+
+            if (ret == -1) {
+                if(is_blocking || errno != EINPROGRESS) {
+                    perror("Connection error");
+                    throw runtime_error("Connection Failed");
+                }
+
+                if(!wait(master_fd)) {
+                    perror("Connection Error");
+                    throw runtime_error("Connection Failed");
+                }
             }
 
             return 0;
@@ -84,6 +104,27 @@ class clientConnection {
             return bytes_read;
         };
 
+        bool wait(int socket) {
+            struct pollfd fds[1];
+            int poll_response;
+
+            if(socket < 0){
+                throw runtime_error("Socket descriptor not valid.");
+            }
+
+            fds[0].fd = socket;
+            fds[0].events = POLLIN;
+
+            poll_response = poll(fds, sizeof(fds)/sizeof(struct pollfd), 50);
+
+            if (poll_response <= 0) {
+                return false;
+            }
+
+            return true;
+        }
+
+
         void seeOnlineUsers() {
             send_msg("hi");
         }
@@ -94,6 +135,12 @@ class clientConnection {
         
         void logout(){
 
+        }
+
+        ~clientConnection() {
+            // Chiude il socket
+            close(client_socket);
+            cout << "--- connection closed ---" << endl;
         }
 
 };
