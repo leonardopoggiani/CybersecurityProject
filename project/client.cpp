@@ -19,7 +19,7 @@ using namespace std;
 const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
 
 int main(int argc, char* const argv[]) {
-    Client clt;
+
     int command = 0;
     int ret;
 
@@ -35,14 +35,11 @@ int main(int argc, char* const argv[]) {
 
     while(1){
         string username;
-        //cout << menu;
-        //cin >> command;
-        //cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
-        if (!authentication(clt)) throw runtime_error("Authentication Failed");
-        cout << "-----------------------------" << endl << endl;
+        cout << menu;
+        cin >> command;
+        cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
 
-
-        /*switch(command){
+        switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
                 client_connection->seeOnlineUsers();
@@ -64,65 +61,7 @@ int main(int argc, char* const argv[]) {
                 break;
             default:
                 cout << "Command not recognized" << endl;
-                break;
-        }*/
-    }
-}
-
-string readMessage() {
-    string message;
-    getline(cin, message);
-    if (message.length() > constants::MAX_MESSAGE_SIZE) {
-        cerr << "Error: the message must be loger than " << endl;
-        exit(EXIT_FAILURE);
-    }
-    return message;
-}
-
-int sendMessage(string message) {
-    int sock = 0, valread;
-    struct sockaddr_in serv_addr;
-
-    char buffer[1024] = {0};
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        cerr << "\n Socket creation error \n" << endl;
-        return -1;
-    }
-   
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(constants::PORT);
-       
-    // Convert IPv4 and IPv6 addresses from text to binary form
-    if(inet_pton(AF_INET, constants::LOCALHOST, &serv_addr.sin_addr)<=0) {
-        cerr << "\nInvalid address/ Address not supported \n" << endl;
-        return -1;
-    }
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        cerr << "\nConnection Failed \n" << endl;
-        return -1;
-    }
-    send(sock , message.c_str() , message.length() , 0 );
-    valread = read( sock , buffer, 1024);
-    cout << buffer << endl;
-}
-
-void logout(){
-    sendMessage("logout");
-
-}
-
-void seeOnlineUsers(){
-    sendMessage("Let me see online users");
-}
-
-void sendRequestToTalk(string username){  
-    sendMessage("Let me talk with " + username);
-}
-
-void Client::addNewUser(std::string username) {
-    for(std::string onlineUser : userList) {
-        if(username.compare(onlineUser) == 0) {
-            return;
+                exit(EXIT_FAILURE);
         }
     }
 }
