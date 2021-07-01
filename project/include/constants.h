@@ -9,5 +9,6 @@ namespace constants
     constexpr unsigned int IV_LEN = 12;
     constexpr unsigned int MAX_MESSAGE_SIZE = 10000;
     constexpr unsigned int MAX_REQUEST_QUEUED = 10;
+    constexpr const char* CA_CERT_PATH = "ca_cert";
 }
 #endif
