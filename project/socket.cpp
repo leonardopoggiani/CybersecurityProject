@@ -18,65 +18,6 @@
 
 using namespace std;
 
-void send_message(int socket, unsigned int msg_size, unsigned char* message) {
-	int ret;
-
-	if ( msg_size > MAX_MESSAGE_SIZE ) {
-        cerr << "send:message too big" << endl; 
-        return;
-    }
-
-	uint32_t size = htonl(msg_size);
-	ret = send(socket, &size, sizeof(uint32_t), 0);
-
-	if( ret < 0 ) {
-        cerr << "message size send error" << endl;
-        exit(1);
-    }
-
-	ret = send(socket, message, msg_size, 0);
-	if( ret <= 0 ) {
-        cerr << "message send error" << endl;
-        exit(1);
-    }
-}
-
-unsigned int receive_message(int socket, unsigned char* message){
-	int ret;
-	uint32_t networknumber;
-
-	unsigned int received = 0;
-
-	ret = recv(socket, &networknumber, sizeof(uint32_t), 0);
-	if( ret < 0 ) {
-        cerr << "socket receive error " << strerror(errno) << endl;
-        exit(1);
-    }
-
-	if( ret > 0 ) {
-		unsigned int msg_size = ntohl(networknumber);
-
-		if( msg_size > MAX_MESSAGE_SIZE ) {
-            cerr << "receive: message too big" << endl;
-            return 0;
-        }	
-
-		while( received < msg_size ) {
-			ret = recv(socket,  message + received, msg_size - received, 0);	
-			if(ret < 0)
-            {
-                cerr << "message receive error" << endl;
-                exit(1);
-            }
-
-			received += ret;
-		}
-
-	    return msg_size;
-	}
-
-	return 0;
-}
 
 Socket::Socket(int socketType) {
     this->socketType = socketType;
@@ -183,7 +124,7 @@ void Socket::send_message(int sd, unsigned char* message, unsigned int message_l
     } while (ret != message_len);   
 }
 
-int SocketClient::receive_message(int sd, unsigned char *buffer) {
+unsigned int Socket::receive_message(int sd, unsigned char *buffer) {
     int message_len;
 
     do {
