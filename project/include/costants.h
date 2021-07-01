@@ -1,6 +1,6 @@
 #define PORT 8080
 
-const std::string LOCALHOST = "127.0.0.1";
+const char* LOCALHOST = "127.0.0.1";
 const unsigned int MESSAGE_MAX_SIZE = 100000;
 
 // Operation Codes
@@ -34,5 +34,3 @@ const unsigned int MESSAGE_MAX_SIZE = 100000;
 
 //Public key criptography
 #define CIPHER EVP_aes_128_cbc()
-
-#define NO_USER_ONLINE "_no_user_online"

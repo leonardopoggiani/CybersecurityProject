@@ -11,8 +11,8 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
-#include "costants.h"
-#include "client.h"
+#include "include/costants.h"
+#include "include/client.h"
 
 using namespace std;
 
@@ -105,4 +105,26 @@ void seeOnlineUsers(){
 
 void sendRequestToTalk(string username){
 
+}
+
+void Client::addNewUser(std::string username) {
+    for(std::string onlineUser : userList) {
+        if(username.compare(onlineUser) == 0) {
+            return;
+        }
+    }
+    userList.push_back(username);
+}
+
+void Client::clearUserList() {
+    userList.clear();
+}
+
+bool Client::isUserOnline(std::string username){
+    for(std::string user : userList){
+        if(user.compare(username) == 0){
+            return true;
+        }
+    }
+    return false;
 }
