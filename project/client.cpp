@@ -26,6 +26,17 @@ const string menu = "Hi! This is a secure messaging system. \n What do you want 
 int main(int argc, char* const argv[]) {
 
     int command = 0;
+    int ret;
+
+    clientConnection *client_connection = new clientConnection();
+    ret = client_connection->connection();
+    
+    if( ret != 0 ){
+        cerr << "--- connection failed ---" << endl;
+        exit(EXIT_FAILURE);
+    } else {
+        cout << "--- connection done ---" << endl;
+    }
 
     while(1){
         string username;
@@ -36,7 +47,7 @@ int main(int argc, char* const argv[]) {
         switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
-                seeOnlineUsers();
+                //seeOnlineUsers();
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
@@ -47,87 +58,15 @@ int main(int argc, char* const argv[]) {
                     cerr << "No username inserted" << endl;
                     exit(EXIT_FAILURE);
                 }
-                sendRequestToTalk(username);
+                //sendRequestToTalk(username);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
-                logout();
+                //logout();
                 break;
             default:
                 cout << "Command not recognized" << endl;
                 break;
         }
     }
-}
-
-string readMessage() {
-    string message;
-    getline(cin, message);
-    if (message.length() > constants::MAX_MESSAGE_SIZE) {
-        cerr << "Error: the message must be loger than " << endl;
-        exit(EXIT_FAILURE);
-    }
-    return message;
-}
-
-int sendMessage(string message) {
-    int sock = 0, valread;
-    struct sockaddr_in serv_addr;
-
-    char buffer[1024] = {0};
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        cerr << "\n Socket creation error \n" << endl;
-        return -1;
-    }
-   
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(constants::PORT);
-       
-    // Convert IPv4 and IPv6 addresses from text to binary form
-    if(inet_pton(AF_INET, constants::LOCALHOST, &serv_addr.sin_addr)<=0) {
-        cerr << "\nInvalid address/ Address not supported \n" << endl;
-        return -1;
-    }
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        cerr << "\nConnection Failed \n" << endl;
-        return -1;
-    }
-    send(sock , message.c_str() , message.length() , 0 );
-    valread = read( sock , buffer, 1024);
-    cout << buffer << endl;
-}
-
-void logout(){
-    sendMessage("logout");
-
-}
-
-void seeOnlineUsers(){
-    sendMessage("Let me see online users");
-}
-
-void sendRequestToTalk(string username){  
-    sendMessage("Let me talk with " + username);
-}
-
-void Client::addNewUser(std::string username) {
-    for(std::string onlineUser : userList) {
-        if(username.compare(onlineUser) == 0) {
-            return;
-        }
-    }
-    userList.push_back(username);
-}
-
-void Client::clearUserList() {
-    userList.clear();
-}
-
-bool Client::isUserOnline(std::string username){
-    for(std::string user : userList){
-        if(user.compare(username) == 0){
-            return true;
-        }
-    }
-    return false;
 }
