@@ -14,7 +14,7 @@
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
 #include <errno.h>
 
-#include "costants.h"
+#include "constants.h"
 #include "client.h"
 
 using namespace std;

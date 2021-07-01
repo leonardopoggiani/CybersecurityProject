@@ -10,7 +10,7 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include "include/server.h"
-#include "include/costants.h"
+#include "include/constants.h"
 
 using namespace std;
 

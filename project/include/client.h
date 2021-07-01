@@ -1,17 +1,15 @@
-#include <limits>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <string>
-#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
 #include <iostream>
+#include <string>
+#include <string.h>
+#include <sys/socket.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <netinet/in.h>
+#include <unistd.h>   //close 
 #include <arpa/inet.h>    //close
+#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
 #include <errno.h>
-#include "costants.h"
+#include "constants.h"
 
 using namespace std;
 
@@ -143,4 +141,31 @@ class clientConnection {
             cout << "--- connection closed ---" << endl;
         }
 
+        /*
+        bool authentication(Client &clt) {
+            X509 *cert;
+            EVP_PKEY *pubKeyServer = NULL;
+        
+            // load the CA's certificate:
+            cout<< "Fatto!";
+            
+            clt.cryptoOperation->loadCertificate(cert, "ChatAppServer_cert");
+        
+            if(!clt.cryptoOperation->verifyCertificate(cert)) {
+                throw runtime_error("Certificate not valid.");
+            }
+            cout << "Server certificate verified" << endl;
+
+
+            //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
+            
+            // print the successful verification to screen:
+            char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+            char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+            std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
+            free(tmp);
+            free(tmp2);
+
+            return true;
+        }*/
 };
