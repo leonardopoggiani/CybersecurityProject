@@ -10,12 +10,14 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include "include/server.h"
+#include "include/costants.h"
 
 using namespace std;
 
 int main(int argc, char* const argv[]) {
 
     int ret;
+    unsigned char* buffer = new unsigned char();
     serverConnection *server_connection = new serverConnection();
     ret = server_connection->connection();
 
@@ -28,10 +30,20 @@ int main(int argc, char* const argv[]) {
 
     while(1) {
 
-        cout << "Sto aspettando nuove connessioni.." << endl;
+        cout << "--- waiting for connections ---" << endl;
 
         server_connection->accept_connection();
 
+        ret = server_connection->read_msg(buffer);
+
+        if( ret < 0 ) {
+            cerr << "Error during read" << endl;
+            exit(EXIT_FAILURE);
+        } else if( ret == 0 ) {
+            cout << "--- connection closed ---" << endl;
+        }
+
+        cout << "Message: " << buffer << endl;
     }
 
     return 0;

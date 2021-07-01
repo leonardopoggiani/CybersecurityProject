@@ -32,13 +32,17 @@ class serverConnection {
                 cout << "--- socket created ---" << endl;
             }
 
-            if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
-                        &opt, sizeof(opt))) {
+            if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
                 cerr << "Error in setting socket options" << endl;
                 return -1;
             } else {
                 cout << "--- socket configured ---" << endl;
             }
+
+            struct timeval tv;
+            tv.tv_sec = 20;
+            tv.tv_usec = 0;
+            setsockopt(server_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
             server_address.sin_family = AF_INET;
             server_address.sin_addr.s_addr = INADDR_ANY;

@@ -12,14 +12,9 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include "include/client.h"
+#include "include/utils.h"
 
 using namespace std;
-
-string readMessage();
-int sendMessage(string message);
-void seeOnlineUsers();
-void sendRequestToTalk(string username);
-void logout();
 
 const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
 
@@ -30,7 +25,7 @@ int main(int argc, char* const argv[]) {
 
     clientConnection *client_connection = new clientConnection();
     ret = client_connection->connection();
-    
+
     if( ret != 0 ){
         cerr << "--- connection failed ---" << endl;
         exit(EXIT_FAILURE);
@@ -47,7 +42,7 @@ int main(int argc, char* const argv[]) {
         switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
-                //seeOnlineUsers();
+                client_connection->seeOnlineUsers();
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
@@ -58,15 +53,15 @@ int main(int argc, char* const argv[]) {
                     cerr << "No username inserted" << endl;
                     exit(EXIT_FAILURE);
                 }
-                //sendRequestToTalk(username);
+                client_connection->sendRequestToTalk(username);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
-                //logout();
+                client_connection->logout();
                 break;
             default:
                 cout << "Command not recognized" << endl;
-                break;
+                exit(EXIT_FAILURE);
         }
     }
 }

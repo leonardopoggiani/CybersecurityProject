@@ -84,4 +84,16 @@ class clientConnection {
             return bytes_read;
         };
 
+        void seeOnlineUsers() {
+            send_msg("hi");
+        }
+
+        void sendRequestToTalk(string username) {
+
+        }
+        
+        void logout(){
+
+        }
+
 };
