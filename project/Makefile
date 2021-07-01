@@ -1,14 +1,24 @@
-TARGET= client server 
-CC= g++
-CFLAGS= -Wall -lcrypto -g
+CC = g++
 
-normal: $(TARGET)
-client: client.cpp
-	$(CC) $(CFLAGS) client.cpp -o client
-server: server.cpp
-	$(CC) $(CFLAGS) server.cpp -o server
-clean:
-	$(RM) $(TARGET)
+CFLAGS  = -g -Wall -Wformat-zero-length
+PROTOCOL  = -D PROTOCOL_DEBUG
+VERBOSE  = -D VERBOSE_LEVEL
 
-CPPFLAGS="-I/usr/local/opt/openssl@1.1/include"
-LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"
+all : client server
+
+client : client.cpp utils.cpp crypto.cpp
+	$(CC) $(CFLAGS) -o client client.cpp utils.cpp crypto.cpp -lpthread -lcrypto
+
+server : server.cpp utils.cpp crypto.cpp
+	$(CC) $(CFLAGS) -o server server.cpp utils.cpp crypto.cpp -lpthread -lcrypto
+
+verbose : client_verbose server_verbose
+
+client_verbose : client.cpp utils.cpp crypto.cpp
+	$(CC) $(CFLAGS) $(PROTOCOL) $(VERBOSE) -o client client.cpp utils.cpp crypto.cpp -lpthread -lcrypto
+
+server_verbose : server.cpp utils.cpp crypto.cpp
+	$(CC) $(CFLAGS) $(PROTOCOL) $(VERBOSE) -o server server.cpp utils.cpp crypto.cpp -lpthread -lcrypto
+
+clean : 
+	$(RM) *.o client server
