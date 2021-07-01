@@ -48,7 +48,7 @@ class serverConnection : public clientConnection{
     vector<OnlineUser> onlineUsers;
     vector<ActiveChat> activeChats;
 
-    int client_socket[constants::MAX_REQUEST_QUEUED];
+    int client_socket[constants::MAX_CLIENTS];
     fd_set readfds;
     int max_sd;
     int sd;
@@ -64,10 +64,26 @@ class serverConnection : public clientConnection{
 
     public:
 
-        serverConnection() {
-            for (size_t i = 0; i < constants::MAX_REQUEST_QUEUED; i++) {
-            client_socket[i] = 0;
+        serverConnection():clientConnection() {
+            for (size_t i = 0; i < constants::MAX_CLIENTS; i++) {
+                client_socket[i] = 0;
             }
+
+            server_address.sin_addr.s_addr = INADDR_ANY;
+            serverBind();
+            listenForConnections();
+
+        }
+
+        void serverBind() {
+            if (bind(master_fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) 
+                throw runtime_error("Error in binding");  
+            cout << "Listening on port: " <<  port << endl;  
+        }
+
+        void listenForConnections() {
+            if (listen(master_fd, 3) < 0)
+                throw runtime_error("Error in listening");
         }
 
         ~serverConnection() {
@@ -93,7 +109,7 @@ class serverConnection : public clientConnection{
 
             server_address.sin_family = AF_INET;
             server_address.sin_addr.s_addr = INADDR_ANY;
-            server_address.sin_port = htons(constants::PORT);
+            server_address.sin_port = htons(constants::SERVER_PORT);
 
             if(bind(server_socket, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
                 cerr << "Bind failed" << endl;
@@ -102,7 +118,7 @@ class serverConnection : public clientConnection{
                 cout << "--- bind succeded ---" << endl;
             }
 
-            if (listen(server_socket, constants::MAX_REQUEST_QUEUED) < 0) {
+            if (listen(server_socket, 3) < 0) {
                 cerr << "Listen..." << endl;
                 exit(EXIT_FAILURE);
             } else {
@@ -156,7 +172,7 @@ class serverConnection : public clientConnection{
 
         void deleteUser(OnlineUser user) {
             bool found = false;
-            int i = 0;
+            unsigned int i = 0;
 
             for (OnlineUser usr : onlineUsers) {
                 if (usr.username.compare(user.username) == 0){
@@ -250,7 +266,7 @@ class serverConnection : public clientConnection{
             FD_SET(master_fd, &readfds);  
             max_sd = master_fd;  
             
-            for (int i = 0 ; i < constants::MAX_REQUEST_QUEUED; i++)  {  
+            for ( int i = 0 ; i < constants::MAX_CLIENTS; i++)  {  
                 sd = client_socket[i];  
                 if(sd > 0) FD_SET( sd , &readfds);  
                 if(sd > max_sd) max_sd = sd;  
@@ -264,14 +280,15 @@ class serverConnection : public clientConnection{
         }
 
         int getClient(unsigned int i) {
-            if (i > constants::MAX_REQUEST_QUEUED - 1)
+            if (i > constants::MAX_CLIENTS - 1)
                 throw runtime_error("Max clients exceeds");
             return client_socket[i];
         }
 
         void selectActivity() {
+            cout << "entrato" << endl;
             activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);  
-            
+            cout << "attivitá selezionata" << endl;
             if ((activity < 0) && (errno!=EINTR))
                 throw runtime_error("Error in the select function"); 
         }
@@ -298,7 +315,7 @@ class serverConnection : public clientConnection{
                 if(send(new_socket, message.c_str(), message.length(), 0) != (ssize_t)message.length())  
                     throw runtime_error("Error sending the greeting message"); 
 
-                for (int i = 0; i < constants::MAX_REQUEST_QUEUED; i++)  {  
+                for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++)  {  
                     if(client_socket[i] == 0)  {  
                         client_socket[i] = new_socket;  
                         break;  
@@ -313,7 +330,7 @@ class serverConnection : public clientConnection{
             int sd;
             int valread;
             
-            for (int i = 0; i < constants::MAX_REQUEST_QUEUED; i++)  {  
+            for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++)  {  
                 sd = client_socket[i]; 
                 if (FD_ISSET( sd , &readfds)) {  
                     valread = read(sd, buffer, 1024);    

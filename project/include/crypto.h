@@ -9,6 +9,8 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include "constants.h"
+
+using namespace std;
 class Crypto {
 
     void generateNonce(unsigned char* nonce);

@@ -20,21 +20,21 @@ class clientConnection {
     public:
         int master_fd;
 
-        int connection(){
+        clientConnection(){
             if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
                 cerr << "\n Socket creation error \n" << endl;
-                return -1;
+                exit(EXIT_FAILURE);
             } else {
                 cout << "--- socket created ---" << endl;
             }
 
             client_address.sin_family = AF_INET;
-            client_address.sin_port = htons(constants::PORT);
+            client_address.sin_port = htons(constants::CLIENT_PORT);
             
             // Convert IPv4 and IPv6 addresses from text to binary form
             if(inet_pton(AF_INET, constants::LOCALHOST, &client_address.sin_addr)<=0) {
                 cerr << "\nInvalid address/ Address not supported \n" << endl;
-                return -1;
+                exit(EXIT_FAILURE);
             } else {
                 cout << "--- address valid ---" << endl;
             }
@@ -49,11 +49,17 @@ class clientConnection {
                 throw runtime_error("Connection Failed");
             }
 
-            is_blocking = (flags & O_NONBLOCK) == 0;
+            if( (flags & O_NONBLOCK) == 0){
+                is_blocking = true;
+            } else {
+                is_blocking = false;
+            }
+
             ret = connect(master_fd, (struct sockaddr *)&client_address, sizeof(client_address));
 
             if (ret == -1) {
-                if(is_blocking || errno != EINPROGRESS) {
+
+                if(is_blocking || errno != EINPROGRESS) { 
                     perror("Connection error");
                     throw runtime_error("Connection Failed");
                 }
@@ -63,8 +69,6 @@ class clientConnection {
                     throw runtime_error("Connection Failed");
                 }
             }
-
-            return 0;
         }
 
         int send_msg(string msg) {
