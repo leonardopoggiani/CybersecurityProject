@@ -70,4 +70,5 @@ int sendMessage(string message) {
     send(sock , message.c_str() , message.length() , 0 );
     valread = read( sock , buffer, 1024);
     cout << buffer << endl;
+    return 0;
 }
