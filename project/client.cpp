@@ -24,7 +24,6 @@ int main(int argc, char* const argv[]) {
     int ret;
 
     clientConnection *client_connection = new clientConnection();
-    ret = client_connection->connection();
 
     if( ret != 0 ){
         cerr << "--- connection failed ---" << endl;

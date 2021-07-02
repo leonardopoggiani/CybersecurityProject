@@ -37,10 +37,13 @@ int main(int argc, char* const argv[]) {
         server_connection->selectActivity();
 
         if(server_connection->isFDSet(server_connection->master_fd)) {
+            cout << "accepting" << endl;
+
             server_connection->acceptNewConnection();
+            cout << "accepted" << endl;
             } else {
                 cout << "else" << endl;
-                for(unsigned int i = 0; i < constants::MAX_REQUEST_QUEUED; i++)  {  
+                for(unsigned int i = 0; i < constants::MAX_CLIENTS; i++)  {  
                     int sd = server_connection->getClient(i);
                     if (server_connection->isFDSet(sd)) {
 
