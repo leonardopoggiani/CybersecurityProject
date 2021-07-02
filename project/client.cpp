@@ -24,13 +24,7 @@ int main(int argc, char* const argv[]) {
     int ret;
 
     clientConnection *client_connection = new clientConnection();
-
-    if( ret != 0 ){
-        cerr << "--- connection failed ---" << endl;
-        exit(EXIT_FAILURE);
-    } else {
-        cout << "--- connection done ---" << endl;
-    }
+    client_connection->make_connection();
 
     while(1){
         string username;

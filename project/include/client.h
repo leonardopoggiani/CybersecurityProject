@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <array>
+#include <vector>
 #include <netinet/in.h>
 #include <unistd.h>   //close 
 #include <arpa/inet.h>    //close
@@ -14,31 +16,36 @@
 using namespace std;
 
 class clientConnection {
-    int client_socket, valread;
-    struct sockaddr_in client_address;
+
+    protected:
+        struct sockaddr_in address;
+        int master_fd;
+        int port;
 
     public:
-        int master_fd;
 
         clientConnection(){
-            if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+            port = 8080;
+            if ((master_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
                 cerr << "\n Socket creation error \n" << endl;
                 exit(EXIT_FAILURE);
             } else {
                 cout << "--- socket created ---" << endl;
             }
 
-            client_address.sin_family = AF_INET;
-            client_address.sin_port = htons(constants::CLIENT_PORT);
+            address.sin_family = AF_INET;
+            address.sin_port = htons(constants::CLIENT_PORT);
             
             // Convert IPv4 and IPv6 addresses from text to binary form
-            if(inet_pton(AF_INET, constants::LOCALHOST, &client_address.sin_addr)<=0) {
+            if(inet_pton(AF_INET, constants::LOCALHOST, &address.sin_addr)<=0) {
                 cerr << "\nInvalid address/ Address not supported \n" << endl;
                 exit(EXIT_FAILURE);
             } else {
                 cout << "--- address valid ---" << endl;
             }
+        }
 
+        void make_connection(){
             bool is_blocking;
             int flags;
             int ret;
@@ -55,7 +62,7 @@ class clientConnection {
                 is_blocking = false;
             }
 
-            ret = connect(master_fd, (struct sockaddr *)&client_address, sizeof(client_address));
+            ret = connect(master_fd, (struct sockaddr *)&address, sizeof(address));
 
             if (ret == -1) {
 
@@ -70,41 +77,6 @@ class clientConnection {
                 }
             }
         }
-
-        int send_msg(string msg) {
-            // Invia il messaggio
-            if (send(client_socket, msg.c_str(), msg.length(), 0) < (int) msg.length()) {
-                cerr << "\nSent fewer bytes than expected \n"
-                    << endl;
-                return -1;
-            }
-            return 0;
-        };
-
-        int send_msg(unsigned char const *msg, unsigned int size) {
-            // Invia il messaggio
-            if (send(client_socket, msg, size, 0) < size) {
-                cerr << "\nSent fewer bytes than expected \n"
-                    << endl;
-                return -1;
-            }
-            return 0;
-        };
-
-        int read_msg(unsigned char *buffer) {
-            // Copia il messaggio nel buffer, aggiunge il carattere
-            // di fine stringa e ritorna il numero di
-            // byte letti (carattere di fine stringa escluso)
-            int bytes_read = read(client_socket, buffer, constants::MAX_MESSAGE_SIZE);
-            if (bytes_read < 0) {
-                cerr << "\nError in message reading \n"
-                    << endl;
-                return -1;
-            }
-            // Manca il carattere di fine stringa
-            buffer[bytes_read] = '\0';
-            return bytes_read;
-        };
 
         bool wait(int socket) {
             struct pollfd fds[1];
@@ -126,9 +98,28 @@ class clientConnection {
             return true;
         }
 
+        void seeOnlineUsers(){
+            cout << "let me see online users" << endl;
+            string message = "let me see online users";
 
-        void seeOnlineUsers() {
-            send_msg("hi");
+            send_message(message);
+             
+        }
+
+        void send_message(string message) {
+                        int ret;
+
+            if (message.length() > constants::MAX_MESSAGE_SIZE) {
+                throw runtime_error("Max message size exceeded in Send");
+            }
+
+            do {
+                ret = send(getMasterFD(), message.c_str(), message.length(), 0);
+                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Send Error");
+                    throw runtime_error("Send failed");
+                }   
+            } while (ret != message.length());
         }
 
         void sendRequestToTalk(string username) {
@@ -139,9 +130,13 @@ class clientConnection {
 
         }
 
+        int getMasterFD(){
+            return master_fd;
+        }
+
         ~clientConnection() {
             // Chiude il socket
-            close(client_socket);
+            close(master_fd);
             cout << "--- connection closed ---" << endl;
         }
 
