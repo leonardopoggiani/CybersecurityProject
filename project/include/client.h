@@ -106,6 +106,23 @@ class clientConnection {
              
         }
 
+        unsigned char* receive_message(int sd, int** ret) {
+            unsigned char buffer[1024];
+            int message_len;
+
+            do {
+                message_len = recv(sd, &buffer, constants::MAX_MESSAGE_SIZE-1, 0);
+                if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Receive Error");
+                    throw runtime_error("Receive failed");
+                }  
+            } while (message_len < 0);
+            
+            cout << "buffer: " << buffer << ", lenght: " << message_len << endl;
+            *ret = &message_len;
+            return buffer;
+        }
+
         void send_message(string message) {
                         int ret;
 

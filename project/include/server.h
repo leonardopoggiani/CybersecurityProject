@@ -116,13 +116,12 @@ class serverConnection : public clientConnection{
                 throw runtime_error("Error in the select function"); 
         }
 
-        void acceptNewConnection() {
+        void accept_connection() {
             int new_socket;
             string message;
 
             try {
-                if ((new_socket = accept(master_fd, 
-                    (struct sockaddr *)&address, (socklen_t*)&addrlen))<0) {
+                if ((new_socket = accept(master_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0) {
                     perror("accept");  
                     throw runtime_error("Failure on accept");
                 }  
@@ -138,7 +137,7 @@ class serverConnection : public clientConnection{
                 if(send(new_socket, message.c_str(), message.length(), 0) != (ssize_t)message.length())  
                     throw runtime_error("Error sending the greeting message"); 
 
-                for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++)  {  
+                for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++) {  
                     if(client_socket[i] == 0)  {  
                         client_socket[i] = new_socket;  
                         break;  
@@ -162,20 +161,6 @@ class serverConnection : public clientConnection{
             client_socket[i] = 0;
         }
 
-        unsigned char* receive_message(int sd) {
-            unsigned char buffer[1024];
-            int message_len;
-
-            do {
-                message_len = recv(sd, &buffer, constants::MAX_MESSAGE_SIZE-1, 0);
-                if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Receive Error");
-                    throw runtime_error("Receive failed");
-                }  
-            } while (message_len < 0);
-            
-            cout << "buffer: " << buffer << ", lenght: " << message_len << endl;
-            return buffer;
-        }
+        
 
 };
