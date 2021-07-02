@@ -33,6 +33,9 @@ int main(int argc, char* const argv[]) {
         cout << "--- connection done ---" << endl;
     }
 
+    //if (!authentication(clt)) throw runtime_error("Authentication Failed");
+        //cout << "-----------------------------" << endl << endl;
+
     while(1){
         string username;
         cout << menu;
