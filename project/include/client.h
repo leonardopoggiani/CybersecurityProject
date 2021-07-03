@@ -98,33 +98,32 @@ class clientConnection {
             return true;
         }
 
-        void seeOnlineUsers(){
+        void seeOnlineUsers(vector<char> command_received){
             cout << "let me see online users" << endl;
-            string message = "let me see online users";
+            command_received.push_back(constants::ONLINE);
 
-            send_message(message);
-             
+            send_message(command_received);
         }
 
-        unsigned char* receive_message(int sd, int** ret) {
-            unsigned char buffer[1024];
+        int receive_message(int sd, char* buffer) {
             int message_len;
 
             do {
-                message_len = recv(sd, &buffer, constants::MAX_MESSAGE_SIZE-1, 0);
+                message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
+                cout << "returned: " << message_len << endl;
+                
                 if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Receive Error");
                     throw runtime_error("Receive failed");
                 }  
             } while (message_len < 0);
-            
-            cout << "buffer: " << buffer << ", lenght: " << message_len << endl;
-            *ret = &message_len;
-            return buffer;
+
+            buffer[message_len] = '\0';
+            return message_len;
         }
 
         void send_message(string message) {
-                        int ret;
+            int ret;
 
             if (message.length() > constants::MAX_MESSAGE_SIZE) {
                 throw runtime_error("Max message size exceeded in Send");
@@ -136,15 +135,39 @@ class clientConnection {
                     perror("Send Error");
                     throw runtime_error("Send failed");
                 }   
-            } while (ret != message.length());
+            } while (ret != (int) message.length());
         }
 
-        void sendRequestToTalk(string username) {
+        void send_message(vector<char> message) {
+            int ret;
 
+            if (message.size() > constants::MAX_MESSAGE_SIZE) {
+                throw runtime_error("Max message size exceeded in Send");
+            }
+
+            do {
+                ret = send(getMasterFD(), &message[0], message.size(), 0);
+                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Send Error");
+                    throw runtime_error("Send failed");
+                }   
+            } while (ret != (int) message.size());
+        }
+
+        void sendRequestToTalk(vector<char> command_received, string username) {
+            cout << "let me talk to someone" << endl;
+
+            
+            command_received.push_back(constants::REQUEST);
+
+            send_message(command_received);
         }
         
-        void logout(){
+        void logout(vector<char> command_received) {
+            cout << "let me see online users" << endl;
+            command_received.push_back(constants::LOGOUT);
 
+            send_message(command_received);
         }
 
         int getMasterFD(){

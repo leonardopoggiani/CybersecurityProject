@@ -126,12 +126,12 @@ class serverConnection : public clientConnection{
                     throw runtime_error("Failure on accept");
                 }  
 
-                cout << "--------------------------------" << endl;
-                cout << "New connection incoming" << endl;
+                cout << "********************************" << endl;
+                cout << "New client online" << endl;
                 cout << "Socket fd is \t" << new_socket << endl;
                 cout << "IP: \t\t" <<  inet_ntoa(address.sin_addr) << endl;
                 cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
-                cout << "--------------------------------" << endl << endl;
+                cout << "********************************" << endl << endl;
                 
                 message = "Hi, i'm the server";
                 if(send(new_socket, message.c_str(), message.length(), 0) != (ssize_t)message.length())  
@@ -148,14 +148,13 @@ class serverConnection : public clientConnection{
             }
         } 
 
-
-        void disconnectHost(int sd, unsigned int i) {
+        void disconnect_host(int sd, unsigned int i) {
             getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen);
 
-            cout << "\n----Host disconnected----" << endl;
+            cout << "\n **** Client is leaving ****" << endl;
             cout << "IP: \t\t" << inet_ntoa(address.sin_addr) << endl;
             cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
-            cout << "-------------------------" << endl << endl;
+            cout << "**************************" << endl << endl;
 
             close(sd);  
             client_socket[i] = 0;

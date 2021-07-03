@@ -16,8 +16,8 @@ using namespace std;
 
 int main(int argc, char* const argv[]) {
 
-    int* ret;
-    unsigned char* buffer;
+    int ret;
+    char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     serverConnection *server_connection = new serverConnection();
 
     while(1) {
@@ -32,18 +32,37 @@ int main(int argc, char* const argv[]) {
         } else {    
             for(unsigned int i = 0; i < constants::MAX_CLIENTS; i++)  {  
                 int sd = server_connection->getClient(i);
-                if (server_connection->isFDSet(sd)) {
 
-                    buffer = server_connection->receive_message(sd, &ret);
-                    if( *ret == -1 ){
-                        server_connection->disconnectHost(sd, i);
+                if (recv(sd, buffer, sizeof(buffer), MSG_PEEK | MSG_DONTWAIT) == 0) {
+                    server_connection->disconnect_host(sd, i);
+                    continue;
+                 }
+
+                if (server_connection->isFDSet(sd)) {              
+                    ret = server_connection->receive_message(sd, buffer);
+                    string command(buffer);
+                    cout << "Command: " << command << endl;
+                    if(command.compare("1") == 0) {
+                        cout << "\n**** AUTHENTICATION ****" << endl;
+                    } else if(command.compare("2") == 0) {
+                        cout << "\n**** ONLINE USERS REQUEST ****" << endl;
+                    }else if(command.compare("3") == 0) {
+                        cout << "\n**** REQUEST TO TALK****" << endl;
+                    }else if(command.compare("4") == 0) {
+                        cout << "\n**** CHAT ****" << endl;
+                    }else if(command.compare("5") == 0) {
+                        cout << "\n**** LOGOUT ****" << endl;
                     } else {
-                        cout << "Message correct" << endl;
+                        cout << "Invalid command, please retry" << endl;
+                        continue;
                     }
                 }  
             }
         }
     }
+
+    if(buffer != NULL)
+        delete [] buffer;
 
     return 0;
 

@@ -11,5 +11,14 @@ namespace constants
     constexpr unsigned int MAX_MESSAGE_SIZE = 10000;
     constexpr int MAX_CLIENTS = 10;
     constexpr const char* CA_CERT_PATH = "ca_cert";
+
+    constexpr char AUTH = '1';
+    constexpr char ONLINE = '2';
+    constexpr char REQUEST = '3';
+    constexpr char CHAT = '4';
+    constexpr char LOGOUT = '5';
+
+
+
 }
 #endif

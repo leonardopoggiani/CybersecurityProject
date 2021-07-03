@@ -21,8 +21,7 @@ const string menu = "Hi! This is a secure messaging system. \n What do you want 
 int main(int argc, char* const argv[]) {
 
     int command = 0;
-    int ret;
-
+    vector<char> command_received;    
     clientConnection *client_connection = new clientConnection();
     client_connection->make_connection();
 
@@ -38,7 +37,7 @@ int main(int argc, char* const argv[]) {
         switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
-                client_connection->seeOnlineUsers();
+                client_connection->seeOnlineUsers(command_received);
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
@@ -49,11 +48,11 @@ int main(int argc, char* const argv[]) {
                     cerr << "No username inserted" << endl;
                     exit(EXIT_FAILURE);
                 }
-                client_connection->sendRequestToTalk(username);
+                client_connection->sendRequestToTalk(command_received, username);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
-                client_connection->logout();
+                client_connection->logout(command_received);
                 break;
             default:
                 cout << "Command not recognized" << endl;
