@@ -185,7 +185,7 @@ bool authentication(Server &srv, int sd) {
     EVP_PKEY *prvKeyServer = NULL;
     X509 *cert;
 
-    srv.crypto->generateNonce(nonceServer.data());
+    //srv.crypto->generateNonce(nonceServer.data());
 
 
     // Extract username
@@ -197,22 +197,10 @@ bool authentication(Server &srv, int sd) {
     //srv.crypto->readPrivateKey(prvKeyServer);
 
             
-    srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
-    tempBufferLen = srv.crypto->serializeCertificate(cert, tempBuffer.data());
-    append(tempBuffer, tempBufferLen, buffer); 
-    send_message(buffer);
+    /*srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
+    tempBufferLen = srv.crypto->serializeCertificate(cert, buffer.data());
+    srv.serverConn->send_message(buffer);*/
     
-	/*uint32_t size;
-	BIO* bio = BIO_new(BIO_s_mem());
-	if(!bio) { cerr<<"establishSession: Failed to allocate BIO_s_mem";exit(1); }
-	if(!PEM_write_bio_X509(bio, serverCert)) { cerr<<"establishSession: PEM_write_bio_X509 error";exit(1); }
-	unsigned char* certbuffer=NULL;
-	long certsize= BIO_get_mem_data(bio, &certbuffer);
-	size=htonl(certsize);
-	ret=send(socket, &size, sizeof(uint32_t), 0);
-	if(ret<=0){cerr<<"establishSession: Error writing to socket";exit(1);}
-	ret=send(socket, certbuffer, certsize, 0);
-	if(ret<=0){cerr<<"establishSession: Error writing to socket";exit(1);}*/
     
 
     //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);

@@ -45,22 +45,11 @@ string readPassword() {
 int main(int argc, char* const argv[]) {
 
     int command = 0;
-<<<<<<< HEAD
-    int ret;
-    Client clt;
-
-    clt.clientConn->make_connection();
-
-    cout << "\n-------Authentication-------" << endl;
-        
-    if (!authentication(clt)) throw runtime_error("Authentication Failed");
-    cout << "-----------------------------" << endl << endl;
-=======
     string username;
     string password;
-    vector<char> command_received;    
-    clientConnection *client_connection = new clientConnection();
-    client_connection->make_connection();
+    vector<char> command_received;
+    Client clt;    
+    clt.clientConn->make_connection();
 
     cout << "Welcome! Please type your username" << endl;
     cin >> username;
@@ -70,7 +59,6 @@ int main(int argc, char* const argv[]) {
 
     //if (!authentication(clt)) throw runtime_error("Authentication Failed");
         //cout << "-----------------------------" << endl << endl;
->>>>>>> main
 
     while(1) {
         string username_to_contact;
@@ -81,11 +69,7 @@ int main(int argc, char* const argv[]) {
         switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
-<<<<<<< HEAD
-                clt.clientConn->seeOnlineUsers();
-=======
-                client_connection->seeOnlineUsers(command_received);
->>>>>>> main
+                clt.clientConn->seeOnlineUsers(command_received);
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
@@ -96,19 +80,11 @@ int main(int argc, char* const argv[]) {
                     cerr << "No username inserted" << endl;
                     exit(EXIT_FAILURE);
                 }
-<<<<<<< HEAD
-                clt.clientConn->sendRequestToTalk(username);
+                clt.clientConn->sendRequestToTalk(command_received, username_to_contact);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
-                clt.clientConn->logout();
-=======
-                client_connection->sendRequestToTalk(command_received, username_to_contact);
-                break;
-            case 3:
-                cout << "Logout..\n" << endl;  
-                client_connection->logout(command_received);
->>>>>>> main
+                clt.clientConn->logout(command_received);
                 break;
             default:
                 cout << "Command not recognized" << endl;

@@ -215,15 +215,16 @@ struct Client {
     array<unsigned char, NONCE_SIZE> nonceClient;
     array<unsigned char, NONCE_SIZE> nonceServer;
     //array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+    char* bufferTemp;
 
     unsigned int tempBufferLen;
-
-    //clt.clientConn->receive_message(clt.clientConn->getMasterFD())
+    
+    /*tempBufferLen = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), bufferTemp)
     //ricevere certificato
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }
-    cout << "Server certificate verified" << endl;
+    cout << "Server certificate verified" << endl;*/
     
 
     //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
