@@ -9,10 +9,9 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
+#include <dirent.h>
 #include "include/server.h"
 #include "include/constants.h"
-
-
 
 using namespace std;
 
@@ -42,17 +41,44 @@ int main(int argc, char* const argv[]) {
 
                 if (srv.serverConn->isFDSet(sd)) {              
                     ret = srv.serverConn->receive_message(sd, buffer);
-                    string command(buffer);
-                    cout << "Command: " << command << endl;
-                    if(command.compare("1") == 0) {
+                    cout << "Username and password: " << buffer << endl;
+
+
+                    char* opcode = strtok(buffer, "|");
+                    char* username = strtok(NULL, "|");
+                    char* password_length = strtok(NULL, "|");
+                    char* password = strtok(NULL, "|");
+
+                    cout << "opcode: " << opcode << ",username: " << username << ",password: " << password << endl;
+
+                    if(buffer[1] == '1') {
                         cout << "\n**** AUTHENTICATION ****" << endl;
-                    } else if(command.compare("2") == 0) {
+
+                        string end = "_prvkey.pem";
+                        string filename = username + end;
+
+                        FILE* file;
+                        string filename_dir = "keys/private/" + filename;
+                        cout << "filename " << filename_dir.c_str() << endl;
+                        
+                        file = fopen(filename_dir.c_str(), "r");
+                        if(!file)
+                            throw runtime_error("An error occurred, the file doesn't exist.");
+
+                        EVP_PKEY *prvKey = PEM_read_PrivateKey(file, NULL, NULL, password);
+                        if(!prvKey){
+                            fclose(file);
+                            throw runtime_error("An error occurred while reading the private key.");
+                        }
+
+                        cout << "ok" << endl;
+                    }  /*else if(command.compare("2") == 0) {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
                     }else if(command.compare("3") == 0) {
                         cout << "\n**** REQUEST TO TALK****" << endl;
                     }else if(command.compare("4") == 0) {
                         cout << "\n**** CHAT ****" << endl;
-                    }else if(command.compare("5") == 0) {
+                    } */ else if(buffer[1] == '5') {
                         cout << "\n**** LOGOUT ****" << endl;
                         srv.serverConn->disconnect_host(sd, i);
                         continue;

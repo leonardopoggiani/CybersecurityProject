@@ -102,7 +102,7 @@ class clientConnection {
             return true;
         }
 
-        void seeOnlineUsers(vector<char> command_received){
+        void seeOnlineUsers(vector<unsigned char> command_received){
             cout << "let me see online users" << endl;
             command_received.push_back(constants::ONLINE);
 
@@ -142,7 +142,7 @@ class clientConnection {
             } while (ret != (int) message.length());
         }
 
-        void send_message(vector<char> message) {
+        void send_message(vector<unsigned char> message) {
             int ret;
 
             if (message.size() > constants::MAX_MESSAGE_SIZE) {
@@ -158,7 +158,7 @@ class clientConnection {
             } while (ret != (int) message.size());
         }
 
-        void sendRequestToTalk(vector<char> command_received, string username) {
+        void sendRequestToTalk(vector<unsigned char> command_received, string username) {
             cout << "let me talk to someone" << endl;
 
             
@@ -167,10 +167,11 @@ class clientConnection {
             send_message(command_received);
         }
         
-        void logout(vector<char> command_received) {
+        void logout(vector<unsigned char> command_received) {
             cout << "let me see online users" << endl;
+            command_received.push_back('|');
             command_received.push_back(constants::LOGOUT);
-
+            command_received.push_back('|');
             send_message(command_received);
         }
 
@@ -185,9 +186,6 @@ class clientConnection {
         }
 
 };
-
-
-
 
 struct Client {
     EVP_PKEY *prvKeyClient;
@@ -204,9 +202,7 @@ struct Client {
    
 };
 
-
-
- bool authentication(Client &clt) {
+bool authentication(Client &clt) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
 
@@ -237,5 +233,5 @@ struct Client {
     free(tmp2);
 
     return true;
-    }
+}
 

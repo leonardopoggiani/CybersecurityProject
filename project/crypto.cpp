@@ -13,11 +13,11 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
 
 void CryptoOperation::loadCertificate(X509*& cert, string path){
     
-    std::string path_str = "./certificates/"+path+".pem";
+    std::string path_str = "./certificates/" + path + ".pem";
     FILE *file = fopen(path_str.c_str(),"r");
     if(!file)
         throw runtime_error("An error occurred while opening the file.");
-    cert = PEM_read_X509(file,NULL,NULL,NULL);
+    cert = PEM_read_X509(file, NULL, NULL, NULL);
     if(!cert){
         fclose(file);
         throw runtime_error("An error occurred while reading the pem certificate.");
@@ -129,7 +129,6 @@ void CryptoOperation::readPrivateKey(string usr, string pwd, EVP_PKEY *& prvKey)
 }
 
 void CryptoOperation::readPublicKey(string user, EVP_PKEY *&pubKey) {
-    //QUESTION: necessario controllo su user tramite white/black list??
     FILE* file;
     string path = "./keys/" + user + "_pubkey.pem";
     file = fopen(path.c_str(), "r");
