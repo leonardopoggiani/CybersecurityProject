@@ -11,6 +11,7 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
+#include <termios.h>
 #include "include/client.h"
 #include "include/utils.h"
 
@@ -18,19 +19,49 @@ using namespace std;
 
 const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
 
+void setStdinEcho(bool enable = true) {
+    struct termios tty;
+    tcgetattr(STDIN_FILENO, &tty);
+    if(!enable)
+        tty.c_lflag &= ~ECHO;
+    else
+        tty.c_lflag |= ECHO;
+    (void)tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+}
+
+string readPassword() {
+    string password;
+    cout << "Insert password: ";
+    setStdinEcho(false);
+    cin >> password;
+    cin.ignore();
+    setStdinEcho(true);
+    cout << endl;
+    return password;
+}
+
+
 int main(int argc, char* const argv[]) {
 
     int command = 0;
+    string username;
+    string password;
     vector<char> command_received;    
     clientConnection *client_connection = new clientConnection();
     client_connection->make_connection();
 
+    cout << "Welcome! Please type your username" << endl;
+    cin >> username;
+    // controllo su username
+    cout << "Fine! Now insert you password to chat with others" << endl;
+    password = readPassword();
+
     //if (!authentication(clt)) throw runtime_error("Authentication Failed");
         //cout << "-----------------------------" << endl << endl;
 
-    while(1){
-        string username;
-        cout << menu;
+    while(1) {
+        string username_to_contact;
+        cout << menu << endl;
         cin >> command;
         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
 
@@ -42,13 +73,13 @@ int main(int argc, char* const argv[]) {
             case 2:
                 cout << "Send a request to talk\n" << endl;
                 cout << "Type the username -> " ;
-                username = readMessage();
+                username_to_contact = readMessage();
 
-                if(username.length() == 0){
+                if(username_to_contact.length() == 0){
                     cerr << "No username inserted" << endl;
                     exit(EXIT_FAILURE);
                 }
-                client_connection->sendRequestToTalk(command_received, username);
+                client_connection->sendRequestToTalk(command_received, username_to_contact);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
@@ -59,4 +90,5 @@ int main(int argc, char* const argv[]) {
                 exit(EXIT_FAILURE);
         }
     }
+
 }

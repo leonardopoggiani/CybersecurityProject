@@ -36,7 +36,7 @@ int main(int argc, char* const argv[]) {
                 if (recv(sd, buffer, sizeof(buffer), MSG_PEEK | MSG_DONTWAIT) == 0) {
                     server_connection->disconnect_host(sd, i);
                     continue;
-                 }
+                }
 
                 if (server_connection->isFDSet(sd)) {              
                     ret = server_connection->receive_message(sd, buffer);
@@ -52,6 +52,8 @@ int main(int argc, char* const argv[]) {
                         cout << "\n**** CHAT ****" << endl;
                     }else if(command.compare("5") == 0) {
                         cout << "\n**** LOGOUT ****" << endl;
+                        server_connection->disconnect_host(sd, i);
+                        continue;
                     } else {
                         cout << "Invalid command, please retry" << endl;
                         continue;
