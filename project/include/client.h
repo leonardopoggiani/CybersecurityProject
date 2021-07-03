@@ -12,8 +12,12 @@
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
 #include <errno.h>
 #include "constants.h"
+#include "connection.h"
+#include "crypto.h"
+
 
 using namespace std;
+using namespace constants;
 
 class clientConnection {
 
@@ -157,31 +161,57 @@ class clientConnection {
             cout << "--- connection closed ---" << endl;
         }
 
-        /*
-        bool authentication(Client &clt) {
-            X509 *cert;
-            EVP_PKEY *pubKeyServer = NULL;
-        
-            // load the CA's certificate:
-            cout<< "Fatto!";
-            
-            clt.cryptoOperation->loadCertificate(cert, "ChatAppServer_cert");
-        
-            if(!clt.cryptoOperation->verifyCertificate(cert)) {
-                throw runtime_error("Certificate not valid.");
-            }
-            cout << "Server certificate verified" << endl;
-
-
-            //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
-            
-            // print the successful verification to screen:
-            char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-            char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-            std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
-            free(tmp);
-            free(tmp2);
-
-            return true;
-        }*/
 };
+
+
+
+
+struct Client {
+    EVP_PKEY *prvKeyClient;
+    clientConnection *clientConn;
+    CryptoOperation *crypto;
+    string username;
+    string peerUsername;
+
+    Client() {
+        clientConn = new clientConnection();
+        crypto = new CryptoOperation();
+    }
+
+   
+};
+
+
+
+ bool authentication(Client &clt) {
+    X509 *cert;
+    EVP_PKEY *pubKeyServer = NULL;
+
+    vector<unsigned char> buffer;
+    vector<unsigned char> signature;
+    array<unsigned char, NONCE_SIZE> nonceClient;
+    array<unsigned char, NONCE_SIZE> nonceServer;
+    //array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+
+    unsigned int tempBufferLen;
+
+    //clt.clientConn->receive_message(clt.clientConn->getMasterFD())
+    //ricevere certificato
+    if(!clt.crypto->verifyCertificate(cert)) {
+        throw runtime_error("Certificate not valid.");
+    }
+    cout << "Server certificate verified" << endl;
+    
+
+    //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
+    
+    // print the successful verification to screen:
+    char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+    char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+    std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
+    free(tmp);
+    free(tmp2);
+
+    return true;
+    }
+

@@ -34,3 +34,4 @@ string readMessage() {
     }
     return message;
 }
+

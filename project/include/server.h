@@ -13,35 +13,12 @@
 #include <arpa/inet.h>    //close
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
 #include <errno.h>
-
 #include "constants.h"
 #include "client.h"
+#include "connection.h"
+
 
 using namespace std;
-
-struct OnlineUser {
-    string username;
-    int sd;
-    unsigned int key_pos;
-
-    OnlineUser(){}
-
-    OnlineUser(string usr, int _sd) {
-        username = usr;
-        sd = _sd;
-        key_pos = _sd;
-    }
-};
-
-struct ActiveChat {
-    OnlineUser a;
-    OnlineUser b;
-
-    ActiveChat(OnlineUser an, OnlineUser bn){
-        a = an;
-        b = bn;
-    }
-};
 
 
 class serverConnection : public clientConnection{
@@ -160,7 +137,96 @@ class serverConnection : public clientConnection{
             close(sd);  
             client_socket[i] = 0;
         }
-
-        
-
 };
+
+struct Server {
+    //vector<OnlineUser> onlineUsers;
+    //vector<ActiveChat> activeChats;
+    serverConnection *serverConn;
+    CryptoOperation *crypto;
+
+    Server() {
+        serverConn = new serverConnection();
+        crypto = new CryptoOperation();
+    }
+};
+struct OnlineUser {
+    string username;
+    int sd;
+    unsigned int key_pos;
+
+    OnlineUser(){}
+
+    OnlineUser(string usr, int _sd) {
+        username = usr;
+        sd = _sd;
+        key_pos = _sd;
+    }
+};
+
+struct ActiveChat {
+    OnlineUser a;
+    OnlineUser b;
+
+    ActiveChat(OnlineUser an, OnlineUser bn){
+        a = an;
+        b = bn;
+    }
+};
+
+bool authentication(Server &srv, int sd) {
+    vector<unsigned char> buffer;
+    vector<unsigned char> signature;
+    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+    array<unsigned char, NONCE_SIZE> nonceServer;
+    array<unsigned char, NONCE_SIZE> nonceClient;
+    unsigned int tempBufferLen;
+    string username;
+    EVP_PKEY *pubKeyClient = NULL;
+    EVP_PKEY *prvKeyServer = NULL;
+    X509 *cert;
+
+    srv.crypto->generateNonce(nonceServer.data());
+
+
+    // Extract username
+   
+    // Extract nc
+    
+    // Add certificate buffer to message
+
+    //srv.crypto->readPrivateKey(prvKeyServer);
+
+            
+    srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
+    tempBufferLen = srv.crypto->serializeCertificate(cert, tempBuffer.data());
+    append(tempBuffer, tempBufferLen, buffer); 
+    send_message(buffer);
+    
+	/*uint32_t size;
+	BIO* bio = BIO_new(BIO_s_mem());
+	if(!bio) { cerr<<"establishSession: Failed to allocate BIO_s_mem";exit(1); }
+	if(!PEM_write_bio_X509(bio, serverCert)) { cerr<<"establishSession: PEM_write_bio_X509 error";exit(1); }
+	unsigned char* certbuffer=NULL;
+	long certsize= BIO_get_mem_data(bio, &certbuffer);
+	size=htonl(certsize);
+	ret=send(socket, &size, sizeof(uint32_t), 0);
+	if(ret<=0){cerr<<"establishSession: Error writing to socket";exit(1);}
+	ret=send(socket, certbuffer, certsize, 0);
+	if(ret<=0){cerr<<"establishSession: Error writing to socket";exit(1);}*/
+    
+
+    //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
+    
+    // print the successful verification to screen:
+    char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+    char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+    std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
+    free(tmp);
+    free(tmp2);
+
+    return true;
+
+    
+}
+

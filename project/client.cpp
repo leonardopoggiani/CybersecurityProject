@@ -14,6 +14,7 @@
 #include "include/client.h"
 #include "include/utils.h"
 
+
 using namespace std;
 
 const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
@@ -22,12 +23,14 @@ int main(int argc, char* const argv[]) {
 
     int command = 0;
     int ret;
+    Client clt;
 
-    clientConnection *client_connection = new clientConnection();
-    client_connection->make_connection();
+    clt.clientConn->make_connection();
 
-    //if (!authentication(clt)) throw runtime_error("Authentication Failed");
-        //cout << "-----------------------------" << endl << endl;
+    cout << "\n-------Authentication-------" << endl;
+        
+    if (!authentication(clt)) throw runtime_error("Authentication Failed");
+    cout << "-----------------------------" << endl << endl;
 
     while(1){
         string username;
@@ -38,7 +41,7 @@ int main(int argc, char* const argv[]) {
         switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
-                client_connection->seeOnlineUsers();
+                clt.clientConn->seeOnlineUsers();
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
@@ -49,11 +52,11 @@ int main(int argc, char* const argv[]) {
                     cerr << "No username inserted" << endl;
                     exit(EXIT_FAILURE);
                 }
-                client_connection->sendRequestToTalk(username);
+                clt.clientConn->sendRequestToTalk(username);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
-                client_connection->logout();
+                clt.clientConn->logout();
                 break;
             default:
                 cout << "Command not recognized" << endl;

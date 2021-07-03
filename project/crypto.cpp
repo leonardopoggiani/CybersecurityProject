@@ -2,16 +2,16 @@
 
 using namespace std;
 
-void Crypto::generateNonce(unsigned char* nonce) {
+void CryptoOperation::generateNonce(unsigned char* nonce) {
     if(RAND_poll() != 1)
         throw std::runtime_error("An error occurred in RAND_poll."); 
     if(RAND_bytes(nonce, constants::NONCE_SIZE) != 1)
         throw std::runtime_error("An error occurred in RAND_bytes.");
 }
 
-// Certificates
+//CERTIFICATES
 
-void Crypto::loadCertificate(X509*& cert, string path){
+void CryptoOperation::loadCertificate(X509*& cert, string path){
     
     std::string path_str = "./certificates/"+path+".pem";
     FILE *file = fopen(path_str.c_str(),"r");
@@ -26,20 +26,20 @@ void Crypto::loadCertificate(X509*& cert, string path){
     fclose(file);
 }
 
-unsigned int Crypto::serializeCertificate(X509* cert, unsigned char* cert_buf){
+unsigned int CryptoOperation::serializeCertificate(X509* cert, unsigned char* cert_buf){
     int cert_size = i2d_X509(cert,&cert_buf);
     if(cert_size < 0)
         throw runtime_error("An error occurred during the writing of the certificate.");
     return cert_size;
 }
 
-void Crypto::deserializeCertificate(int cert_len,unsigned char* cert_buff, X509*& buff){
+void CryptoOperation::deserializeCertificate(int cert_len,unsigned char* cert_buff, X509*& buff){
     buff = d2i_X509(NULL,(const unsigned char**)&cert_buff,cert_len);
     if(!buff)
         throw runtime_error("An error occurred during the reading of the certificate.");
 }
 
-void Crypto::loadCRL(X509_CRL*& crl){
+void CryptoOperation::loadCRL(X509_CRL*& crl){
     FILE* file = fopen("./certificates/crl_cert.pem", "r");
 
     if(!file)
@@ -55,7 +55,7 @@ void Crypto::loadCRL(X509_CRL*& crl){
     fclose(file);
 }
 
-bool Crypto::verifyCertificate(X509* cert_to_verify) {
+bool CryptoOperation::verifyCertificate(X509* cert_to_verify) {
     X509_STORE_CTX* ctx = X509_STORE_CTX_new();
     X509* ca_cert;
     X509_STORE* store;
@@ -94,4 +94,58 @@ bool Crypto::verifyCertificate(X509* cert_to_verify) {
     X509_STORE_free(store);
     X509_STORE_CTX_free(ctx);
     return true;
+}
+
+//KEYS
+
+void CryptoOperation::readPrivateKey(EVP_PKEY *&prvKey) {
+    FILE* file;
+    file = fopen("./keys/server_prv_key.pem", "r");
+    if(!file)
+        throw runtime_error("An error occurred, the file doesn't exist.");
+    prvKey = PEM_read_PrivateKey(file, NULL, NULL, NULL);
+    if(!prvKey){
+        fclose(file);
+        throw runtime_error("An error occurred while reading the private key.");
+    }
+
+    fclose(file);
+}
+
+void CryptoOperation::readPrivateKey(string usr, string pwd, EVP_PKEY *& prvKey) {
+    FILE* file;
+    string path;
+    path = "./keys/" + usr + "_prvkey.pem";
+    file = fopen(path.c_str(), "r");
+    if(!file)
+        throw runtime_error("An error occurred, the file doesn't exist.");
+    prvKey = PEM_read_PrivateKey(file, NULL, NULL, (char*)pwd.c_str());
+    if(!prvKey){
+        fclose(file);
+        throw runtime_error("An error occurred while reading the private key.");
+    }
+
+    fclose(file);
+}
+
+void CryptoOperation::readPublicKey(string user, EVP_PKEY *&pubKey) {
+    //QUESTION: necessario controllo su user tramite white/black list??
+    FILE* file;
+    string path = "./keys/" + user + "_pubkey.pem";
+    file = fopen(path.c_str(), "r");
+    if(!file)
+        throw runtime_error("An error occurred, the file doesn't exist.");
+    pubKey = PEM_read_PUBKEY(file, NULL, NULL, NULL);
+    if(!pubKey){
+        fclose(file);
+        throw runtime_error("An error occurred while reading the private key.");
+    }
+
+    fclose(file);
+}
+
+void CryptoOperation::getPublicKeyFromCertificate(X509 *cert, EVP_PKEY *&pubkey){
+    pubkey = X509_get_pubkey(cert);
+    if(!pubkey)
+        throw runtime_error("An error occurred while getting the key from the certificate.");
 }
