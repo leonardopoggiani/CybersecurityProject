@@ -23,6 +23,7 @@ using namespace std;
 
 class serverConnection : public clientConnection{
     private:
+        vector<string> userList;
         int client_socket[constants::MAX_CLIENTS];
         fd_set readfds;
         int max_sd;
@@ -136,6 +137,34 @@ class serverConnection : public clientConnection{
             close(sd);  
             client_socket[i] = 0;
         }
+        
+        void insertUser(string username){
+            if(userList.size() + 1 < constants::MAX_CLIENTS)
+                userList.push_back(username);
+            else  {
+                cerr << "Maximum number of online users reached" << endl;
+                return;
+            }
+        }
+
+        void removeUser(string username){
+            for(int i = 0; i < userList.size(); i++) {
+                if(userList[i].size() != 0 && userList[i].compare(username) == 0){
+                    cout << "removed user" << endl;
+                    userList.erase(userList.begin() + (i - 1));
+                    return;
+                }
+            }
+
+            cout << "no user found" << endl;
+        }
+
+        void printOnlineUsers(){
+            for(string user : userList){
+                cout << user << " | ";
+            }
+            cout << endl;
+        }
 };
 
 struct Server {
@@ -147,29 +176,6 @@ struct Server {
     Server() {
         serverConn = new serverConnection();
         crypto = new CryptoOperation();
-    }
-};
-struct OnlineUser {
-    string username;
-    int sd;
-    unsigned int key_pos;
-
-    OnlineUser(){}
-
-    OnlineUser(string usr, int _sd) {
-        username = usr;
-        sd = _sd;
-        key_pos = _sd;
-    }
-};
-
-struct ActiveChat {
-    OnlineUser a;
-    OnlineUser b;
-
-    ActiveChat(OnlineUser an, OnlineUser bn){
-        a = an;
-        b = bn;
     }
 };
 

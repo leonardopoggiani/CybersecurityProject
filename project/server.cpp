@@ -43,14 +43,17 @@ int main(int argc, char* const argv[]) {
                     ret = srv.serverConn->receive_message(sd, buffer);
                     cout << "Username and password: " << buffer << endl;
 
-                    if(ret == 0 || buffer == NULL) {
-                        srv.serverConn->disconnect_host(sd, i);
-                        continue;
-                    }
-
                     char* opcode = strtok(buffer, "|");
                     char* username = strtok(NULL, "|");
                     char* password = strtok(NULL, "|");
+                    char* nonce = strtok(NULL, "|");
+
+                    if(ret == 0 || buffer == NULL) {
+                        srv.serverConn->removeUser(username);
+                        srv.serverConn->printOnlineUsers();
+                        srv.serverConn->disconnect_host(sd, i);                      
+                        continue;
+                    }
 
                     cout << "opcode: " << opcode << ",username: " << username << ",password: " << password << endl;
 
@@ -74,6 +77,8 @@ int main(int argc, char* const argv[]) {
                             throw runtime_error("An error occurred while reading the private key.");
                         }
 
+                        srv.serverConn->insertUser(username);
+                        srv.serverConn->printOnlineUsers();
                         cout << "ok" << endl;
                     }  /*else if(command.compare("2") == 0) {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
@@ -83,6 +88,8 @@ int main(int argc, char* const argv[]) {
                         cout << "\n**** CHAT ****" << endl;
                     } */ else if(buffer[1] == '5') {
                         cout << "\n**** LOGOUT ****" << endl;
+                        srv.serverConn->removeUser(username);
+                        srv.serverConn->printOnlineUsers();
                         srv.serverConn->disconnect_host(sd, i);
                         continue;
                     } else {
