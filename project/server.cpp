@@ -43,10 +43,13 @@ int main(int argc, char* const argv[]) {
                     ret = srv.serverConn->receive_message(sd, buffer);
                     cout << "Username and password: " << buffer << endl;
 
+                    if(ret == 0 || buffer == NULL) {
+                        srv.serverConn->disconnect_host(sd, i);
+                        continue;
+                    }
 
                     char* opcode = strtok(buffer, "|");
                     char* username = strtok(NULL, "|");
-                    char* password_length = strtok(NULL, "|");
                     char* password = strtok(NULL, "|");
 
                     cout << "opcode: " << opcode << ",username: " << username << ",password: " << password << endl;

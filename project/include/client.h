@@ -148,7 +148,7 @@ class clientConnection {
             if (message.size() > constants::MAX_MESSAGE_SIZE) {
                 throw runtime_error("Max message size exceeded in Send");
             }
-
+            
             do {
                 ret = send(getMasterFD(), &message[0], message.size(), 0);
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {

@@ -7,6 +7,8 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
         throw std::runtime_error("An error occurred in RAND_poll."); 
     if(RAND_bytes(nonce, constants::NONCE_SIZE) != 1)
         throw std::runtime_error("An error occurred in RAND_bytes.");
+        
+    cout << "nonce generated" << endl;
 }
 
 //CERTIFICATES

@@ -46,29 +46,39 @@ int main(int argc, char* const argv[]) {
     int command = 0;
     string username;
     string password;
-    string packet;
+    string to_insert;
+    vector<unsigned char> packet;
     vector<unsigned char> command_received;
+    array<unsigned char, NONCE_SIZE> nonceClient;
     Client clt;    
     clt.clientConn->make_connection();
 
-    packet.append("|");
-    packet.append(to_string(1));
-    packet.append("|");
+    packet.push_back('|');
+    packet.push_back('1');
+    packet.push_back('|');
     cout << "Welcome! Please type your username" << endl;
     cin >> username;
-    packet.append(username);
-    packet.append("|");
-    packet.append(to_string(username.length()));
-    packet.append("|");
 
+    for(int i = 0 ; i < username.size() ; i++) {
+        packet.push_back(username[i]);
+    }
+    packet.push_back('|');
+    
     cout << "Fine! Now insert you password to chat with others" << endl;
     password = readPassword();
-    packet.append(password);
-    packet.append("|");
-    packet.append(to_string(password.length()));
-    packet.append("|");
+    for(int i = 0 ; i < password.size() ; i++) {
+        packet.push_back(password[i]);
+    }
+    packet.push_back('|');
+    
+    cout << "to_insert: " << packet.data() << endl;  
 
-    cout << "packet: " << packet << endl;  
+    clt.crypto->generateNonce(nonceClient.data());
+    for(int i = 0 ; i < nonceClient.size() ; i++) {
+        packet.push_back(nonceClient[i]);
+    }
+    
+    cout << "packet: " <<  packet.data() << endl;  
 
     clt.clientConn->send_message(packet);
 
