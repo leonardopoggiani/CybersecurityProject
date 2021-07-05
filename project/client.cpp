@@ -106,6 +106,7 @@ int main(int argc, char* const argv[]) {
     cout << "Server certificate verified" << endl;
 
     
+    //Prova
     //if (!authentication(clt)) throw runtime_error("Authentication Failed");
         //cout << "-----------------------------" << endl << endl;
 
