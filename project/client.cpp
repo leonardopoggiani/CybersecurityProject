@@ -55,6 +55,9 @@ int main(int argc, char* const argv[]) {
     Client clt;
     X509 *cert;    
     clt.clientConn->make_connection();
+    // messaggio di saluto
+    ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+    cout << "must be: Hi, i'm the server | " << buffer << endl;
 
     packet.push_back('|');
     packet.push_back('1');
@@ -62,11 +65,11 @@ int main(int argc, char* const argv[]) {
     cout << "Welcome! Please type your username" << endl;
     cin >> username;
 
-    /*for(int i = 0 ; i < username.size() ; i++) {
+    for(int i = 0 ; i < username.size() ; i++) {
         packet.push_back(username[i]);
     }
     packet.push_back('|');
-    
+
     cout << "Fine! Now insert you password to chat with others" << endl;
     password = readPassword();
     for(int i = 0 ; i < password.size() ; i++) {
@@ -81,14 +84,15 @@ int main(int argc, char* const argv[]) {
         packet.push_back(nonceClient[i]);
     }
     
-    cout << "packet: " <<  packet.data() << endl;  
+    cout << "packet: " <<  packet.data() << endl;   
 
     clt.clientConn->send_message(packet);
-    */
+    
     //ricevere certificato, da spostare in authentication
-    /*
+    
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    cout << ret; 
+    cout << ret << endl;
+    cout << "received: "<< buffer << endl;
     
     char* opcode = strtok(buffer, "|");
     int cert_len = atoi(strtok(NULL, "|"));
@@ -101,7 +105,7 @@ int main(int argc, char* const argv[]) {
     }
     cout << "Server certificate verified" << endl;
 
-    */
+    
     //if (!authentication(clt)) throw runtime_error("Authentication Failed");
         //cout << "-----------------------------" << endl << endl;
 

@@ -21,7 +21,7 @@ int main(int argc, char* const argv[]) {
     int ret;
     char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> buffToSend;
-    vector<unsigned char> tempBuffToSend;
+    array<unsigned char, constants::MAX_MESSAGE_SIZE> tempBuffToSend;
     int buffToSendLen;
     Server srv;
     X509 *cert;
@@ -46,7 +46,6 @@ int main(int argc, char* const argv[]) {
 
                 if (srv.serverConn->isFDSet(sd)) {              
                     ret = srv.serverConn->receive_message(sd, buffer);
-                    cout << "Username and password: " << buffer << endl;
 
                     if(ret == 0) {
                         cout << "removing user 1" << endl;
@@ -88,22 +87,35 @@ int main(int argc, char* const argv[]) {
                         srv.serverConn->insertUser(username, sd);
                         srv.serverConn->printOnlineUsers();
                         cout << "ok" << endl;
-                        /*
+                        
                         //Send certificate, da spostare in authentication
                         srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
                         buffToSendLen = srv.crypto->serializeCertificate(cert, tempBuffToSend.data());
+                        cout << "tempBuffToSend len: " << tempBuffToSend.size() << endl;
 
+                        for(int i = 0; i < tempBuffToSend.size(); i++){
+                            cout << tempBuffToSend[i];
+                        }
+                        cout << endl;
+                        
                         buffToSend.push_back('|');
                         buffToSend.push_back('1');
                         buffToSend.push_back('|');
-                        buffToSend.push_back(buffToSendLen);
-                        buffToSend.push_back('|');
+
                         for(int i = 0 ; i < tempBuffToSend.size() ; i++) {
                             buffToSend.push_back(tempBuffToSend[i]);
+                            cout << tempBuffToSend[i];
                         }
+                        cout << endl;
                         
+                        cout << "buffToSend" << endl;
+                        for(int i = 0; i < buffToSend.size(); i++) {
+                            cout << buffToSend[i];
+                        }
+                        cout << endl;
                         srv.serverConn->send_message(buffToSend);
-                    */
+                        
+                    
                     }  /*else if(command.compare("2") == 0) {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
                     }else if(command.compare("3") == 0) {
