@@ -55,7 +55,7 @@ int main(int argc, char* const argv[]) {
     array<unsigned char, NONCE_SIZE> nonceClient;
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     Client clt;
-    X509 *cert;    
+    // X509 *cert;    
     clt.clientConn->make_connection();
 
     // messaggio di saluto
@@ -92,6 +92,7 @@ int main(int argc, char* const argv[]) {
     clt.clientConn->send_message(packet);
     
     //ricevere certificato, da spostare in authentication
+    
     ret = recv(clt.clientConn->getMasterFD(), (void*)&lmsg, sizeof (uint16_t), 0);      
 
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
@@ -100,16 +101,20 @@ int main(int argc, char* const argv[]) {
     }  
 
     int cert_len = ntohs(lmsg);
-
+    /*
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
     cout << "returned" << ret << endl;
     
     char* opcode = strtok(buffer, "|");
     char* certString = strtok(NULL, "|");
 
-    cout << "Lunghezza certificato: " << cert_len << endl;
+    */
 
-    clt.crypto->deserializeCertificate(cert_len, tempBuffer.data(), cert);
+    // cout << "Lunghezza certificato: " << cert_len << endl;
+    unsigned char* cert_buf= (unsigned char*)malloc(cert_len);
+    recv(clt.clientConn->getMasterFD(), cert_buf, cert_len, MSG_WAITALL);
+    X509* cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, cert_len);
+    // clt.crypto->deserializeCertificate(cert_len, tempBuffer.data(), cert);
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }

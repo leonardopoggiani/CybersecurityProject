@@ -39,6 +39,8 @@ unsigned int CryptoOperation::serializeCertificate(X509* cert, unsigned char* ce
 }
 
 void CryptoOperation::deserializeCertificate(int cert_len,unsigned char* cert_buff, X509*& buff){
+
+    cout << "cert_len" << cert_len << endl;
     buff = d2i_X509(NULL,(const unsigned char**)&cert_buff,cert_len);
     if(!buff)
         throw runtime_error("An error occurred during the reading of the certificate.");

@@ -23,6 +23,8 @@ int main(int argc, char* const argv[]) {
     vector<unsigned char> buffToSend;
     vector<unsigned char> vectorBuffer;
     array<unsigned char,constants::MAX_MESSAGE_SIZE> certificate_to_send;
+    unsigned char* cert_buf= NULL;
+    int cert_size = 0;
     
     int buffToSendLen;
     Server srv;
@@ -88,11 +90,18 @@ int main(int argc, char* const argv[]) {
 
                         srv.serverConn->insertUser(username, sd);
                         srv.serverConn->printOnlineUsers();
-                        cout << "ok" << endl;
                         
                         //Send certificate, da spostare in authentication
                         srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
-                        buffToSendLen = srv.crypto->serializeCertificate(cert, certificate_to_send.data());
+
+                        cert_size= i2d_X509(cert, &cert_buf);        
+                        if(cert_size< 0) { throw runtime_error("An error occurred during the reading of the certificate."); }
+                        
+                        uint16_t lmsg = htons(cert_size);
+
+                        ret = send(sd, (void*) &lmsg, sizeof(uint16_t), 0);
+                        send(sd, cert_buf, cert_size, 0);
+                        /*buffToSendLen = srv.crypto->serializeCertificate(cert, certificate_to_send.data());
                         
                         buffToSend.push_back('|');
                         buffToSend.push_back('1');
@@ -111,6 +120,7 @@ int main(int argc, char* const argv[]) {
                         }   
 
                         srv.serverConn->send_message(buffToSend,sd);
+                        */
                         
                     }  /*else if(command.compare("2") == 0) {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
