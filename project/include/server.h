@@ -22,8 +22,20 @@ using namespace std;
 
 
 class serverConnection : public clientConnection{
+
+    struct users {
+        string username;
+        unsigned int sd;
+
+        users(string us,unsigned int s) {
+            username = us;
+            sd = s;
+        }
+    };
+
+    vector<users> users_logged_in;
+
     private:
-        vector<string> userList;
         int client_socket[constants::MAX_CLIENTS];
         fd_set readfds;
         int max_sd;
@@ -138,20 +150,23 @@ class serverConnection : public clientConnection{
             client_socket[i] = 0;
         }
         
-        void insertUser(string username){
-            if(userList.size() + 1 < constants::MAX_CLIENTS)
-                userList.push_back(username);
-            else  {
+        void insertUser(string username, int sd){
+            if(users_logged_in.size() + 1 < constants::MAX_CLIENTS) {
+                users* new_user = new users(username,sd);
+                users_logged_in.push_back(*new_user);
+            } else  {
                 cerr << "Maximum number of online users reached" << endl;
                 return;
             }
         }
 
-        void removeUser(string username){
-            for(int i = 0; i < userList.size(); i++) {
-                if(userList[i].size() != 0 && userList[i].compare(username) == 0){
+        void removeUser(int sd) {
+            cout << " removing user " << endl;
+            for(int i = 0; i < users_logged_in.size(); i++) {
+                if(users_logged_in[i].sd == sd){
+                    users_logged_in.erase(users_logged_in.begin() + i);
                     cout << "removed user" << endl;
-                    userList.erase(userList.begin() + (i - 1));
+
                     return;
                 }
             }
@@ -160,8 +175,13 @@ class serverConnection : public clientConnection{
         }
 
         void printOnlineUsers(){
-            for(string user : userList){
-                cout << user << " | ";
+            if( users_logged_in.size() == 0 ){
+                cout << "no users online" << endl;
+                return;
+            }
+            
+            for(auto user : users_logged_in){
+                cout << user.username << " | ";
             }
             cout << endl;
         }
