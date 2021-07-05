@@ -179,11 +179,45 @@ class serverConnection : public clientConnection{
                 cout << "no users online" << endl;
                 return;
             }
-            
+
             for(auto user : users_logged_in){
                 cout << user.username << " | ";
             }
             cout << endl;
+        }
+
+        void send_message(vector<unsigned char> message, int sd) {
+            int ret;
+
+            if (message.size() > constants::MAX_MESSAGE_SIZE) {
+                throw runtime_error("Max message size exceeded in Send");
+            }
+            
+            do {
+                ret = send(sd, &message[0], message.size(), 0);
+                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Send Error");
+                    throw runtime_error("Send failed");
+                }   
+            } while (ret != (int) message.size());
+
+            cout << "send riuscita: " << message.size() << endl;
+        }
+
+        void send_message(string message, int sd) {
+            int ret;
+
+            if (message.length() > constants::MAX_MESSAGE_SIZE) {
+                throw runtime_error("Max message size exceeded in Send");
+            }
+
+            do {
+                ret = send(sd, message.c_str(), message.length(), 0);
+                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Send Error");
+                    throw runtime_error("Send failed");
+                }   
+            } while (ret != (int) message.length());
         }
 };
 

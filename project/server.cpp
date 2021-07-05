@@ -21,7 +21,9 @@ int main(int argc, char* const argv[]) {
     int ret;
     char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> buffToSend;
-    array<unsigned char, constants::MAX_MESSAGE_SIZE> tempBuffToSend;
+    vector<unsigned char> vectorBuffer;
+    array<unsigned char,constants::MAX_MESSAGE_SIZE> certificate_to_send;
+    
     int buffToSendLen;
     Server srv;
     X509 *cert;
@@ -90,32 +92,26 @@ int main(int argc, char* const argv[]) {
                         
                         //Send certificate, da spostare in authentication
                         srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
-                        buffToSendLen = srv.crypto->serializeCertificate(cert, tempBuffToSend.data());
-                        cout << "tempBuffToSend len: " << tempBuffToSend.size() << endl;
-
-                        for(int i = 0; i < tempBuffToSend.size(); i++){
-                            cout << tempBuffToSend[i];
-                        }
-                        cout << endl;
+                        buffToSendLen = srv.crypto->serializeCertificate(cert, certificate_to_send.data());
                         
                         buffToSend.push_back('|');
                         buffToSend.push_back('1');
                         buffToSend.push_back('|');
+                        
+                        for(unsigned int i = 0; i < buffToSendLen; i++) {
+                            buffToSend.push_back(certificate_to_send[i]);
+                        }
 
-                        for(int i = 0 ; i < tempBuffToSend.size() ; i++) {
-                            buffToSend.push_back(tempBuffToSend[i]);
-                            cout << tempBuffToSend[i];
-                        }
-                        cout << endl;
+                        uint16_t lmsg = htons(buffToSendLen);
+
+                        ret = send(sd, (void*) &lmsg, sizeof(uint16_t), 0);
+                        if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                            perror("Send Error");
+                            throw runtime_error("Send failed");
+                        }   
+
+                        srv.serverConn->send_message(buffToSend,sd);
                         
-                        cout << "buffToSend" << endl;
-                        for(int i = 0; i < buffToSend.size(); i++) {
-                            cout << buffToSend[i];
-                        }
-                        cout << endl;
-                        srv.serverConn->send_message(buffToSend);
-                        
-                    
                     }  /*else if(command.compare("2") == 0) {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
                     }else if(command.compare("3") == 0) {

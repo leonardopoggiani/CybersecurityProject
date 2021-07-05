@@ -44,6 +44,7 @@ string readPassword() {
 int main(int argc, char* const argv[]) {
 
     int command = 0;
+    u_int16_t lmsg;
     int ret;
     string username;
     string password;
@@ -52,9 +53,11 @@ int main(int argc, char* const argv[]) {
     vector<unsigned char> packet;
     vector<unsigned char> command_received;
     array<unsigned char, NONCE_SIZE> nonceClient;
+    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     Client clt;
     X509 *cert;    
     clt.clientConn->make_connection();
+
     // messaggio di saluto
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
     cout << "must be: Hi, i'm the server | " << buffer << endl;
@@ -89,17 +92,24 @@ int main(int argc, char* const argv[]) {
     clt.clientConn->send_message(packet);
     
     //ricevere certificato, da spostare in authentication
-    
+    ret = recv(clt.clientConn->getMasterFD(), (void*)&lmsg, sizeof (uint16_t), 0);      
+
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Receive Error");
+        throw runtime_error("Receive failed");
+    }  
+
+    int cert_len = ntohs(lmsg);
+
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    cout << ret << endl;
-    cout << "received: "<< buffer << endl;
+    cout << "returned" << ret << endl;
     
     char* opcode = strtok(buffer, "|");
-    int cert_len = atoi(strtok(NULL, "|"));
-    cout << cert_len << endl;
     char* certString = strtok(NULL, "|");
 
-    clt.crypto->deserializeCertificate(cert_len, reinterpret_cast<unsigned char*>(certString), cert);
+    cout << "Lunghezza certificato: " << cert_len << endl;
+
+    clt.crypto->deserializeCertificate(cert_len, tempBuffer.data(), cert);
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }

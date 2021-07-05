@@ -156,6 +156,8 @@ class clientConnection {
                     throw runtime_error("Send failed");
                 }   
             } while (ret != (int) message.size());
+
+            cout << "send riuscita: " << message.size() << endl;
         }
 
         void sendRequestToTalk(vector<unsigned char> command_received, string username) {
