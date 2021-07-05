@@ -93,14 +93,14 @@ int main(int argc, char* const argv[]) {
                         
                         //Send certificate, da spostare in authentication
                         srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
-
-                        cert_size= i2d_X509(cert, &cert_buf);        
+                        int cert_size = i2d_X509(cert, &cert_buf);        
                         if(cert_size< 0) { throw runtime_error("An error occurred during the reading of the certificate."); }
                         
                         uint16_t lmsg = htons(cert_size);
 
                         ret = send(sd, (void*) &lmsg, sizeof(uint16_t), 0);
-                        send(sd, cert_buf, cert_size, 0);
+                        ret = send(sd, cert_buf, cert_size, 0);                        
+                        cout << "certificate sent" << endl;
                         /*buffToSendLen = srv.crypto->serializeCertificate(cert, certificate_to_send.data());
                         
                         buffToSend.push_back('|');
