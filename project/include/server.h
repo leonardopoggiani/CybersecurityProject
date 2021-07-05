@@ -147,7 +147,8 @@ class serverConnection : public clientConnection{
             }
         }
 
-        void removeUser(string username){
+        void removeUser(string username) {
+            cout << " removing user " << endl;
             for(int i = 0; i < userList.size(); i++) {
                 if(userList[i].size() != 0 && userList[i].compare(username) == 0){
                     cout << "removed user" << endl;
