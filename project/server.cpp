@@ -19,7 +19,11 @@ int main(int argc, char* const argv[]) {
 
     int ret;
     char* buffer = new char[constants::MAX_MESSAGE_SIZE];
+    vector<unsigned char> buffToSend;
+    vector<unsigned char> tempBuffToSend;
+    int buffToSendLen;
     Server srv;
+    X509 *cert;
   
     while(1) {
 
@@ -60,7 +64,7 @@ int main(int argc, char* const argv[]) {
                     if(buffer[1] == '1') {
                         cout << "\n**** AUTHENTICATION ****" << endl;
 
-                        string end = "_prvkey.pem";
+                        /*string end = "_prvkey.pem";
                         string filename = username + end;
 
                         FILE* file;
@@ -80,6 +84,22 @@ int main(int argc, char* const argv[]) {
                         srv.serverConn->insertUser(username);
                         srv.serverConn->printOnlineUsers();
                         cout << "ok" << endl;
+                        */
+                        //Send certificate
+                        srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
+                        buffToSendLen = srv.crypto->serializeCertificate(cert, tempBuffToSend.data());
+
+                        buffToSend.push_back('|');
+                        buffToSend.push_back('1');
+                        buffToSend.push_back('|');
+                        buffToSend.push_back(buffToSendLen);
+                        buffToSend.push_back('|');
+                        for(int i = 0 ; i < tempBuffToSend.size() ; i++) {
+                            buffToSend.push_back(tempBuffToSend[i]);
+                        }
+                        
+                        srv.serverConn->send_message(buffToSend);
+
                     }  /*else if(command.compare("2") == 0) {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
                     }else if(command.compare("3") == 0) {

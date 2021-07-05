@@ -44,13 +44,16 @@ string readPassword() {
 int main(int argc, char* const argv[]) {
 
     int command = 0;
+    int ret;
     string username;
     string password;
     string to_insert;
+    char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> packet;
     vector<unsigned char> command_received;
     array<unsigned char, NONCE_SIZE> nonceClient;
-    Client clt;    
+    Client clt;
+    X509 *cert;    
     clt.clientConn->make_connection();
 
     packet.push_back('|');
@@ -59,7 +62,7 @@ int main(int argc, char* const argv[]) {
     cout << "Welcome! Please type your username" << endl;
     cin >> username;
 
-    for(int i = 0 ; i < username.size() ; i++) {
+    /*for(int i = 0 ; i < username.size() ; i++) {
         packet.push_back(username[i]);
     }
     packet.push_back('|');
@@ -81,6 +84,21 @@ int main(int argc, char* const argv[]) {
     cout << "packet: " <<  packet.data() << endl;  
 
     clt.clientConn->send_message(packet);
+    */
+    //ricevere certificato
+    ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+    cout << ret; 
+    
+    char* opcode = strtok(buffer, "|");
+    int cert_len = atoi(strtok(NULL, "|"));
+    cout << cert_len << endl;
+    char* certString = strtok(NULL, "|");
+
+    clt.crypto->deserializeCertificate(cert_len, reinterpret_cast<unsigned char*>(certString), cert);
+    if(!clt.crypto->verifyCertificate(cert)) {
+        throw runtime_error("Certificate not valid.");
+    }
+    cout << "Server certificate verified" << endl;
 
 
     //if (!authentication(clt)) throw runtime_error("Authentication Failed");

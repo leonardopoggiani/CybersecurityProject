@@ -15,7 +15,7 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
 
 void CryptoOperation::loadCertificate(X509*& cert, string path){
     
-    std::string path_str = "./certificates/" + path + ".pem";
+    std::string path_str = "/certificates/" + path + ".pem";
     FILE *file = fopen(path_str.c_str(),"r");
     if(!file)
         throw runtime_error("An error occurred while opening the file.");
@@ -35,7 +35,7 @@ unsigned int CryptoOperation::serializeCertificate(X509* cert, unsigned char* ce
     return cert_size;
 }
 
-void CryptoOperation::deserializeCertificate(int cert_len,unsigned char* cert_buff, X509*& buff){
+void CryptoOperation::deserializeCertificate(int cert_len, unsigned char* cert_buff, X509*& buff){
     buff = d2i_X509(NULL,(const unsigned char**)&cert_buff,cert_len);
     if(!buff)
         throw runtime_error("An error occurred during the reading of the certificate.");
