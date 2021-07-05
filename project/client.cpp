@@ -85,7 +85,8 @@ int main(int argc, char* const argv[]) {
 
     clt.clientConn->send_message(packet);
     */
-    //ricevere certificato
+    //ricevere certificato, da spostare in authentication
+    /*
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
     cout << ret; 
     
@@ -100,7 +101,7 @@ int main(int argc, char* const argv[]) {
     }
     cout << "Server certificate verified" << endl;
 
-
+    */
     //if (!authentication(clt)) throw runtime_error("Authentication Failed");
         //cout << "-----------------------------" << endl << endl;
 

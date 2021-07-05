@@ -68,11 +68,7 @@ int main(int argc, char* const argv[]) {
                     if(buffer[1] == '1') {
                         cout << "\n**** AUTHENTICATION ****" << endl;
 
-<<<<<<< HEAD
-                        /*string end = "_prvkey.pem";
-=======
                         string end = "_pubkey.pem";
->>>>>>> c54b460cee5e94248d0af71633b5b1d0132ff90f
                         string filename = username + end;
 
                         FILE* file;
@@ -92,8 +88,8 @@ int main(int argc, char* const argv[]) {
                         srv.serverConn->insertUser(username, sd);
                         srv.serverConn->printOnlineUsers();
                         cout << "ok" << endl;
-                        */
-                        //Send certificate
+                        /*
+                        //Send certificate, da spostare in authentication
                         srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
                         buffToSendLen = srv.crypto->serializeCertificate(cert, tempBuffToSend.data());
 
@@ -107,7 +103,7 @@ int main(int argc, char* const argv[]) {
                         }
                         
                         srv.serverConn->send_message(buffToSend);
-
+                    */
                     }  /*else if(command.compare("2") == 0) {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
                     }else if(command.compare("3") == 0) {
