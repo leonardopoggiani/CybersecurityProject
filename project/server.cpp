@@ -58,12 +58,15 @@ int main(int argc, char* const argv[]) {
                         continue;
                     }
 
-                    
-
-                    if(buffer[1] == '1') {
+                    ///////
+                    cout << "\n**** AUTHENTICATION ****" << endl;
+                      
+                    if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication Failed On Server");
+                    cout << "-----------------------------" << endl << endl;
+                    ///////
+                    if(buffer[1] == 'a') {
                         cout << "\n**** AUTHENTICATION ****" << endl;
-
-                        
+                      
                         if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication Failed On Server");
                         cout << "-----------------------------" << endl << endl;
 

@@ -219,6 +219,19 @@ class serverConnection : public clientConnection{
                 }   
             } while (ret != (int) message.length());
         }
+
+        void send_message(unsigned char* message, int sd, int dim) {
+            int ret;
+            
+            do {
+                ret = send(sd, &message[0], dim, 0);
+                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Send Error");
+                    throw runtime_error("Send failed");
+                }   
+            } while (ret != dim);
+
+        }
 };
 
 struct Server {
@@ -233,6 +246,65 @@ struct Server {
     }
 };
 
+#define OPCODE_SIZE 1
+#define PAYLOAD_LEN_SIZE sizeof(int)
+#define COUNTER_SIZE sizeof(int)
+
+typedef struct {
+    char opcode;
+    unsigned int payload_len;
+    unsigned char* payload;
+} Message;  
+
+int add_header(unsigned char* buffer, char opcode, int payload_len, unsigned char* payload) {
+    // initializing the index in the buffer
+    int byte_index = 0;
+
+    // creating header: opcode
+    char* opcode_ptr = (char*)&buffer[byte_index];
+    *opcode_ptr = opcode;
+    byte_index += OPCODE_SIZE;
+
+    // creating header: payload_len
+    int* payload_len_ptr = (int*)&buffer[byte_index];
+    *payload_len_ptr = payload_len;
+    byte_index += PAYLOAD_LEN_SIZE;
+
+    // adding the payload
+    memcpy(&buffer[byte_index], payload, payload_len);
+    byte_index += payload_len;
+
+    return byte_index;
+}
+
+bool send_MESSAGE(int sock, Message* mex) {
+    if (mex == NULL) return false;
+    unsigned char* buffer_to_send = (unsigned char*)malloc(OPCODE_SIZE + PAYLOAD_LEN_SIZE + mex->payload_len);
+    int byte_to_send = add_header(buffer_to_send, mex->opcode, mex->payload_len, mex->payload);
+    int byte_correctly_sent = send(sock, buffer_to_send, byte_to_send, 0);
+    BIO_dump_fp(stdout, (const char *)buffer_to_send, byte_to_send);
+    free(buffer_to_send);
+    return byte_correctly_sent == byte_to_send ? true : false;
+}
+
+bool read_MESSAGE(int sock, Message* mex_received) {
+    read(sock, &mex_received->opcode, OPCODE_SIZE);
+    // Retrieve remaining part of message (payload_len)
+    read(sock, &mex_received->payload_len, PAYLOAD_LEN_SIZE);
+    mex_received->payload = (unsigned char*)malloc(mex_received->payload_len);
+    // Retrieve remaining part of message (payload)
+    int read_byte = read(sock, mex_received->payload, mex_received->payload_len);
+    return read_byte == mex_received->payload_len ? true : false;
+}
+
+bool read_MESSAGE_payload(int sock, Message* mex_received) {
+    read(sock, &mex_received->payload_len, PAYLOAD_LEN_SIZE);
+    mex_received->payload = (unsigned char*)malloc(mex_received->payload_len);
+    // Retrieve remaining part of message (payload)
+    int read_byte = read(sock, mex_received->payload, mex_received->payload_len);
+    return read_byte == mex_received->payload_len ? true : false;
+}
+
 bool authentication(Server &srv, int sd, char* buffer) {
     vector<unsigned char> packet;
     vector<unsigned char> signature;
@@ -246,7 +318,6 @@ bool authentication(Server &srv, int sd, char* buffer) {
     X509 *cert;
     bool ret;
 
-
     char* opcode = strtok(buffer, "|");
     char* username = strtok(NULL, "|");
     char* password = strtok(NULL, "|");
@@ -254,7 +325,6 @@ bool authentication(Server &srv, int sd, char* buffer) {
 
     // controllare che username password e nonce non abbiamo la barra nel mezzo, altrimenti sono problemi
     cout << "opcode: " << opcode << ",username: " << username << ",password: " << password << endl;
-
 
     string end = "_pubkey.pem";
     string filename = username + end;
@@ -275,8 +345,7 @@ bool authentication(Server &srv, int sd, char* buffer) {
 
     srv.serverConn->insertUser(username, sd);
     srv.serverConn->printOnlineUsers();
-                        
-                        
+                         
     //Send packet with certificate
 
     packet.push_back('|');
@@ -299,12 +368,30 @@ bool authentication(Server &srv, int sd, char* buffer) {
 
     //Accodare certificato e dimensione in qualche modo e spedire packet
 
-    ret = send(sd, (void*) &lmsg, sizeof(uint16_t), 0);
-    ret = send(sd, cert_buf, cert_size, 0);                        
-    cout << "certificate sent" << endl;
-      
+    // ret = send(sd, (void*) &lmsg, sizeof(uint16_t), 0);
 
-    return true;
+    for(int i = 0; i < cert_size; i++) {
+        packet.push_back(*(cert_buf+i));
+    }
 
-    
+    // srv.serverConn->send_message(packet,sd);  
+    cout << "inizio invio certificato" << endl;
+
+    int byte_index = 0;    
+    int dim = sizeof(char) + sizeof(int) + cert_size;
+    cout << "dim: " << dim << endl;
+    unsigned char* message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + cert_size);  // POSTPONED AFTER EpubKa(..)
+
+    memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(message[byte_index]), &cert_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message[byte_index]), &cert_buf[0], cert_size);
+    byte_index += cert_size;
+
+    srv.serverConn->send_message(message,sd,dim);
+
+    return true;   
 }

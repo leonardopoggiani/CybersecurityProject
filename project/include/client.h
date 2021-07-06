@@ -11,15 +11,13 @@
 #include <arpa/inet.h>    //close
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
 #include <errno.h>
+#include <termios.h>
 #include "constants.h"
 #include "connection.h"
 #include "crypto.h"
 
-
-
 using namespace std;
 using namespace constants;
-
 
 void setStdinEcho(bool enable = true) {
     struct termios tty;
@@ -48,6 +46,10 @@ class clientConnection {
             } else {
                 cout << "--- socket created ---" << endl;
             }
+
+            // Specifico di riusare il socket
+            const int trueFlag = 1;
+            setsockopt(master_fd, SOL_SOCKET, SO_REUSEADDR, &trueFlag, sizeof(int));
 
             address.sin_family = AF_INET;
             address.sin_port = htons(constants::CLIENT_PORT);
@@ -138,6 +140,23 @@ class clientConnection {
             return message_len;
         }
 
+        int receive_message(int sd, unsigned char* buffer) {
+            int message_len;
+
+            do {
+                message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
+                cout << "returned: " << message_len << endl;
+                
+                if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Receive Error");
+                    throw runtime_error("Receive failed");
+                }  
+            } while (message_len < 0);
+
+            return message_len;
+        }
+
+
         void send_message(string message) {
             int ret;
 
@@ -169,13 +188,11 @@ class clientConnection {
                 }   
             } while (ret != (int) message.size());
 
-            cout << "send riuscita: " << message.size() << endl;
         }
 
         void sendRequestToTalk(vector<unsigned char> command_received, string username) {
             cout << "let me talk to someone" << endl;
 
-            
             command_received.push_back(constants::REQUEST);
 
             send_message(command_received);
@@ -282,7 +299,9 @@ bool authentication(Client &clt) {
 
     clt.clientConn->send_message(packet);
     
-    //ricevere certificato, da spostare in authentication
+    //ricevere certificato
+
+    /*
     u_int16_t lmsg;
     ret = recv(clt.clientConn->getMasterFD(), (void*)&lmsg, sizeof (uint16_t), 0);      
 
@@ -292,9 +311,14 @@ bool authentication(Client &clt) {
     }  
 
     int cert_len = ntohs(lmsg);
-    unsigned char* cert_buf = (unsigned char*) malloc(cert_len);
+    char* cert_buf = (char*) malloc(cert_len);
     recv(clt.clientConn->getMasterFD(), cert_buf, cert_len, MSG_WAITALL);
-    cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, cert_len);
+
+    char* opcode = strtok(cert_buf,"|");
+    char* nonce = strtok(NULL,"|");
+    char* certificate = strtok(NULL,"|");
+
+    cert = d2i_X509(NULL, (const unsigned char**)&certificate, cert_len);
     cout << "certificate received" << endl;
 
     if(!clt.crypto->verifyCertificate(cert)) {
@@ -309,6 +333,45 @@ bool authentication(Client &clt) {
     free(tmp);
     free(tmp2);
 
+    */
+    
+    unsigned char* message = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  // POSTPONED AFTER EpubKa(..)
+    ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message);
+
+    cout << "sono stati ricevuti " << ret << endl;
+
+    int byte_index = 0;    
+    int size_cert = 0;
+    char opcode;
+
+    memcpy(&(opcode), &message[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(size_cert), &message[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    cout << "opcode: " << opcode << ", size_cert: " << size_cert << endl; 
+
+    unsigned char* certificato = (unsigned char*)malloc(size_cert);
+
+    memcpy(certificato, &message[byte_index], size_cert);
+    byte_index += size_cert;
+    cout << "certificate received" << endl;
+
+    cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
+    cout << "certificate received" << endl;
+
+    if(!clt.crypto->verifyCertificate(cert)) {
+        throw runtime_error("Certificate not valid.");
+    }
+    cout << "Server certificate verified" << endl;
+
+    // print the successful verification to screen:
+    char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+    char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+    std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
+    free(tmp);
+    free(tmp2);
     return true;
 }
 
