@@ -260,7 +260,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     bool ret;
 
     int byte_index_1 = 0;    
-    unsigned char* message_1 = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
 
     char opCode;
     int username_size;
@@ -269,24 +268,24 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     char* password;
     unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
 
-    memcpy(&(opCode), &message_1[byte_index_1], sizeof(char));
+    memcpy(&(opCode), &buffer[byte_index_1], sizeof(char));
     byte_index_1 += sizeof(char);
 
-    memcpy(&(username_size), &message_1[byte_index_1],sizeof(int));
+    memcpy(&(username_size), &buffer[byte_index_1],sizeof(int));
     byte_index_1 += sizeof(int);
 
     username = (char*)malloc(username_size);
-    memcpy(&(username), &message_1[byte_index_1], username_size);
+    memcpy(username, &buffer[byte_index_1], username_size);
     byte_index_1 += username_size;
 
-    memcpy(&(password_size), &message_1[byte_index_1],sizeof(int));
+    memcpy(&(password_size), &buffer[byte_index_1],sizeof(int));
     byte_index_1 += sizeof(int);
 
     password = (char*)malloc(password_size);
-    memcpy(&(password), &message_1[byte_index_1], password_size);
+    memcpy(password, &buffer[byte_index_1], password_size);
     byte_index_1 += password_size;
 
-    memcpy(&(nonce), &message_1[byte_index_1], constants::NONCE_SIZE);
+    memcpy(nonce, &buffer[byte_index_1], constants::NONCE_SIZE);
     byte_index_1 += constants::NONCE_SIZE;
 
     // controllare che username password e nonce non abbiamo la barra nel mezzo, altrimenti sono problemi
