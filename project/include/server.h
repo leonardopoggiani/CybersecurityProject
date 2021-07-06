@@ -343,9 +343,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     cout << "inizio invio certificato" << endl;
 
     int byte_index = 0;    
-    int dim = sizeof(char) + sizeof(int) + cert_size;
+    int dim = sizeof(char) + sizeof(int) + cert_size + nonceServer.size();
     cout << "dim: " << dim << endl;
-    unsigned char* message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + cert_size);  // POSTPONED AFTER EpubKa(..)
+    unsigned char* message = (unsigned char*)malloc(dim);  // POSTPONED AFTER EpubKa(..)
 
     memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
@@ -355,6 +355,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     memcpy(&(message[byte_index]), &cert_buf[0], cert_size);
     byte_index += cert_size;
+
+    memcpy(&(message[byte_index]), nonceServer.data(), nonceServer.size());
+    byte_index += nonceServer.size();
 
     srv.serverConn->send_message(message,sd,dim);
 
