@@ -16,8 +16,20 @@
 #include "crypto.h"
 
 
+
 using namespace std;
 using namespace constants;
+
+
+void setStdinEcho(bool enable = true) {
+    struct termios tty;
+    tcgetattr(STDIN_FILENO, &tty);
+    if(!enable)
+        tty.c_lflag &= ~ECHO;
+    else
+        tty.c_lflag |= ECHO;
+    (void)tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+}
 
 class clientConnection {
 
@@ -189,6 +201,16 @@ class clientConnection {
 
 };
 
+string readMessage() {
+    string message;
+    getline(cin, message);
+    if (message.length() > constants::MAX_MESSAGE_SIZE) {
+        cerr << "Error: the message must be loger than " << endl;
+        exit(EXIT_FAILURE);
+    }
+    return message;
+}
+
 struct Client {
     EVP_PKEY *prvKeyClient;
     clientConnection *clientConn;
@@ -204,29 +226,82 @@ struct Client {
    
 };
 
+string readPassword() {
+    string password;
+    cout << "Insert password: ";
+    setStdinEcho(false);
+    cin >> password;
+    cin.ignore();
+    setStdinEcho(true);
+    cout << endl;
+    return password;
+}
+
 bool authentication(Client &clt) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
 
     vector<unsigned char> buffer;
+    vector<unsigned char> packet;
     vector<unsigned char> signature;
+    string username;
+    string password;
+    string to_insert;
+    int ret;
     array<unsigned char, NONCE_SIZE> nonceClient;
     array<unsigned char, NONCE_SIZE> nonceServer;
     //array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     char* bufferTemp;
 
-    unsigned int tempBufferLen;
+    packet.push_back('|');
+    packet.push_back('1');
+    packet.push_back('|');
+    cout << "Welcome! Please type your username" << endl;
+    cin >> username;
+
+    for(int i = 0 ; i < username.size() ; i++) {
+        packet.push_back(username[i]);
+    }
+    packet.push_back('|');
+
+    cout << "Fine! Now insert you password to chat with others" << endl;
+    password = readPassword();
+    for(int i = 0 ; i < password.size() ; i++) {
+        packet.push_back(password[i]);
+    }
+    packet.push_back('|');
     
-    /*tempBufferLen = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), bufferTemp)
-    //ricevere certificato
+    cout << "to_insert: " << packet.data() << endl;  
+
+    clt.crypto->generateNonce(nonceClient.data());
+    for(int i = 0 ; i < nonceClient.size() ; i++) {
+        packet.push_back(nonceClient[i]);
+    }
+    
+    cout << "packet: " <<  packet.data() << endl;   
+
+    clt.clientConn->send_message(packet);
+    
+    //ricevere certificato, da spostare in authentication
+    u_int16_t lmsg;
+    ret = recv(clt.clientConn->getMasterFD(), (void*)&lmsg, sizeof (uint16_t), 0);      
+
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Receive Error");
+        throw runtime_error("Receive failed");
+    }  
+
+    int cert_len = ntohs(lmsg);
+    unsigned char* cert_buf = (unsigned char*) malloc(cert_len);
+    recv(clt.clientConn->getMasterFD(), cert_buf, cert_len, MSG_WAITALL);
+    cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, cert_len);
+    cout << "certificate received" << endl;
+
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }
-    cout << "Server certificate verified" << endl;*/
-    
+    cout << "Server certificate verified" << endl;
 
-    //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
-    
     // print the successful verification to screen:
     char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
     char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);

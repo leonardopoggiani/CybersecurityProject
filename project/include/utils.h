@@ -14,6 +14,8 @@
 
 using namespace std;
 
+
+
 size_t get_file_size(std::string filename){
 	size_t file_size = 0;
 	std::ifstream file(filename, std::ios::binary);
@@ -25,15 +27,7 @@ size_t get_file_size(std::string filename){
 	return file_size;
 }
 
-string readMessage() {
-    string message;
-    getline(cin, message);
-    if (message.length() > constants::MAX_MESSAGE_SIZE) {
-        cerr << "Error: the message must be loger than " << endl;
-        exit(EXIT_FAILURE);
-    }
-    return message;
-}
+
 
 std::vector<std::string> split( const std::string& input, const std::string& delims ) {
     std::vector<std::string> ret;

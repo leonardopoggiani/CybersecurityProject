@@ -233,44 +233,76 @@ struct Server {
     }
 };
 
-bool authentication(Server &srv, int sd) {
-    vector<unsigned char> buffer;
+bool authentication(Server &srv, int sd, char* buffer) {
+    vector<unsigned char> packet;
     vector<unsigned char> signature;
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     array<unsigned char, NONCE_SIZE> nonceServer;
     array<unsigned char, NONCE_SIZE> nonceClient;
     unsigned int tempBufferLen;
-    string username;
+    unsigned char* cert_buf= NULL;
     EVP_PKEY *pubKeyClient = NULL;
     EVP_PKEY *prvKeyServer = NULL;
     X509 *cert;
+    bool ret;
 
-    //srv.crypto->generateNonce(nonceServer.data());
+
+    char* opcode = strtok(buffer, "|");
+    char* username = strtok(NULL, "|");
+    char* password = strtok(NULL, "|");
+    char* nonce = strtok(NULL, "|");
+
+    // controllare che username password e nonce non abbiamo la barra nel mezzo, altrimenti sono problemi
+    cout << "opcode: " << opcode << ",username: " << username << ",password: " << password << endl;
 
 
-    // Extract username
-   
-    // Extract nc
+    string end = "_pubkey.pem";
+    string filename = username + end;
+
+    FILE* file;
+    string filename_dir = "keys/public/" + filename;
+    cout << "filename " << filename_dir.c_str() << endl;
     
-    // Add certificate buffer to message
+    file = fopen(filename_dir.c_str(), "r");
+    if(!file)
+        throw runtime_error("An error occurred, the file doesn't exist.");
 
-    //srv.crypto->readPrivateKey(prvKeyServer);
+    EVP_PKEY *pubkey = PEM_read_PUBKEY(file, NULL, NULL, NULL);
+    if(!pubkey){
+        fclose(file);
+        throw runtime_error("An error occurred while reading the public key.");
+    }
 
-            
-    /*srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
-    tempBufferLen = srv.crypto->serializeCertificate(cert, buffer.data());
-    srv.serverConn->send_message(buffer);*/
-    
-    
+    srv.serverConn->insertUser(username, sd);
+    srv.serverConn->printOnlineUsers();
+                        
+                        
+    //Send packet with certificate
 
-    //ctx.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
+    packet.push_back('|');
+    packet.push_back('1');
+    packet.push_back('|');
+
+    srv.crypto->generateNonce(nonceServer.data());
+
+    for(int i = 0 ; i < nonceServer.size() ; i++) {
+        packet.push_back(nonceServer[i]);
+    }
+
+    packet.push_back('|');
+
+    srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
+    int cert_size = i2d_X509(cert, &cert_buf);        
+    if(cert_size< 0) { throw runtime_error("An error occurred during the reading of the certificate."); }
     
-    // print the successful verification to screen:
-    char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-    char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-    std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
-    free(tmp);
-    free(tmp2);
+    uint16_t lmsg = htons(cert_size);
+
+    //Accodare certificato e dimensione in qualche modo e spedire packet
+
+    ret = send(sd, (void*) &lmsg, sizeof(uint16_t), 0);
+    ret = send(sd, cert_buf, cert_size, 0);                        
+    cout << "certificate sent" << endl;
+      
 
     return true;
 
