@@ -190,6 +190,19 @@ class clientConnection {
 
         }
 
+        void send_message(unsigned char* message, int dim) {
+            int ret;
+            
+            do {
+                ret = send(getMasterFD(), &message[0], dim, 0);
+                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Send Error");
+                    throw runtime_error("Send failed");
+                }   
+            } while (ret != dim);
+
+        }
+
         void sendRequestToTalk(vector<unsigned char> command_received, string username) {
             cout << "let me talk to someone" << endl;
 
@@ -270,34 +283,63 @@ bool authentication(Client &clt) {
     //array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     char* bufferTemp;
 
-    packet.push_back('|');
-    packet.push_back('1');
-    packet.push_back('|');
+    // pacchetto: opCode | username_size | username | password_size | password | nonceClient
+    
+    // packet.push_back('|');
+    // packet.push_back('1');
+    // packet.push_back('|');
     cout << "Welcome! Please type your username" << endl;
     cin >> username;
 
-    for(int i = 0 ; i < username.size() ; i++) {
-        packet.push_back(username[i]);
-    }
-    packet.push_back('|');
+    // for(int i = 0 ; i < username.size() ; i++) {
+    //     packet.push_back(username[i]);
+    // }
+    // packet.push_back('|');
 
     cout << "Fine! Now insert you password to chat with others" << endl;
     password = readPassword();
-    for(int i = 0 ; i < password.size() ; i++) {
-        packet.push_back(password[i]);
-    }
-    packet.push_back('|');
+
+    // for(int i = 0 ; i < password.size() ; i++) {
+    //    packet.push_back(password[i]);
+    // }
+    // packet.push_back('|');
     
-    cout << "to_insert: " << packet.data() << endl;  
+    // cout << "to_insert: " << packet.data() << endl;  
 
     clt.crypto->generateNonce(nonceClient.data());
-    for(int i = 0 ; i < nonceClient.size() ; i++) {
-        packet.push_back(nonceClient[i]);
-    }
+    //for(int i = 0 ; i < nonceClient.size() ; i++) {
+    //   packet.push_back(nonceClient[i]);
+    // }
     
-    cout << "packet: " <<  packet.data() << endl;   
+    // cout << "packet: " <<  packet.data() << endl;   
 
-    clt.clientConn->send_message(packet);
+    int byte_index_1 = 0;    
+    int password_size = password.size();
+    int username_size = username.size();
+
+    int dim = sizeof(char) + sizeof(int) + username.size() + sizeof(int) + password.size() + nonceClient.size();
+    cout << "dim: " << dim << endl;
+    unsigned char* message_1 = (unsigned char*)malloc(dim);  
+
+    memcpy(&(message_1[byte_index_1]), &constants::AUTH, sizeof(char));
+    byte_index_1 += sizeof(char);
+
+    memcpy(&(message_1[byte_index_1]), &username_size, sizeof(int));
+    byte_index_1 += sizeof(int);
+
+    memcpy(&(message_1[byte_index_1]), username.c_str(), username.size());
+    byte_index_1 += username.size();
+
+    memcpy(&(message_1[byte_index_1]), &password_size, sizeof(int));
+    byte_index_1 += sizeof(int);
+
+    memcpy(&(message_1[byte_index_1]), password.c_str(), password.size());
+    byte_index_1 += password.size();
+
+    memcpy(&(message_1[byte_index_1]), nonceClient.data(), nonceClient.size());
+    byte_index_1 += nonceClient.size();
+
+    clt.clientConn->send_message(message_1, dim);
     
     //ricevere certificato
 

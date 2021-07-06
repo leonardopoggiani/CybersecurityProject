@@ -246,66 +246,7 @@ struct Server {
     }
 };
 
-#define OPCODE_SIZE 1
-#define PAYLOAD_LEN_SIZE sizeof(int)
-#define COUNTER_SIZE sizeof(int)
-
-typedef struct {
-    char opcode;
-    unsigned int payload_len;
-    unsigned char* payload;
-} Message;  
-
-int add_header(unsigned char* buffer, char opcode, int payload_len, unsigned char* payload) {
-    // initializing the index in the buffer
-    int byte_index = 0;
-
-    // creating header: opcode
-    char* opcode_ptr = (char*)&buffer[byte_index];
-    *opcode_ptr = opcode;
-    byte_index += OPCODE_SIZE;
-
-    // creating header: payload_len
-    int* payload_len_ptr = (int*)&buffer[byte_index];
-    *payload_len_ptr = payload_len;
-    byte_index += PAYLOAD_LEN_SIZE;
-
-    // adding the payload
-    memcpy(&buffer[byte_index], payload, payload_len);
-    byte_index += payload_len;
-
-    return byte_index;
-}
-
-bool send_MESSAGE(int sock, Message* mex) {
-    if (mex == NULL) return false;
-    unsigned char* buffer_to_send = (unsigned char*)malloc(OPCODE_SIZE + PAYLOAD_LEN_SIZE + mex->payload_len);
-    int byte_to_send = add_header(buffer_to_send, mex->opcode, mex->payload_len, mex->payload);
-    int byte_correctly_sent = send(sock, buffer_to_send, byte_to_send, 0);
-    BIO_dump_fp(stdout, (const char *)buffer_to_send, byte_to_send);
-    free(buffer_to_send);
-    return byte_correctly_sent == byte_to_send ? true : false;
-}
-
-bool read_MESSAGE(int sock, Message* mex_received) {
-    read(sock, &mex_received->opcode, OPCODE_SIZE);
-    // Retrieve remaining part of message (payload_len)
-    read(sock, &mex_received->payload_len, PAYLOAD_LEN_SIZE);
-    mex_received->payload = (unsigned char*)malloc(mex_received->payload_len);
-    // Retrieve remaining part of message (payload)
-    int read_byte = read(sock, mex_received->payload, mex_received->payload_len);
-    return read_byte == mex_received->payload_len ? true : false;
-}
-
-bool read_MESSAGE_payload(int sock, Message* mex_received) {
-    read(sock, &mex_received->payload_len, PAYLOAD_LEN_SIZE);
-    mex_received->payload = (unsigned char*)malloc(mex_received->payload_len);
-    // Retrieve remaining part of message (payload)
-    int read_byte = read(sock, mex_received->payload, mex_received->payload_len);
-    return read_byte == mex_received->payload_len ? true : false;
-}
-
-bool authentication(Server &srv, int sd, char* buffer) {
+bool authentication(Server &srv, int sd, unsigned char* buffer) {
     vector<unsigned char> packet;
     vector<unsigned char> signature;
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
@@ -318,13 +259,38 @@ bool authentication(Server &srv, int sd, char* buffer) {
     X509 *cert;
     bool ret;
 
-    char* opcode = strtok(buffer, "|");
-    char* username = strtok(NULL, "|");
-    char* password = strtok(NULL, "|");
-    char* nonce = strtok(NULL, "|");
+    int byte_index_1 = 0;    
+    unsigned char* message_1 = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
+
+    char opCode;
+    int username_size;
+    int password_size;
+    char* username;
+    char* password;
+    unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
+
+    memcpy(&(opCode), &message_1[byte_index_1], sizeof(char));
+    byte_index_1 += sizeof(char);
+
+    memcpy(&(username_size), &message_1[byte_index_1],sizeof(int));
+    byte_index_1 += sizeof(int);
+
+    username = (char*)malloc(username_size);
+    memcpy(&(username), &message_1[byte_index_1], username_size);
+    byte_index_1 += username_size;
+
+    memcpy(&(password_size), &message_1[byte_index_1],sizeof(int));
+    byte_index_1 += sizeof(int);
+
+    password = (char*)malloc(password_size);
+    memcpy(&(password), &message_1[byte_index_1], password_size);
+    byte_index_1 += password_size;
+
+    memcpy(&(nonce), &message_1[byte_index_1], constants::NONCE_SIZE);
+    byte_index_1 += constants::NONCE_SIZE;
 
     // controllare che username password e nonce non abbiamo la barra nel mezzo, altrimenti sono problemi
-    cout << "opcode: " << opcode << ",username: " << username << ",password: " << password << endl;
+    cout << "opcode: " << opCode << ",username: " << username << ",password: " << password << endl;
 
     string end = "_pubkey.pem";
     string filename = username + end;

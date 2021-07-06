@@ -19,7 +19,7 @@ using namespace std;
 int main(int argc, char* const argv[]) {
 
     int ret;
-    char* buffer = new char[constants::MAX_MESSAGE_SIZE];
+    unsigned char* buffer = new unsigned char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> buffToSend;
     vector<unsigned char> vectorBuffer;
     array<unsigned char,constants::MAX_MESSAGE_SIZE> certificate_to_send;
@@ -58,13 +58,7 @@ int main(int argc, char* const argv[]) {
                         continue;
                     }
 
-                    ///////
-                    cout << "\n**** AUTHENTICATION ****" << endl;
-                      
-                    if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication Failed On Server");
-                    cout << "-----------------------------" << endl << endl;
-                    ///////
-                    if(buffer[1] == 'a') {
+                    if(buffer[0] == '1') {
                         cout << "\n**** AUTHENTICATION ****" << endl;
                       
                         if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication Failed On Server");
