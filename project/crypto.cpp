@@ -153,3 +153,46 @@ void CryptoOperation::getPublicKeyFromCertificate(X509 *cert, EVP_PKEY *&pubkey)
     if(!pubkey)
         throw runtime_error("An error occurred while getting the key from the certificate.");
 }
+
+// DH parameters
+
+void CryptoOperation::buildParameters(EVP_PKEY *&dh_params) {
+    DH *temp;
+    dh_params = EVP_PKEY_new();
+
+    if(!dh_params)
+        throw runtime_error("An error occurred during the allocation of parameters.");
+
+    temp = DH_get_2048_224();
+
+    if(EVP_PKEY_set1_DH(dh_params,temp) == 0){
+        DH_free(temp);
+        throw runtime_error("An error occurred during the generation of parameters.");
+    }
+
+    DH_free(temp);
+}
+
+void CryptoOperation::keyGeneration(EVP_PKEY *&my_prvkey){
+    EVP_PKEY *dh_params = NULL;
+    EVP_PKEY_CTX *ctx;
+
+    buildParameters(dh_params);
+
+    ctx = EVP_PKEY_CTX_new(dh_params,NULL);
+    if(!ctx)
+        throw runtime_error("An error occurred during the creation of the context");
+
+    try
+    {
+        if(EVP_PKEY_keygen_init(ctx) < 1) 
+            throw runtime_error("An error occurred during the intialization of the context");
+
+        if(EVP_PKEY_keygen(ctx, &my_prvkey) < 1)
+            throw runtime_error("An error occurred during the intialization of the context");
+    } catch(const exception& e) {
+        EVP_PKEY_CTX_free(ctx);
+        throw;
+    }
+    EVP_PKEY_CTX_free(ctx);
+}

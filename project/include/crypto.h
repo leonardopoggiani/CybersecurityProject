@@ -85,5 +85,6 @@ class CryptoOperation {
         return dh;
     }
 
-    
+    void CryptoOperation::buildParameters(EVP_PKEY *&dh_params);
+    void CryptoOperation::keyGeneration(EVP_PKEY *&my_prvkey);
 };

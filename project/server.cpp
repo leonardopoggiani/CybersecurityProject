@@ -20,14 +20,8 @@ int main(int argc, char* const argv[]) {
 
     int ret;
     unsigned char* buffer = new unsigned char[constants::MAX_MESSAGE_SIZE];
-    vector<unsigned char> buffToSend;
     vector<unsigned char> vectorBuffer;
-    array<unsigned char,constants::MAX_MESSAGE_SIZE> certificate_to_send;
-    
-    
-    int buffToSendLen;
     Server srv;
-    X509 *cert;
   
     while(1) {
 

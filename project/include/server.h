@@ -26,9 +26,9 @@ class serverConnection : public clientConnection{
 
     struct users {
         string username;
-        unsigned int sd;
+        int sd;
 
-        users(string us,unsigned int s) {
+        users(string us, int s) {
             username = us;
             sd = s;
         }
@@ -123,21 +123,10 @@ class serverConnection : public clientConnection{
                 cout << "IP: \t\t" <<  inet_ntoa(address.sin_addr) << endl;
                 cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
                 cout << "********************************" << endl << endl;
-                
-                time_t rawtime;
-                char buffer [255];
 
-                time (&rawtime);
-                sprintf(buffer,"ack_%s",ctime(&rawtime) );
+                string buffer = "ack";
 
-                char *p = buffer;
-                for (; *p; ++p)
-                {
-                    if (*p == ' ')
-                        *p = '_';
-                }
-
-                if(send(new_socket,buffer, strlen(buffer), 0) != strlen(buffer))  
+                if(send(new_socket, buffer.c_str(), buffer.size(), 0) != (ssize_t) buffer.size())  
                     throw runtime_error("Error sending the ack message"); 
 
                 for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++) {  
@@ -175,7 +164,7 @@ class serverConnection : public clientConnection{
 
         void removeUser(int sd) {
             cout << " removing user " << endl;
-            for(int i = 0; i < users_logged_in.size(); i++) {
+            for(int i = 0; i < (int) users_logged_in.size(); i++) {
                 if(users_logged_in[i].sd == sd){
                     users_logged_in.erase(users_logged_in.begin() + i);
                     cout << "removed user" << endl;
@@ -258,20 +247,15 @@ struct Server {
 };
 
 bool authentication(Server &srv, int sd, unsigned char* buffer) {
-    vector<unsigned char> packet;
-    vector<unsigned char> signature;
-    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     array<unsigned char, NONCE_SIZE> nonceServer;
-    array<unsigned char, NONCE_SIZE> nonceClient;
-    unsigned int tempBufferLen;
     unsigned char* cert_buf= NULL;
-    EVP_PKEY *pubKeyClient = NULL;
-    EVP_PKEY *prvKeyServer = NULL;
     X509 *cert;
-    bool ret;
+    unsigned int pubKeyDHBufferLen;
+    EVP_PKEY *prvKeyDHServer = NULL;
+    EVP_PKEY *pubKeyDHClient = NULL;
+    array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
 
     int byte_index = 0;    
-
     char opCode;
     int username_size;
     int password_size;
@@ -330,11 +314,11 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         throw runtime_error("An error occurred during the reading of the certificate."); 
     }
 
-    // srv.serverConn->send_message(packet,sd);  
-    cout << "inizio invio certificato" << endl;
+    srv.crypto->keyGeneration(prvKeyDHServer);
+    pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
 
-    int byte_index = 0;    
-    int dim = sizeof(char) + sizeof(int) + cert_size + nonceServer.size();
+    byte_index = 0;    
+    int dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE;
     cout << "dim: " << dim << endl;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
@@ -347,8 +331,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), &cert_buf[0], cert_size);
     byte_index += cert_size;
 
-    memcpy(&(message[byte_index]), nonceServer.data(), nonceServer.size());
-    byte_index += nonceServer.size();
+    memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
 
     srv.serverConn->send_message(message,sd,dim);
 

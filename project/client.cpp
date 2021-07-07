@@ -23,22 +23,25 @@ int main(int argc, char* const argv[]) {
 
     int command = 0;
     
-    int ret;
     string username;
     string password;
     string to_insert;
     char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> packet;
     vector<unsigned char> command_received;
-    array<unsigned char, NONCE_SIZE> nonceClient;
-    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     Client clt;
-    X509 *cert;    
     clt.clientConn->make_connection();
 
     // messaggio di saluto
-    ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    cout << "must be: true | " << clt.clientConn->checkAck(buffer) << endl;
+    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Send Error");
+        throw runtime_error("Send failed");
+    }   
+
+    if( clt.clientConn->checkAck(buffer) ) {
+        cout << "ack received" << endl;
+    }
 
     cout << "\n**** AUTHENTICATION ****" << endl;
 
@@ -70,7 +73,7 @@ int main(int argc, char* const argv[]) {
             case 3:
                 cout << "Logout..\n" << endl;  
                 clt.clientConn->logout(command_received);
-                break;
+                return 0;
             default:
                 cout << "Command not recognized" << endl;
                 exit(EXIT_FAILURE);

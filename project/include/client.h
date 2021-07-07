@@ -258,8 +258,6 @@ struct Client {
         clientConn = new clientConnection();
         crypto = new CryptoOperation();
     }
-
-   
 };
 
 string readPassword() {
@@ -276,120 +274,62 @@ string readPassword() {
 bool authentication(Client &clt) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
-
     vector<unsigned char> buffer;
     vector<unsigned char> packet;
     vector<unsigned char> signature;
+    unsigned char* nonceServer;
     string username;
     string password;
     string to_insert;
-    int ret;
     array<unsigned char, NONCE_SIZE> nonceClient;
-    array<unsigned char, NONCE_SIZE> nonceServer;
-    //array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
-    char* bufferTemp;
-
-    // pacchetto: opCode | username_size | username | password_size | password | nonceClient
     
-    // packet.push_back('|');
-    // packet.push_back('1');
-    // packet.push_back('|');
-    cout << "Welcome! Please type your username" << endl;
-    cin >> username;
+    // pacchetto: opCode | username_size | username | password_size | password | nonceClient
 
-    // for(int i = 0 ; i < username.size() ; i++) {
-    //     packet.push_back(username[i]);
-    // }
-    // packet.push_back('|');
+    cout << "Welcome! \nPlease type your username -> ";
+    cin >> username;
+    cout << endl;
 
     cout << "Fine! Now insert you password to chat with others" << endl;
     password = readPassword();
 
-    // for(int i = 0 ; i < password.size() ; i++) {
-    //    packet.push_back(password[i]);
-    // }
-    // packet.push_back('|');
-    
-    // cout << "to_insert: " << packet.data() << endl;  
-
     clt.crypto->generateNonce(nonceClient.data());
-    //for(int i = 0 ; i < nonceClient.size() ; i++) {
-    //   packet.push_back(nonceClient[i]);
-    // }
-    
-    // cout << "packet: " <<  packet.data() << endl;   
 
-    int byte_index_1 = 0;    
+    int byte_index = 0;    
     int password_size = password.size();
     int username_size = username.size();
 
     int dim = sizeof(char) + sizeof(int) + username.size() + sizeof(int) + password.size() + nonceClient.size();
-    cout << "dim: " << dim << endl;
     unsigned char* message_1 = (unsigned char*)malloc(dim);  
-    unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
 
-    memcpy(&(message_1[byte_index_1]), &constants::AUTH, sizeof(char));
-    byte_index_1 += sizeof(char);
+    memcpy(&(message_1[byte_index]), &constants::AUTH, sizeof(char));
+    byte_index += sizeof(char);
 
-    memcpy(&(message_1[byte_index_1]), &username_size, sizeof(int));
-    byte_index_1 += sizeof(int);
+    memcpy(&(message_1[byte_index]), &username_size, sizeof(int));
+    byte_index += sizeof(int);
 
-    memcpy(&(message_1[byte_index_1]), username.c_str(), username.size());
-    byte_index_1 += username.size();
+    memcpy(&(message_1[byte_index]), username.c_str(), username.size());
+    byte_index += username.size();
 
-    memcpy(&(message_1[byte_index_1]), &password_size, sizeof(int));
-    byte_index_1 += sizeof(int);
+    memcpy(&(message_1[byte_index]), &password_size, sizeof(int));
+    byte_index += sizeof(int);
 
-    memcpy(&(message_1[byte_index_1]), password.c_str(), password.size());
-    byte_index_1 += password.size();
+    memcpy(&(message_1[byte_index]), password.c_str(), password.size());
+    byte_index += password.size();
 
-    memcpy(&(message_1[byte_index_1]), nonceClient.data(), nonceClient.size());
-    byte_index_1 += nonceClient.size();
+    memcpy(&(message_1[byte_index]), nonceClient.data(), nonceClient.size());
+    byte_index += nonceClient.size();
 
     clt.clientConn->send_message(message_1, dim);
     
     //ricevere certificato
-
-    /*
-    u_int16_t lmsg;
-    ret = recv(clt.clientConn->getMasterFD(), (void*)&lmsg, sizeof (uint16_t), 0);      
-
+    unsigned char* message = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
+    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message);
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-        perror("Receive Error");
-        throw runtime_error("Receive failed");
-    }  
+        perror("Send Error");
+        throw runtime_error("Send failed");
+    }   
 
-    int cert_len = ntohs(lmsg);
-    char* cert_buf = (char*) malloc(cert_len);
-    recv(clt.clientConn->getMasterFD(), cert_buf, cert_len, MSG_WAITALL);
-
-    char* opcode = strtok(cert_buf,"|");
-    char* nonce = strtok(NULL,"|");
-    char* certificate = strtok(NULL,"|");
-
-    cert = d2i_X509(NULL, (const unsigned char**)&certificate, cert_len);
-    cout << "certificate received" << endl;
-
-    if(!clt.crypto->verifyCertificate(cert)) {
-        throw runtime_error("Certificate not valid.");
-    }
-    cout << "Server certificate verified" << endl;
-
-    // print the successful verification to screen:
-    char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-    char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-    std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
-    free(tmp);
-    free(tmp2);
-
-    */
-    
-    unsigned char* message = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  // POSTPONED AFTER EpubKa(..)
-    ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message);
-
-    cout << "sono stati ricevuti " << ret << endl;
-
-    int byte_index = 0;    
+    byte_index = 0;    
     int size_cert = 0;
     char opcode;
 
@@ -399,20 +339,18 @@ bool authentication(Client &clt) {
     memcpy(&(size_cert), &message[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    cout << "opcode: " << opcode << ", size_cert: " << size_cert << endl; 
-
     unsigned char* certificato = (unsigned char*)malloc(size_cert);
 
     memcpy(certificato, &message[byte_index], size_cert);
     byte_index += size_cert;
-    cout << "certificate received" << endl;
 
-    memcpy(nonce, &message[byte_index], constants::NONCE_SIZE);
+    nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
+
+    memcpy(nonceServer, &message[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
-    cout << "server nonce received" << endl;
 
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
-    
+
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }
@@ -424,6 +362,9 @@ bool authentication(Client &clt) {
     std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
     free(tmp);
     free(tmp2);
+
+    clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
+
     return true;
 }
 
