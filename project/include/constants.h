@@ -17,5 +17,7 @@ namespace constants
     constexpr char REQUEST = '3';
     constexpr char CHAT = '4';
     constexpr char LOGOUT = '5';
+    constexpr char FORWARD = '6';
+
 }
 #endif

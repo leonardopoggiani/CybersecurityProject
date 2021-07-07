@@ -28,7 +28,6 @@ int main(int argc, char* const argv[]) {
     string to_insert;
     char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> packet;
-    vector<unsigned char> command_received;
     Client clt;
     clt.clientConn->make_connection();
 
@@ -51,13 +50,30 @@ int main(int argc, char* const argv[]) {
     while(1) {
         string username_to_contact;
         cout << menu << endl;
+
+        fd_set set;
+        FD_ZERO(&set); /* clear the set */
+        FD_SET(clt.clientConn->getMasterFD(), &set); /* add our file descriptor to the set */
+
+        int rv = select(clt.clientConn->getMasterFD(), &set, NULL, NULL, NULL);
+        if (rv == -1) {
+            cout << "error" << endl;
+        }
+        else if (rv == 0) {
+            // timeout, socket does not have anything to read
+            cout << "nothing to read" << endl;
+        }
+        else {
+            cout << "something to read" << endl;
+        }
+
         cin >> command;
         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
 
         switch(command){
             case 1: 
                 cout << "See online users to talk\n" << endl;
-                clt.clientConn->seeOnlineUsers(command_received);
+                clt.clientConn->seeOnlineUsers();
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
@@ -68,11 +84,11 @@ int main(int argc, char* const argv[]) {
                     cerr << "No username inserted" << endl;
                     exit(EXIT_FAILURE);
                 }
-                clt.clientConn->sendRequestToTalk(command_received, username_to_contact);
+                clt.clientConn->sendRequestToTalk(username_to_contact);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
-                clt.clientConn->logout(command_received);
+                clt.clientConn->logout();
                 return 0;
             default:
                 cout << "Command not recognized" << endl;

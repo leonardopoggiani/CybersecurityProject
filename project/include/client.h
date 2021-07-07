@@ -116,11 +116,60 @@ class clientConnection {
             return true;
         }
 
-        void seeOnlineUsers(vector<unsigned char> command_received){
-            cout << "let me see online users" << endl;
-            command_received.push_back(constants::ONLINE);
+        void seeOnlineUsers(){
+            cout << "Let me see online users" << endl;
 
-            send_message(command_received);
+            int byte_index = 0;    
+
+            int dim = sizeof(char);
+            unsigned char* message = (unsigned char*)malloc(dim);  
+
+            memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
+            byte_index += sizeof(char);
+
+            send_message(message, dim);
+
+            unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+
+            int ret = receive_message(getMasterFD(), buffer);
+            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                perror("Receive Error");
+                throw runtime_error("Receive failed");
+            } 
+
+            byte_index = 0;    
+
+            dim = sizeof(char) + sizeof(int);
+            char opCode;
+            int list_size = 0; 
+
+            memcpy(&(opCode), &buffer[byte_index], sizeof(char));
+            byte_index += sizeof(char);
+
+            memcpy(&(list_size), &buffer[byte_index], sizeof(int));
+            byte_index += sizeof(int);
+
+            if(list_size == 0) {
+                cout << "--- no user online ---" << endl;
+            } else {
+                cout << "--- online users ---" << endl;
+
+                for(int i = 0; i < list_size; i++) {
+                    int username_size = 0;
+                    memcpy(&(username_size), &buffer[byte_index], sizeof(int));
+                    byte_index += sizeof(int);
+
+                    cout << "username size: " << username_size << endl;
+
+                    char* username = (char*)malloc(username_size);
+                    memcpy(username, &buffer[byte_index], username_size);
+                    byte_index += username_size;
+
+                    cout << username << " | ";
+                }
+
+                cout << endl;
+            }
         }
 
         int receive_message(int sd, char* buffer) {
@@ -187,7 +236,6 @@ class clientConnection {
                     throw runtime_error("Send failed");
                 }   
             } while (ret != (int) message.size());
-
         }
 
         void send_message(unsigned char* message, int dim) {
@@ -203,20 +251,36 @@ class clientConnection {
 
         }
 
-        void sendRequestToTalk(vector<unsigned char> command_received, string username) {
+        void sendRequestToTalk(string username) {
             cout << "let me talk to someone" << endl;
+            int byte_index = 0;    
 
-            command_received.push_back(constants::REQUEST);
+            int dim = sizeof(char) + sizeof(int) + username.size();
+            unsigned char* message = (unsigned char*)malloc(dim);  
 
-            send_message(command_received);
+            memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
+            byte_index += sizeof(char);
+
+            int username_size = username.size();
+            memcpy(&(message[byte_index]), &username_size, sizeof(int));
+            byte_index += sizeof(int);
+
+            memcpy(&(message[byte_index]), username.c_str(), username.size());
+            byte_index += username.size();
+
+            send_message(message, dim);
         }
         
-        void logout(vector<unsigned char> command_received) {
-            cout << "let me see online users" << endl;
-            command_received.push_back('|');
-            command_received.push_back(constants::LOGOUT);
-            command_received.push_back('|');
-            send_message(command_received);
+        void logout() {
+            cout << "let logout" << endl;
+            int byte_index = 0;    
+
+            int dim = sizeof(char);
+            unsigned char* message = (unsigned char*)malloc(dim);  
+
+            memcpy(&(message[byte_index]), &constants::LOGOUT, sizeof(char));
+            byte_index += sizeof(char);
+            send_message(message, dim);
         }
 
         int getMasterFD(){
@@ -283,7 +347,7 @@ bool authentication(Client &clt) {
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
     
-    // pacchetto: opCode | username_size | username | password_size | password | nonceClient
+    // pacchetto: opCode | username_size | username | nonceClient
 
     cout << "Welcome! \nPlease type your username -> ";
     cin >> username;
@@ -295,7 +359,6 @@ bool authentication(Client &clt) {
     clt.crypto->generateNonce(nonceClient.data());
 
     int byte_index = 0;    
-    int password_size = password.size();
     int username_size = username.size();
 
     int dim = sizeof(char) + sizeof(int) + username.size() + sizeof(int) + password.size() + nonceClient.size();
@@ -309,12 +372,6 @@ bool authentication(Client &clt) {
 
     memcpy(&(message_1[byte_index]), username.c_str(), username.size());
     byte_index += username.size();
-
-    memcpy(&(message_1[byte_index]), &password_size, sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&(message_1[byte_index]), password.c_str(), password.size());
-    byte_index += password.size();
 
     memcpy(&(message_1[byte_index]), nonceClient.data(), nonceClient.size());
     byte_index += nonceClient.size();

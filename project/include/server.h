@@ -18,23 +18,19 @@
 #include "client.h"
 #include "connection.h"
 
-
 using namespace std;
 
+struct users {
+    string username;
+    int sd;
 
-class serverConnection : public clientConnection{
+    users(string us, int s) {
+        username = us;
+        sd = s;
+    }
+};
 
-    struct users {
-        string username;
-        int sd;
-
-        users(string us, int s) {
-            username = us;
-            sd = s;
-        }
-    };
-
-    vector<users> users_logged_in;
+class serverConnection : public clientConnection {
 
     private:
         int client_socket[constants::MAX_CLIENTS];
@@ -45,6 +41,8 @@ class serverConnection : public clientConnection{
         int addrlen;
         int port;
         char buffer[1025];
+
+        vector<users> users_logged_in;
 
     public:
 
@@ -234,6 +232,10 @@ class serverConnection : public clientConnection{
             } while (ret != dim);
 
         }
+
+        vector<users> getUsersList() {
+            return users_logged_in;
+        }
 };
 
 struct Server {
@@ -258,9 +260,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     int byte_index = 0;    
     char opCode;
     int username_size;
-    int password_size;
     char* username;
-    char* password;
     unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
 
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
@@ -272,13 +272,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     username = (char*)malloc(username_size);
     memcpy(username, &buffer[byte_index], username_size);
     byte_index += username_size;
-
-    memcpy(&(password_size), &buffer[byte_index],sizeof(int));
-    byte_index += sizeof(int);
-
-    password = (char*)malloc(password_size);
-    memcpy(password, &buffer[byte_index], password_size);
-    byte_index += password_size;
 
     memcpy(nonce, &buffer[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
@@ -293,12 +286,15 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     file = fopen(filename_dir.c_str(), "r");
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
+    else
+        cout << "file opened" << endl;
 
     EVP_PKEY *pubkey = PEM_read_PUBKEY(file, NULL, NULL, NULL);
     if(!pubkey){
         fclose(file);
         throw runtime_error("An error occurred while reading the public key.");
-    }
+    } else
+        cout << "pubkey opened" << endl;
 
     srv.serverConn->insertUser(username, sd);
     srv.serverConn->printOnlineUsers();
@@ -313,6 +309,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     if(cert_size< 0) { 
         throw runtime_error("An error occurred during the reading of the certificate."); 
     }
+
+    cout << "serialization of certificate ok" << endl;
 
     srv.crypto->keyGeneration(prvKeyDHServer);
     pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
@@ -334,7 +332,89 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
+    memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
+    byte_index += pubKeyDHBufferLen;
+
     srv.serverConn->send_message(message,sd,dim);
 
     return true;   
+}
+
+bool seeOnlineUsers(Server &srv, int sd, unsigned char* buffer) {
+
+    int byte_index = 0;    
+    int dim = sizeof(char) + sizeof(int);
+    vector<users> users_logged_in = srv.serverConn->getUsersList();
+
+    for(size_t i = 0; i < users_logged_in.size(); i++) {
+        cout << "utente " << users_logged_in[i].username << endl;
+        dim += users_logged_in[i].username.size();
+        dim += sizeof(int);
+    }
+
+    unsigned char* message = (unsigned char*)malloc(dim);  
+
+    memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
+    byte_index += sizeof(char);
+
+    int list_size = users_logged_in.size();
+    memcpy(&(message[byte_index]), &list_size, sizeof(int));
+    byte_index += sizeof(int);
+
+
+    for(size_t i = 0; i < users_logged_in.size(); i++) {
+
+        int username_size = users_logged_in[i].username.size();
+
+        memcpy(&(message[byte_index]), &username_size, sizeof(int));
+        byte_index += sizeof(int);
+
+        memcpy(&(message[byte_index]), users_logged_in[i].username.c_str(), users_logged_in[i].username.size());
+        byte_index += users_logged_in[i].username.size();
+    }   
+
+    srv.serverConn->send_message(message,sd,dim);
+
+    return true;   
+}
+
+bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
+
+    int byte_index = 0;    
+    char opCode;
+    int username_size;
+    vector<users> users_logged_in = srv.serverConn->getUsersList();
+
+    memcpy(&opCode, &(buffer[byte_index]), sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&username_size, &(buffer[byte_index]), sizeof(int));
+    byte_index += sizeof(int);
+
+    char* username = (char*)malloc(username_size);
+
+    memcpy(username, &(buffer[byte_index]), username_size);
+    byte_index += username_size;
+
+    cout << "so you want to talk with " << username << endl;
+
+    byte_index = 0;    
+    int dim = sizeof(char);
+    unsigned char* message = (unsigned char*)malloc(dim);  
+
+    memcpy(&(message[byte_index]), &constants::FORWARD, sizeof(char));
+    byte_index += sizeof(char);
+
+    for(size_t i = 0; i < users_logged_in.size(); i++) {
+        cout << "utente " << users_logged_in[i].username << endl;
+        if(strcmp(users_logged_in[i].username.c_str(), username) == 0){
+            srv.serverConn->send_message(message,sd,dim);
+            return true;   
+        }
+    }
+
+    return false;   
 }

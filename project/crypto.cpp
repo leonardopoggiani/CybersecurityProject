@@ -154,6 +154,66 @@ void CryptoOperation::getPublicKeyFromCertificate(X509 *cert, EVP_PKEY *&pubkey)
         throw runtime_error("An error occurred while getting the key from the certificate.");
 }
 
+unsigned int CryptoOperation::sign(unsigned char *message, unsigned int messageLen, unsigned char *buffer, EVP_PKEY *prvKey) {
+    unsigned char *signature; 
+    unsigned int signLen;
+    signature = new(nothrow) unsigned char[EVP_PKEY_size(prvKey)];
+    if(!signature) {
+        throw runtime_error("Buffer not allocated correctly");
+    }
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        throw runtime_error("Context not initialized");
+    }
+    try {
+        if(EVP_SignInit(ctx, EVP_sha256()) != 1) {
+            throw runtime_error("Error inizializing the sign");
+        }
+        if(EVP_SignUpdate(ctx, message, messageLen) != 1) {
+            throw runtime_error("Error updating the sign");
+        }
+        if(EVP_SignFinal(ctx, signature, &signLen, prvKey) != 1){
+            throw runtime_error("Error finalizing the sign");
+        }
+        memcpy(buffer, signature, signLen);
+        delete[] signature;
+        EVP_MD_CTX_free(ctx);
+    } catch(const exception& e) {
+        delete[] signature;
+        EVP_MD_CTX_free(ctx);
+        throw;
+    }
+    return signLen;
+}
+
+unsigned int CryptoOperation::serializePublicKey(EVP_PKEY *pub_key, unsigned char *pubkey_buf){
+    BIO *mbio;
+    unsigned char *buffer;
+    long pubkey_size; 
+
+    mbio = BIO_new(BIO_s_mem());
+    if(!mbio)
+        throw runtime_error("An error occurred during the creation of the bio.");
+
+    if(PEM_write_bio_PUBKEY(mbio,pub_key) != 1){
+        BIO_free(mbio);
+        throw runtime_error("An error occurred during the writing of the public key into the bio.");
+    }
+
+    pubkey_size = BIO_get_mem_data(mbio, &buffer);
+    memcpy(pubkey_buf, buffer, pubkey_size);
+
+    if(pubkey_size < 0 || pubkey_size > UINT_MAX) {
+        BIO_free(mbio);
+        throw runtime_error("An error occurred during the reading of the public key.");
+    }
+
+    BIO_free(mbio);
+
+    return pubkey_size;
+}
+
+
 // DH parameters
 
 void CryptoOperation::buildParameters(EVP_PKEY *&dh_params) {

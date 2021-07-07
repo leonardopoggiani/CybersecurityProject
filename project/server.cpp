@@ -55,16 +55,24 @@ int main(int argc, char* const argv[]) {
                     if(buffer[0] == '1') {
                         cout << "\n**** AUTHENTICATION ****" << endl;
                       
-                        if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication Failed On Server");
+                        if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
-                    }  /*else if(command.compare("2") == 0) {
+                    } else if(buffer[0] == '2') {
                         cout << "\n**** ONLINE USERS REQUEST ****" << endl;
-                    }else if(command.compare("3") == 0) {
+
+                        if (!seeOnlineUsers(srv, sd, buffer)) throw runtime_error("Online Users request failed on Server");
+                        cout << "-----------------------------" << endl << endl;
+
+                    }else if(buffer[0] == '3') {
                         cout << "\n**** REQUEST TO TALK****" << endl;
-                    }else if(command.compare("4") == 0) {
+
+                        if (!requestToTalk(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
+                        cout << "-----------------------------" << endl << endl;
+
+                    }else if(buffer[0] == '4') {
                         cout << "\n**** CHAT ****" << endl;
-                    } */ else if(buffer[1] == '5') {
+                    }  else if(buffer[1] == '5') {
                         cout << "\n**** LOGOUT ****" << endl;
                         srv.serverConn->removeUser(sd);
                         srv.serverConn->printOnlineUsers();
