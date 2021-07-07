@@ -229,6 +229,12 @@ class clientConnection {
             cout << "--- connection closed ---" << endl;
         }
 
+        bool checkAck(char* buffer) {
+            if(strcmp(buffer,"ack") == 0){
+                return true;
+            } else 
+                return false;
+        }
 };
 
 string readMessage() {

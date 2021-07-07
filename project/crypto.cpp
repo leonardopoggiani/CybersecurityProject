@@ -32,9 +32,7 @@ unsigned int CryptoOperation::serializeCertificate(X509* cert, unsigned char* ce
     int cert_size = i2d_X509(cert,&cert_buf);
     if(cert_size < 0)
         throw runtime_error("An error occurred during the writing of the certificate.");
-    else {
-        cout << "ooooook" << endl;
-    }
+
     return cert_size;
 }
 

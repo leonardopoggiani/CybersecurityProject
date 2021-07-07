@@ -10,9 +10,10 @@
 #include <string.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <arpa/inet.h>    //close
-#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
+#include <arpa/inet.h>   
+#include <sys/time.h> 
 #include <errno.h>
+#include <time.h>      
 #include "constants.h"
 #include "client.h"
 #include "connection.h"
@@ -123,9 +124,21 @@ class serverConnection : public clientConnection{
                 cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
                 cout << "********************************" << endl << endl;
                 
-                message = "Hi, i'm the server";
-                if(send(new_socket, message.c_str(), message.length(), 0) != (ssize_t)message.length())  
-                    throw runtime_error("Error sending the greeting message"); 
+                time_t rawtime;
+                char buffer [255];
+
+                time (&rawtime);
+                sprintf(buffer,"ack_%s",ctime(&rawtime) );
+
+                char *p = buffer;
+                for (; *p; ++p)
+                {
+                    if (*p == ' ')
+                        *p = '_';
+                }
+
+                if(send(new_socket,buffer, strlen(buffer), 0) != strlen(buffer))  
+                    throw runtime_error("Error sending the ack message"); 
 
                 for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++) {  
                     if(client_socket[i] == 0)  {  
@@ -235,8 +248,6 @@ class serverConnection : public clientConnection{
 };
 
 struct Server {
-    //vector<OnlineUser> onlineUsers;
-    //vector<ActiveChat> activeChats;
     serverConnection *serverConn;
     CryptoOperation *crypto;
 
@@ -259,7 +270,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     X509 *cert;
     bool ret;
 
-    int byte_index_1 = 0;    
+    int byte_index = 0;    
 
     char opCode;
     int username_size;
@@ -268,28 +279,25 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     char* password;
     unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
 
-    memcpy(&(opCode), &buffer[byte_index_1], sizeof(char));
-    byte_index_1 += sizeof(char);
+    memcpy(&(opCode), &buffer[byte_index], sizeof(char));
+    byte_index += sizeof(char);
 
-    memcpy(&(username_size), &buffer[byte_index_1],sizeof(int));
-    byte_index_1 += sizeof(int);
+    memcpy(&(username_size), &buffer[byte_index],sizeof(int));
+    byte_index += sizeof(int);
 
     username = (char*)malloc(username_size);
-    memcpy(username, &buffer[byte_index_1], username_size);
-    byte_index_1 += username_size;
+    memcpy(username, &buffer[byte_index], username_size);
+    byte_index += username_size;
 
-    memcpy(&(password_size), &buffer[byte_index_1],sizeof(int));
-    byte_index_1 += sizeof(int);
+    memcpy(&(password_size), &buffer[byte_index],sizeof(int));
+    byte_index += sizeof(int);
 
     password = (char*)malloc(password_size);
-    memcpy(password, &buffer[byte_index_1], password_size);
-    byte_index_1 += password_size;
+    memcpy(password, &buffer[byte_index], password_size);
+    byte_index += password_size;
 
-    memcpy(nonce, &buffer[byte_index_1], constants::NONCE_SIZE);
-    byte_index_1 += constants::NONCE_SIZE;
-
-    // controllare che username password e nonce non abbiamo la barra nel mezzo, altrimenti sono problemi
-    cout << "opcode: " << opCode << ",username: " << username << ",password: " << password << endl;
+    memcpy(nonce, &buffer[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
 
     string end = "_pubkey.pem";
     string filename = username + end;
@@ -313,39 +321,18 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
                          
     //Send packet with certificate
 
-    packet.push_back('|');
-    packet.push_back('1');
-    packet.push_back('|');
-
     srv.crypto->generateNonce(nonceServer.data());
 
-    for(int i = 0 ; i < nonceServer.size() ; i++) {
-        packet.push_back(nonceServer[i]);
-    }
-
-    packet.push_back('|');
-
     srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
+
     int cert_size = i2d_X509(cert, &cert_buf);        
-    if(cert_size< 0) { throw runtime_error("An error occurred during the reading of the certificate."); }
-    
-    uint16_t lmsg = htons(cert_size);
-
-    //Accodare certificato e dimensione in qualche modo e spedire packet
-
-    // ret = send(sd, (void*) &lmsg, sizeof(uint16_t), 0);
-
-    for(int i = 0; i < cert_size; i++) {
-        packet.push_back(*(cert_buf+i));
+    if(cert_size< 0) { 
+        throw runtime_error("An error occurred during the reading of the certificate."); 
     }
 
-    // srv.serverConn->send_message(packet,sd);  
-    cout << "inizio invio certificato" << endl;
-
-    int byte_index = 0;    
+    byte_index = 0;    
     int dim = sizeof(char) + sizeof(int) + cert_size;
-    cout << "dim: " << dim << endl;
-    unsigned char* message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + cert_size);  // POSTPONED AFTER EpubKa(..)
+    unsigned char* message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + cert_size);
 
     memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);

@@ -15,12 +15,9 @@
 #include "include/client.h"
 #include "include/utils.h"
 
-
 using namespace std;
 
 const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
-
-
 
 int main(int argc, char* const argv[]) {
 
@@ -41,7 +38,7 @@ int main(int argc, char* const argv[]) {
 
     // messaggio di saluto
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    cout << "must be: Hi, i'm the server | " << buffer << endl;
+    cout << "must be: true | " << clt.clientConn->checkAck(buffer) << endl;
 
     cout << "\n**** AUTHENTICATION ****" << endl;
 
