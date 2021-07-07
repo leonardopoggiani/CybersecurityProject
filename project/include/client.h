@@ -326,6 +326,7 @@ bool authentication(Client &clt) {
     int dim = sizeof(char) + sizeof(int) + username.size() + sizeof(int) + password.size() + nonceClient.size();
     cout << "dim: " << dim << endl;
     unsigned char* message_1 = (unsigned char*)malloc(dim);  
+    unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
 
     memcpy(&(message_1[byte_index_1]), &constants::AUTH, sizeof(char));
     byte_index_1 += sizeof(char);
@@ -406,9 +407,12 @@ bool authentication(Client &clt) {
     byte_index += size_cert;
     cout << "certificate received" << endl;
 
-    cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
-    cout << "certificate received" << endl;
+    memcpy(nonce, &message[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+    cout << "server nonce received" << endl;
 
+    cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
+    
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }

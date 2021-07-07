@@ -330,9 +330,13 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         throw runtime_error("An error occurred during the reading of the certificate."); 
     }
 
-    byte_index = 0;    
-    int dim = sizeof(char) + sizeof(int) + cert_size;
-    unsigned char* message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + cert_size);
+    // srv.serverConn->send_message(packet,sd);  
+    cout << "inizio invio certificato" << endl;
+
+    int byte_index = 0;    
+    int dim = sizeof(char) + sizeof(int) + cert_size + nonceServer.size();
+    cout << "dim: " << dim << endl;
+    unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
@@ -342,6 +346,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     memcpy(&(message[byte_index]), &cert_buf[0], cert_size);
     byte_index += cert_size;
+
+    memcpy(&(message[byte_index]), nonceServer.data(), nonceServer.size());
+    byte_index += nonceServer.size();
 
     srv.serverConn->send_message(message,sd,dim);
 
