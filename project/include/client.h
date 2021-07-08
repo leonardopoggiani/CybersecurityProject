@@ -159,8 +159,6 @@ class clientConnection {
                     memcpy(&(username_size), &buffer[byte_index], sizeof(int));
                     byte_index += sizeof(int);
 
-                    cout << "username size: " << username_size << endl;
-
                     char* username = (char*)malloc(username_size);
                     memcpy(username, &buffer[byte_index], username_size);
                     byte_index += username_size;
@@ -251,15 +249,22 @@ class clientConnection {
 
         }
 
-        void sendRequestToTalk(string username) {
+        void sendRequestToTalk(string username_to_contact, string username) {
             cout << "let me talk to someone" << endl;
             int byte_index = 0;    
 
-            int dim = sizeof(char) + sizeof(int) + username.size();
+            int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
             unsigned char* message = (unsigned char*)malloc(dim);  
 
             memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
             byte_index += sizeof(char);
+
+            int username_to_contact_size = username_to_contact.size();
+            memcpy(&(message[byte_index]), &username_to_contact_size, sizeof(int));
+            byte_index += sizeof(int);
+
+            memcpy(&(message[byte_index]), username_to_contact.c_str(), username_to_contact.size());
+            byte_index += username_to_contact.size();
 
             int username_size = username.size();
             memcpy(&(message[byte_index]), &username_size, sizeof(int));
@@ -335,26 +340,17 @@ string readPassword() {
     return password;
 }
 
-bool authentication(Client &clt) {
+bool authentication(Client &clt, string username, string password) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
     vector<unsigned char> buffer;
     vector<unsigned char> packet;
     vector<unsigned char> signature;
     unsigned char* nonceServer;
-    string username;
-    string password;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
     
     // pacchetto: opCode | username_size | username | nonceClient
-
-    cout << "Welcome! \nPlease type your username -> ";
-    cin >> username;
-    cout << endl;
-
-    cout << "Fine! Now insert you password to chat with others" << endl;
-    password = readPassword();
 
     clt.crypto->generateNonce(nonceClient.data());
 
@@ -425,3 +421,40 @@ bool authentication(Client &clt) {
     return true;
 }
 
+bool receiveRequestToTalk(Client &clt, char* msg) {
+    unsigned int tempBufferLen = 0;
+    unsigned int keyBufferLen = 0;
+    unsigned int keyBufferDHLen = 0;
+    EVP_PKEY *keyDH = NULL;
+    EVP_PKEY *peerKeyDH = NULL;
+    EVP_PKEY *peerPubKey = NULL;
+    string input;
+    bool verify = false;
+
+    int byte_index = 0;
+    char* username;
+    int username_size;
+    char opCode;
+    char* response = new char[3];
+
+    memcpy(&(opCode), &msg[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(username_size), &msg[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    username = (char*)malloc(username_size);
+
+    memcpy(username, &msg[byte_index], username_size);
+    byte_index += username_size;
+
+    cout << "Do you want to talk with " << username << "? (yes/no)" << endl;
+    cin >> response;
+    cin.ignore();
+
+    if(strcmp(response,"yes") == 0) {
+        cout << "ok so i'll start the chat" << endl;
+    } else {
+        cout << ":(" << endl;
+    }
+}

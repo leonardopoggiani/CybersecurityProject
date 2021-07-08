@@ -20,13 +20,11 @@ using namespace std;
 const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
 
 int main(int argc, char* const argv[]) {
-
-    int command = 0;
     
     string username;
     string password;
     string to_insert;
-    unsigned char* buffer = new unsigned char[constants::MAX_MESSAGE_SIZE];
+    char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> packet;
     Client clt;
     fd_set fds;
@@ -49,12 +47,21 @@ int main(int argc, char* const argv[]) {
         cout << "ack received" << endl;
     }
 
+    cout << "Welcome! \nPlease type your username -> ";
+    cin >> username;
+    cout << endl;
+
+    cout << "Fine! Now insert you password to chat with others" << endl;
+    password = readPassword();
+
     cout << "\n**** AUTHENTICATION ****" << endl;
 
-    if (!authentication(clt)) throw runtime_error("Authentication Failed");
+    if (!authentication(clt,username,password)) throw runtime_error("Authentication Failed");
         cout << "-----------------------------" << endl << endl;
 
     while(1) {
+        option = -1;
+        cout << menu << endl;   
 
         maxfd = (clt.clientConn->getMasterFD() > STDIN_FILENO) ? clt.clientConn->getMasterFD() : STDIN_FILENO;
         FD_ZERO(&fds);
@@ -68,28 +75,23 @@ int main(int argc, char* const argv[]) {
             cin.ignore();
         }
 
-        if(FD_ISSET(clt.clientConn>getMasterFD(), &fds)) {
-            buffer.clear();
+        if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
             
             if(buffer[0] == constants::FORWARD) {
                 cout << "\n-------Received request to talk-------" << endl;
-                /*if(receiveRequestToTalk(context, buffer)){
+                if(receiveRequestToTalk(clt, buffer)){
                     cout << "---------------------------------------" << endl;
                     cout << "\n-------Chat-------" << endl;
-                    buffer.clear();
-                    disconnect = chat(context);
-                    if(disconnect) return 0;
+                    // buffer.clear();
+                    // disconnect = chat(context);
+                    // if(disconnect) return 0;
                     cout << "------------------" << endl;
-                }*/
+                }
             }
         }
 
-        cout << menu << endl;
-
-        cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
-
-        switch(command){
+        switch(option){
             case 1: 
                 cout << "See online users to talk\n" << endl;
                 clt.clientConn->seeOnlineUsers();
@@ -101,9 +103,9 @@ int main(int argc, char* const argv[]) {
 
                 if(username_to_contact.length() == 0){
                     cerr << "No username inserted" << endl;
-                    exit(EXIT_FAILURE);
+                    return 1;
                 }
-                clt.clientConn->sendRequestToTalk(username_to_contact);
+                clt.clientConn->sendRequestToTalk(username_to_contact, username);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
@@ -111,7 +113,7 @@ int main(int argc, char* const argv[]) {
                 return 0;
             default:
                 cout << "Command not recognized" << endl;
-                exit(EXIT_FAILURE);
+                return 1;
         }
     }
 

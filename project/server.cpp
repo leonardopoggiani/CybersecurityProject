@@ -38,6 +38,7 @@ int main(int argc, char* const argv[]) {
 
                 if (recv(sd, buffer, sizeof(buffer), MSG_PEEK | MSG_DONTWAIT) == 0) {
                     srv.serverConn->disconnect_host(sd, i);
+                    srv.serverConn->printOnlineUsers();
                     continue;
                 }
 
@@ -46,9 +47,8 @@ int main(int argc, char* const argv[]) {
 
                     if(ret == 0) {
                         cout << "removing user 1" << endl;
-                        srv.serverConn->removeUser(sd);
+                        srv.serverConn->disconnect_host(sd, i);  
                         srv.serverConn->printOnlineUsers();
-                        srv.serverConn->disconnect_host(sd, i);                      
                         continue;
                     }
 
@@ -74,9 +74,8 @@ int main(int argc, char* const argv[]) {
                         cout << "\n**** CHAT ****" << endl;
                     }  else if(buffer[1] == '5') {
                         cout << "\n**** LOGOUT ****" << endl;
-                        srv.serverConn->removeUser(sd);
-                        srv.serverConn->printOnlineUsers();
                         srv.serverConn->disconnect_host(sd, i);
+                        srv.serverConn->printOnlineUsers();
                         continue;
                     } else {
                         cout << "Invalid command, please retry" << endl;

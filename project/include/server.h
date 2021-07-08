@@ -40,7 +40,6 @@ class serverConnection : public clientConnection {
         int activity;
         int addrlen;
         int port;
-        char buffer[1025];
 
         vector<users> users_logged_in;
 
@@ -139,6 +138,7 @@ class serverConnection : public clientConnection {
         } 
 
         void disconnect_host(int sd, unsigned int i) {
+            removeUser(sd);
             getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen);
 
             cout << "\n **** Client is leaving ****" << endl;
@@ -312,8 +312,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     cout << "serialization of certificate ok" << endl;
 
-    srv.crypto->keyGeneration(prvKeyDHServer);
-    pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
+    // srv.crypto->keyGeneration(prvKeyDHServer);
+    // pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
 
     byte_index = 0;    
     int dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE;
@@ -332,12 +332,12 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+    /* memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
     byte_index += sizeof(int);
 
     memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
-
+    */
     srv.serverConn->send_message(message,sd,dim);
 
     return true;   
@@ -385,11 +385,20 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
 
     int byte_index = 0;    
     char opCode;
-    int username_size;
+    int username_to_talk_to_size = 0;
+    int username_size = 0;
     vector<users> users_logged_in = srv.serverConn->getUsersList();
 
     memcpy(&opCode, &(buffer[byte_index]), sizeof(char));
     byte_index += sizeof(char);
+
+    memcpy(&username_to_talk_to_size, &(buffer[byte_index]), sizeof(int));
+    byte_index += sizeof(int);
+
+    char* username_to_talk_to = (char*)malloc(username_to_talk_to_size);
+
+    memcpy(username_to_talk_to, &(buffer[byte_index]), username_to_talk_to_size);
+    byte_index += username_to_talk_to_size;
 
     memcpy(&username_size, &(buffer[byte_index]), sizeof(int));
     byte_index += sizeof(int);
@@ -399,19 +408,26 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     memcpy(username, &(buffer[byte_index]), username_size);
     byte_index += username_size;
 
-    cout << "so you want to talk with " << username << endl;
+    cout << "so " << username << " want to talk with " << username_to_talk_to << endl;
 
     byte_index = 0;    
-    int dim = sizeof(char);
+    int dim = sizeof(char) + username_size;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::FORWARD, sizeof(char));
     byte_index += sizeof(char);
 
+    memcpy(&(message[byte_index]), &username_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message[byte_index]), username, username_size);
+    byte_index += username_size;
+
     for(size_t i = 0; i < users_logged_in.size(); i++) {
-        cout << "utente " << users_logged_in[i].username << endl;
-        if(strcmp(users_logged_in[i].username.c_str(), username) == 0){
-            srv.serverConn->send_message(message,sd,dim);
+        cout << "utente " << users_logged_in[i].username << ", sd " << users_logged_in[i].sd << endl;
+        if(strcmp(users_logged_in[i].username.c_str(), username_to_talk_to) == 0){
+
+            srv.serverConn->send_message(message,users_logged_in[i].sd,dim);
             return true;   
         }
     }
