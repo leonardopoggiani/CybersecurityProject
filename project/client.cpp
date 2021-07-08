@@ -26,9 +26,16 @@ int main(int argc, char* const argv[]) {
     string username;
     string password;
     string to_insert;
-    char* buffer = new char[constants::MAX_MESSAGE_SIZE];
+    unsigned char* buffer = new unsigned char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> packet;
     Client clt;
+    fd_set fds;
+    int maxfd;
+    int option = -1;
+    bool disconnect = false;
+    string username_to_contact;
+
+
     clt.clientConn->make_connection();
 
     // messaggio di saluto
@@ -48,26 +55,38 @@ int main(int argc, char* const argv[]) {
         cout << "-----------------------------" << endl << endl;
 
     while(1) {
-        string username_to_contact;
+
+        maxfd = (clt.clientConn->getMasterFD() > STDIN_FILENO) ? clt.clientConn->getMasterFD() : STDIN_FILENO;
+        FD_ZERO(&fds);
+        FD_SET(clt.clientConn->getMasterFD(), &fds); 
+        FD_SET(STDIN_FILENO, &fds); 
+        
+        select(maxfd+1, &fds, NULL, NULL, NULL); 
+
+        if(FD_ISSET(0, &fds)) {  
+            cin >> option;
+            cin.ignore();
+        }
+
+        if(FD_ISSET(clt.clientConn>getMasterFD(), &fds)) {
+            buffer.clear();
+            clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+            
+            if(buffer[0] == constants::FORWARD) {
+                cout << "\n-------Received request to talk-------" << endl;
+                /*if(receiveRequestToTalk(context, buffer)){
+                    cout << "---------------------------------------" << endl;
+                    cout << "\n-------Chat-------" << endl;
+                    buffer.clear();
+                    disconnect = chat(context);
+                    if(disconnect) return 0;
+                    cout << "------------------" << endl;
+                }*/
+            }
+        }
+
         cout << menu << endl;
 
-        fd_set set;
-        FD_ZERO(&set); /* clear the set */
-        FD_SET(clt.clientConn->getMasterFD(), &set); /* add our file descriptor to the set */
-
-        int rv = select(clt.clientConn->getMasterFD(), &set, NULL, NULL, NULL);
-        if (rv == -1) {
-            cout << "error" << endl;
-        }
-        else if (rv == 0) {
-            // timeout, socket does not have anything to read
-            cout << "nothing to read" << endl;
-        }
-        else {
-            cout << "something to read" << endl;
-        }
-
-        cin >> command;
         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
 
         switch(command){
