@@ -168,10 +168,14 @@ class clientConnection {
                     }
 
                     cout << " | ";
+                    free(username);
                 }
 
                 cout << endl;
             }
+
+            free(message);
+            free(buffer);
         }
 
         int receive_message(int sd, char* buffer) {
@@ -241,7 +245,7 @@ class clientConnection {
         }
 
         void send_message(unsigned char* message, int dim) {
-            int ret;
+            int ret = 0;
             
             do {
                 ret = send(getMasterFD(), &message[0], dim, 0);
@@ -278,6 +282,18 @@ class clientConnection {
             byte_index += username.size();
 
             send_message(message, dim);
+
+            unsigned char* response = (unsigned char*)malloc(sizeof(char));  
+            receive_message(getMasterFD(), response);
+
+            cout << "response " << response[0] << endl;
+
+            // TODO fix bug here
+            if(response[0] == 'y'){
+                cout << "request accepted, starting the chat" << endl;
+            } else {
+                cout << "we're sorry :(" << endl;
+            }
         }
         
         void logout() {
@@ -311,7 +327,7 @@ class clientConnection {
 };
 
 string readMessage() {
-    string message;
+    std::string message;
     getline(cin, message);
     if (message.length() > constants::MAX_MESSAGE_SIZE) {
         cerr << "Error: the message must be loger than " << endl;
@@ -323,13 +339,18 @@ string readMessage() {
 struct Client {
     EVP_PKEY *prvKeyClient;
     clientConnection *clientConn;
-    CryptoOperation *crypto;
-    string username;
+    CryptoOperation *crypto;    
+    unsigned char* talking_to;
     string peerUsername;
 
     Client() {
         clientConn = new clientConnection();
         crypto = new CryptoOperation();
+    }
+
+    ~Client() {
+        delete clientConn;
+        delete crypto;
     }
 };
 
@@ -377,7 +398,8 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += nonceClient.size();
 
     clt.clientConn->send_message(message_1, dim);
-    
+    free(message_1);
+
     //ricevere certificato
     unsigned char* message = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message);
@@ -405,13 +427,15 @@ bool authentication(Client &clt, string username, string password) {
 
     memcpy(nonceServer, &message[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
+    free(message);
+
 
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
 
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }
-    cout << "Server certificate verified" << endl;
+    cout << "Server certificate verified" << endl;  
 
     // print the successful verification to screen:
     char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
@@ -422,6 +446,7 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
+    free(nonceServer);
     return true;
 }
 
@@ -436,10 +461,10 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     bool verify = false;
 
     int byte_index = 0;
-    char* username;
+    unsigned char* username;
     int username_size;
     char opCode;
-    char* response = new char[3];
+    char response = '0';
 
     memcpy(&(opCode), &msg[byte_index], sizeof(char));
     byte_index += sizeof(char);
@@ -447,20 +472,39 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     memcpy(&(username_size), &msg[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    username = (char*)malloc(username_size);
+    clt.talking_to = username;
+    username = (unsigned char*)malloc(username_size);
 
     memcpy(username, &msg[byte_index], username_size);
     byte_index += username_size;
 
-    cout << "Do you want to talk with " << username << "? (yes/no)" << endl;
+    cout << "Do you want to talk with ";
+    for(int i = 0; i < username_size; i++) {
+        cout << username[i];
+    }
+
+    cout << "? (y/n)" << endl;
+
     cin >> response;
     cin.ignore();
 
-    if(strcmp(response,"yes") == 0) {
+    if(response == 'y') {
         cout << "ok so i'll start the chat" << endl;
     } else {
         cout << ":(" << endl;
     }
 
+    int dim = sizeof(char);
+    unsigned char* response_to_request = (unsigned char*)malloc(dim);  
+
+    char res = (response == 'y') ? '1' : '0';
+
+    memcpy(&(response_to_request[byte_index]), &res, sizeof(char));
+    byte_index += sizeof(char);
+
+    clt.clientConn->send_message(response_to_request, dim);
+
+    free(response_to_request);
+    free(username);
     return true;
 }

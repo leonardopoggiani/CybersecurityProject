@@ -288,10 +288,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     string filename = filename_stream.str();  // The resulting string
 
-    FILE* file;
     string filename_dir = "keys/public/" + filename;
-    cout << "filename " << filename_dir.c_str() << endl;
-    
+        
+    FILE* file;
     file = fopen(filename_dir.c_str(), "r");
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
@@ -349,6 +348,10 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     */
     srv.serverConn->send_message(message,sd,dim);
 
+    fclose(file);
+    free(nonce);
+    free(username);
+    free(message);
     return true;   
 }
 
@@ -428,7 +431,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     cout << endl;
 
     byte_index = 0;    
-    int dim = sizeof(char) + username_size;
+    int dim = sizeof(char) + sizeof(int) + username_size;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::FORWARD, sizeof(char));
@@ -440,12 +443,24 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), username, username_size);
     byte_index += username_size;
 
+    int user_to_talk_to_sd = 0;
     for(size_t i = 0; i < users_logged_in.size(); i++) {
-        if(strcmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to)) == 0){
-            srv.serverConn->send_message(message,users_logged_in[i].sd,dim);
-            return true;   
+        if(strncmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to), username_size) == 0){
+            srv.serverConn->send_message(message,users_logged_in[i].sd, dim);
+            user_to_talk_to_sd = users_logged_in[i].sd;
         }
     }
 
-    return false;       
+    cout << "send response" << endl;
+
+    unsigned char* response = (unsigned char*)malloc(sizeof(char));
+    int ret = srv.serverConn->receive_message(user_to_talk_to_sd, response);
+
+    cout << "received response" << endl;
+
+    srv.serverConn->send_message(response, sd, dim);
+
+    free(username_to_talk_to);
+    free(username);
+    return true;       
 }

@@ -83,9 +83,13 @@ int main(int argc, char* const argv[]) {
                 if(receiveRequestToTalk(clt, buffer)){
                     cout << "---------------------------------------" << endl;
                     cout << "\n-------Chat-------" << endl;
-                    // buffer.clear();
-                    // disconnect = chat(context);
-                    // if(disconnect) return 0;
+                    memset(buffer, 0, sizeof(buffer));
+                    clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+                    if(buffer[0] == 'y') {
+                        cout << "Request accepted, now you're talking to " << clt.talking_to << endl;
+                    } else {
+                        cout << "Sorry, you're request was rejected" << endl;
+                    }
                     cout << "------------------" << endl;
                 }
             }
@@ -116,5 +120,7 @@ int main(int argc, char* const argv[]) {
                 return 1;
         }
     }
+
+    free(buffer);
 
 }

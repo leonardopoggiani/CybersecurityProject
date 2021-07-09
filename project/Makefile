@@ -1,6 +1,6 @@
-CC = g++
+CC = clang++
 
-CFLAGS  = -g -Wall -Wformat-zero-length 
+CFLAGS  = -g -Wall -Wformat-zero-length
 PROTOCOL  = -D PROTOCOL_DEBUG
 VERBOSE  = -D VERBOSE_LEVEL
 
