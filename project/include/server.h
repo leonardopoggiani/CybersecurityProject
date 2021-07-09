@@ -260,7 +260,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     int byte_index = 0;    
     char opCode;
     int username_size;
-    char* username;
+    unsigned char* username;
     unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
 
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
@@ -269,15 +269,24 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(username_size), &buffer[byte_index],sizeof(int));
     byte_index += sizeof(int);
 
-    username = (char*)malloc(username_size);
+    username = (unsigned char*)malloc(username_size);
     memcpy(username, &buffer[byte_index], username_size);
     byte_index += username_size;
 
     memcpy(nonce, &buffer[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    string end = "_pubkey.pem";
-    string filename = username + end;
+    std::stringstream filename_stream;
+    std::stringstream username_string;
+
+    for(int i = 0; i < username_size; i++) {
+        filename_stream << username[i];
+        username_string << username[i];
+    }
+
+    filename_stream << "_pubkey.pem";
+
+    string filename = filename_stream.str();  // The resulting string
 
     FILE* file;
     string filename_dir = "keys/public/" + filename;
@@ -296,7 +305,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     } else
         cout << "pubkey opened" << endl;
 
-    srv.serverConn->insertUser(username, sd);
+    srv.serverConn->insertUser(username_string.str(), sd);
     srv.serverConn->printOnlineUsers();
                          
     //Send packet with certificate
@@ -395,7 +404,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&username_to_talk_to_size, &(buffer[byte_index]), sizeof(int));
     byte_index += sizeof(int);
 
-    char* username_to_talk_to = (char*)malloc(username_to_talk_to_size);
+    unsigned char* username_to_talk_to = (unsigned char*)malloc(username_to_talk_to_size);
 
     memcpy(username_to_talk_to, &(buffer[byte_index]), username_to_talk_to_size);
     byte_index += username_to_talk_to_size;
@@ -403,12 +412,20 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&username_size, &(buffer[byte_index]), sizeof(int));
     byte_index += sizeof(int);
 
-    char* username = (char*)malloc(username_size);
+    unsigned char* username = (unsigned char*)malloc(username_size);
 
     memcpy(username, &(buffer[byte_index]), username_size);
     byte_index += username_size;
 
-    cout << "so " << username << " want to talk with " << username_to_talk_to << endl;
+    cout << "so ";
+    for(int i = 0; i < username_size; i++){
+        cout << username[i];
+    }
+    cout << " want to talk with ";
+    for(int i = 0; i < username_to_talk_to_size; i++){
+        cout << username_to_talk_to[i];
+    }
+    cout << endl;
 
     byte_index = 0;    
     int dim = sizeof(char) + username_size;
@@ -424,13 +441,11 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     byte_index += username_size;
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
-        cout << "utente " << users_logged_in[i].username << ", sd " << users_logged_in[i].sd << endl;
-        if(strcmp(users_logged_in[i].username.c_str(), username_to_talk_to) == 0){
-
+        if(strcmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to)) == 0){
             srv.serverConn->send_message(message,users_logged_in[i].sd,dim);
             return true;   
         }
     }
 
-    return false;   
+    return false;       
 }

@@ -159,11 +159,15 @@ class clientConnection {
                     memcpy(&(username_size), &buffer[byte_index], sizeof(int));
                     byte_index += sizeof(int);
 
-                    char* username = (char*)malloc(username_size);
+                    unsigned char* username = (unsigned char*)malloc(username_size);
                     memcpy(username, &buffer[byte_index], username_size);
                     byte_index += username_size;
 
-                    cout << username << " | ";
+                    for(int j = 0; j < username_size; j++){
+                        cout << username[j];
+                    }
+
+                    cout << " | ";
                 }
 
                 cout << endl;
@@ -457,4 +461,6 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     } else {
         cout << ":(" << endl;
     }
+
+    return true;
 }
