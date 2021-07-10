@@ -286,11 +286,14 @@ class clientConnection {
             unsigned char* response = (unsigned char*)malloc(sizeof(char));  
             receive_message(getMasterFD(), response);
 
-            cout << "response " << response[0] << endl;
-
-            // TODO fix bug here
             if(response[0] == 'y'){
                 cout << "request accepted, starting the chat" << endl;
+                cout << "---------------------------------------" << endl;
+                cout << "\n-------Chat-------" << endl;
+
+                chat();
+                
+                cout << "------------------" << endl;
             } else {
                 cout << "we're sorry :(" << endl;
             }
@@ -323,6 +326,41 @@ class clientConnection {
                 return true;
             } else 
                 return false;
+        }
+
+        void chat() {
+            fd_set fds;
+            string message;
+            unsigned char* buffer;
+
+            int maxfd = (getMasterFD() > STDIN_FILENO) ? getMasterFD() : STDIN_FILENO;
+            FD_ZERO(&fds);
+            FD_SET(getMasterFD(), &fds); 
+            FD_SET(STDIN_FILENO, &fds); 
+            
+            select(maxfd+1, &fds, NULL, NULL, NULL); 
+
+            if(FD_ISSET(0, &fds)) {  
+                cin >> message;
+                buffer = (unsigned char*)malloc(message.size());
+                send_message(message);
+                cin.ignore();
+            }
+
+            if(FD_ISSET(getMasterFD(), &fds)) {
+                buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+                receive_message(getMasterFD(), buffer);
+
+                int message_size = 0;
+                int byte_index = 0;
+
+                memcpy(&(message_size), &buffer[byte_index], sizeof(char));
+                byte_index += sizeof(char);
+                
+                for(int i = 0; i < message_size; i++) {
+
+                }
+            }
         }
 };
 
@@ -496,6 +534,7 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     }
 
     int dim = sizeof(char);
+    byte_index = 0;
     unsigned char* response_to_request = (unsigned char*)malloc(dim);  
 
     memcpy(&(response_to_request[byte_index]), &response, sizeof(char));
@@ -507,3 +546,4 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     free(username);
     return true;
 }
+
