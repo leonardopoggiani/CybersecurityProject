@@ -19,22 +19,14 @@
 using namespace std;
 using namespace constants;
 
-void setStdinEcho(bool enable = true) {
-    struct termios tty;
-    tcgetattr(STDIN_FILENO, &tty);
-    if(!enable)
-        tty.c_lflag &= ~ECHO;
-    else
-        tty.c_lflag |= ECHO;
-    (void)tcsetattr(STDIN_FILENO, TCSANOW, &tty);
-}
-
 class clientConnection {
 
     protected:
         struct sockaddr_in address;
         int master_fd;
         int port;
+        unsigned char* talking_to;
+
 
     public:
 
@@ -291,16 +283,46 @@ class clientConnection {
                 cout << "---------------------------------------" << endl;
                 cout << "\n-------Chat-------" << endl;
 
+                start_chat(username, username_to_contact);
+
                 chat();
-                
+
                 cout << "------------------" << endl;
             } else {
                 cout << "we're sorry :(" << endl;
             }
         }
+
+        void start_chat(string username, string username_to_contact) {
+            cout << "start chat " << endl;
+            int dim = username.size() + username_to_contact.size() + sizeof(char) + sizeof(int) + sizeof(int);
+            unsigned char* buffer = (unsigned char*)malloc(dim);
+            int byte_index = 0;    
+
+            memcpy(&(buffer[byte_index]), &constants::START_CHAT, sizeof(char));
+            byte_index += sizeof(char);
+
+            int username_1_size = username.size();
+            memcpy(&(buffer[byte_index]), &username_1_size, sizeof(int));
+            byte_index += sizeof(int);
+
+            memcpy(&(buffer[byte_index]), username.c_str(), username.size());
+            byte_index += username.size();
+
+            int username_2_size = username_to_contact.size();
+            memcpy(&(buffer[byte_index]), &username_2_size, sizeof(int));
+            byte_index += sizeof(int);
+            
+            memcpy(&(buffer[byte_index]), username_to_contact.c_str(), username_to_contact.size());
+            byte_index += username_to_contact.size();
+
+            cout << " ---- initializing chat ----" << endl;
+
+            send_message(buffer,dim);
+        }
         
         void logout() {
-            cout << "let logout" << endl;
+            cout << "logout" << endl;
             int byte_index = 0;    
 
             int dim = sizeof(char);
@@ -331,37 +353,130 @@ class clientConnection {
         void chat() {
             fd_set fds;
             string message;
-            unsigned char* buffer;
+            unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+            memset(buffer,0,constants::MAX_MESSAGE_SIZE);
+            int maxfd;
 
-            int maxfd = (getMasterFD() > STDIN_FILENO) ? getMasterFD() : STDIN_FILENO;
-            FD_ZERO(&fds);
-            FD_SET(getMasterFD(), &fds); 
-            FD_SET(STDIN_FILENO, &fds); 
-            
-            select(maxfd+1, &fds, NULL, NULL, NULL); 
+            cout << "receiving username " << endl;
 
-            if(FD_ISSET(0, &fds)) {  
-                cin >> message;
-                buffer = (unsigned char*)malloc(message.size());
-                send_message(message);
-                cin.ignore();
+            int ret = receive_message(getMasterFD(), buffer);
+            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                perror("Send Error");
+                throw runtime_error("Send failed");
+            }   
+
+            int username_size = 0;
+            int byte_index = 0;
+            char opCode;
+            unsigned char* username_talking_to;
+
+            memcpy(&(opCode), &buffer[byte_index], sizeof(char));
+            byte_index += sizeof(char);
+
+            memcpy(&(username_size), &buffer[byte_index], sizeof(int));
+            byte_index += sizeof(int);
+
+            cout << "opcode " << opCode << ", username_size " << username_size << endl;
+
+            username_talking_to = (unsigned char*)malloc(username_size);
+
+            memcpy(username_talking_to, &buffer[byte_index], username_size);
+            byte_index += username_size;
+
+            cout << "Talking to ";
+
+            for(int i = 0; i < username_size; i++) {
+                cout << username_talking_to[i];
             }
 
-            if(FD_ISSET(getMasterFD(), &fds)) {
-                buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-                receive_message(getMasterFD(), buffer);
+            talking_to = username_talking_to; 
 
-                int message_size = 0;
-                int byte_index = 0;
+            cout << endl;
 
-                memcpy(&(message_size), &buffer[byte_index], sizeof(char));
-                byte_index += sizeof(char);
+            while(1) {
+                maxfd = (getMasterFD() > STDIN_FILENO) ? getMasterFD() : STDIN_FILENO;
+                FD_ZERO(&fds);
+                FD_SET(getMasterFD(), &fds); 
+                FD_SET(STDIN_FILENO, &fds); 
                 
-                for(int i = 0; i < message_size; i++) {
+                select(maxfd+1, &fds, NULL, NULL, NULL); 
 
+                if(FD_ISSET(0, &fds)) {  
+                    cin >> message;
+                    buffer = (unsigned char*)malloc(message.size());
+                    send_message_chat(message);
+                    cin.ignore();
+                }
+
+                if(FD_ISSET(getMasterFD(), &fds)) {
+                    buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+                    receive_message(getMasterFD(), buffer);
+
+                    int message_size = 0;
+                    int byte_index = 0;
+                    char opCode;
+
+                    unsigned char* message;
+
+                    memcpy(&(opCode), &buffer[byte_index], sizeof(char));
+                    byte_index += sizeof(char);
+
+                    memcpy(&(message_size), &buffer[byte_index], sizeof(int));
+                    byte_index += sizeof(int);
+
+                    message = (unsigned char*)malloc(message_size);
+                    
+                    memcpy(&(message), &buffer[byte_index], message_size);
+                    byte_index += message_size;
+
+                    cout << "received message!" << endl;
+                    
+                    for(int i = 0; i < message_size; i++) {
+                        cout << message[i];
+                    }
+
+                    cout << endl;
                 }
             }
+            
         }
+
+        int send_message_chat(string message) {
+            int ret;
+
+            string to_send = "4";
+            to_send.append(to_string(message.size()));
+            to_send.append(message);
+
+            if (to_send.length() > constants::MAX_MESSAGE_SIZE) {
+                throw runtime_error("Max message size exceeded in Send");
+            }
+
+            do {
+                ret = send(getMasterFD(), to_send.c_str(), to_send.length(), 0);
+                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                    perror("Send Error");
+                    throw runtime_error("Send failed");
+                }   
+            } while (ret != (int) to_send.length());
+        }
+};
+
+
+struct Client {
+    EVP_PKEY *prvKeyClient;
+    clientConnection *clientConn;
+    CryptoOperation *crypto;    
+
+    Client() {
+        clientConn = new clientConnection();
+        crypto = new CryptoOperation();
+    }
+
+    ~Client() {
+        delete clientConn;
+        delete crypto;
+    }
 };
 
 string readMessage() {
@@ -374,23 +489,15 @@ string readMessage() {
     return message;
 }
 
-struct Client {
-    EVP_PKEY *prvKeyClient;
-    clientConnection *clientConn;
-    CryptoOperation *crypto;    
-    unsigned char* talking_to;
-    string peerUsername;
-
-    Client() {
-        clientConn = new clientConnection();
-        crypto = new CryptoOperation();
-    }
-
-    ~Client() {
-        delete clientConn;
-        delete crypto;
-    }
-};
+void setStdinEcho(bool enable = true) {
+    struct termios tty;
+    tcgetattr(STDIN_FILENO, &tty);
+    if(!enable)
+        tty.c_lflag &= ~ECHO;
+    else
+        tty.c_lflag |= ECHO;
+    (void)tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+}
 
 string readPassword() {
     string password;
@@ -467,7 +574,6 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += constants::NONCE_SIZE;
     free(message);
 
-
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
 
     if(!clt.crypto->verifyCertificate(cert)) {
@@ -515,8 +621,6 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     memcpy(username, &msg[byte_index], username_size);
     byte_index += username_size;
 
-    clt.talking_to = username;
-
     cout << "Do you want to talk with ";
     for(int i = 0; i < username_size; i++) {
         cout << username[i];
@@ -537,8 +641,10 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     byte_index = 0;
     unsigned char* response_to_request = (unsigned char*)malloc(dim);  
 
-    memcpy(&(response_to_request[byte_index]), &response, sizeof(char));
+    memcpy(response_to_request, &response, sizeof(char));
     byte_index += sizeof(char);
+
+    cout << "response " << response_to_request << endl;
 
     clt.clientConn->send_message(response_to_request, dim);
 
@@ -546,4 +652,3 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     free(username);
     return true;
 }
-
