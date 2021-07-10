@@ -445,18 +445,19 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
 
     int user_to_talk_to_sd = 0;
     for(size_t i = 0; i < users_logged_in.size(); i++) {
-        if(strncmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to), username_size) == 0){
+        if(strncmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to), username_size) == 0) {
             srv.serverConn->send_message(message,users_logged_in[i].sd, dim);
             user_to_talk_to_sd = users_logged_in[i].sd;
         }
     }
 
-    cout << "send response" << endl;
-
     unsigned char* response = (unsigned char*)malloc(sizeof(char));
-    int ret = srv.serverConn->receive_message(user_to_talk_to_sd, response);
 
-    cout << "received response" << endl;
+    int ret = srv.serverConn->receive_message(user_to_talk_to_sd, response);
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Send Error");
+        throw runtime_error("Send failed");
+    }   
 
     srv.serverConn->send_message(response, sd, dim);
 

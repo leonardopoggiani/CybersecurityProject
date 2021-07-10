@@ -1,4 +1,4 @@
-CC = clang++
+CC = g++
 
 CFLAGS  = -g -Wall -Wformat-zero-length
 PROTOCOL  = -D PROTOCOL_DEBUG

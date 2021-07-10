@@ -464,7 +464,7 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     unsigned char* username;
     int username_size;
     char opCode;
-    char response = '0';
+    unsigned char response = 'n';
 
     memcpy(&(opCode), &msg[byte_index], sizeof(char));
     byte_index += sizeof(char);
@@ -472,11 +472,12 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     memcpy(&(username_size), &msg[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    clt.talking_to = username;
     username = (unsigned char*)malloc(username_size);
 
     memcpy(username, &msg[byte_index], username_size);
     byte_index += username_size;
+
+    clt.talking_to = username;
 
     cout << "Do you want to talk with ";
     for(int i = 0; i < username_size; i++) {
@@ -497,9 +498,7 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     int dim = sizeof(char);
     unsigned char* response_to_request = (unsigned char*)malloc(dim);  
 
-    char res = (response == 'y') ? '1' : '0';
-
-    memcpy(&(response_to_request[byte_index]), &res, sizeof(char));
+    memcpy(&(response_to_request[byte_index]), &response, sizeof(char));
     byte_index += sizeof(char);
 
     clt.clientConn->send_message(response_to_request, dim);
