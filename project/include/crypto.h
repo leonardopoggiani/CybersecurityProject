@@ -16,6 +16,7 @@ class CryptoOperation {
 
     public:
     void generateNonce(unsigned char* nonce);
+    void handleErrors(void);
 
     //CERTIFICATES
     void loadCRL(X509_CRL*& crl);
@@ -33,6 +34,9 @@ class CryptoOperation {
     unsigned int serializePublicKey(EVP_PKEY *pub_key, unsigned char *pubkey_buf);
     void deserializePublicKey(unsigned char *pubkey_buf, unsigned int pubkey_size, EVP_PKEY *&pubkey);
     void getPublicKeyFromCertificate(X509 *cert, EVP_PKEY *&pubkey);
+
+    int digsign_verify(EVP_PKEY* peer_pubkey, unsigned char* input_buffer, unsigned int input_size, unsigned char* output_buffer, unsigned int dim_msg);
+    unsigned int digsign_sign(EVP_PKEY* prvkey, unsigned char* clear_buf, unsigned int clear_size, unsigned char* output_buffer);
 
     // DH
     static DH *get_dh2048(void)
@@ -88,4 +92,5 @@ class CryptoOperation {
     void buildParameters(EVP_PKEY *&dh_params);
     void keyGeneration(EVP_PKEY *&my_prvkey);
     unsigned int sign(unsigned char *message, unsigned int messageLen, unsigned char *buffer, EVP_PKEY *prvKey);
+   
 };
