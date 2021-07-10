@@ -368,22 +368,39 @@ string readPassword() {
 bool authentication(Client &clt, string username, string password) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
+    EVP_PKEY* user_key;
     vector<unsigned char> buffer;
     vector<unsigned char> packet;
-    vector<unsigned char> signature;
+    unsigned char* signature;
     unsigned char* nonceServer;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
+
+    string filename = "./keys/private/"+ username +"_prvkey.pem";
+	
+	FILE* file = fopen(filename.c_str(), "r");
+	if(!file) {cerr<<"User does not have a key file"<<endl; exit(1);}   
+	user_key= PEM_read_PrivateKey(file, NULL, NULL, NULL);
+	if(!user_key) {cerr<<"user_key Error"<<endl; exit(1);}
+	fclose(file);
+
+    
+
     
     // pacchetto: opCode | username_size | username | nonceClient
 
     clt.crypto->generateNonce(nonceClient.data());
 
-    int byte_index = 0;    
+    unsigned int byte_index = 0;   
+    unsigned int byte_index_sign = 0;  
     int username_size = username.size();
 
-    int dim = sizeof(char) + sizeof(int) + username.size() + sizeof(int) + password.size() + nonceClient.size();
+    int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
+    int dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
     unsigned char* message_1 = (unsigned char*)malloc(dim);  
+    unsigned char* message_signed = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
+
+    
 
     memcpy(&(message_1[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
@@ -397,7 +414,25 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(message_1[byte_index]), nonceClient.data(), nonceClient.size());
     byte_index += nonceClient.size();
 
-    clt.clientConn->send_message(message_1, dim);
+    //Creare buffer da firmare
+    /*
+    memcpy(&(message_to_sign[byte_index_sign]), &constants::AUTH, sizeof(char));
+    byte_index_sign += sizeof(char);
+
+    memcpy(&(message_to_sign[byte_index_sign]), username.c_str(), username.size());
+    byte_index_sign += username.size();
+
+    memcpy(&(message_to_sign[byte_index_sign]), nonceClient.data(), nonceClient.size());
+    byte_index_sign += nonceClient.size();*/
+
+    
+    //NON VA
+    unsigned int signed_size = clt.crypto->digsign_sign(user_key, message_1, byte_index , message_signed);
+    
+    //cout<< signed_size << endl;
+    //NON VA, scambiare con quella sotto per farlo tornare come prima
+    clt.clientConn->send_message(message_signed, signed_size);
+    //clt.clientConn->send_message(message_1, dim);
     free(message_1);
 
     //ricevere certificato
