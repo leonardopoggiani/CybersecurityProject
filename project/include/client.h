@@ -513,7 +513,8 @@ string readPassword() {
 bool authentication(Client &clt, string username, string password) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
-    EVP_PKEY* user_key;
+    EVP_PKEY* user_key = NULL;
+    EVP_PKEY* prv_key = EVP_PKEY_new();
     vector<unsigned char> buffer;
     vector<unsigned char> packet;
     unsigned char* signature;
@@ -524,28 +525,30 @@ bool authentication(Client &clt, string username, string password) {
     string filename = "./keys/private/"+ username +"_prvkey.pem";
 	
 	FILE* file = fopen(filename.c_str(), "r");
-	if(!file) {cerr<<"User does not have a key file"<<endl; exit(1);}   
-	user_key= PEM_read_PrivateKey(file, NULL, NULL, NULL);
-	if(!user_key) {cerr<<"user_key Error"<<endl; exit(1);}
+	if(!file) {
+        cerr << "User does not have a key file" << endl; 
+        exit(1);
+    }   
+
+	user_key = PEM_read_PrivateKey(file, &prv_key, NULL, (void*)password.c_str());
+	if(!user_key) {
+        cerr << "user_key Error" << endl; 
+        exit(1);
+    }
 	fclose(file);
 
-    
-
-    
     // pacchetto: opCode | username_size | username | nonceClient
 
     clt.crypto->generateNonce(nonceClient.data());
 
-    unsigned int byte_index = 0;   
-    unsigned int byte_index_sign = 0;  
+    int byte_index = 0;   
+    int byte_index_sign = 0;  
     int username_size = username.size();
-
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
     int dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
+
     unsigned char* message_1 = (unsigned char*)malloc(dim);  
     unsigned char* message_signed = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
-
-    
 
     memcpy(&(message_1[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
@@ -568,13 +571,13 @@ bool authentication(Client &clt, string username, string password) {
     byte_index_sign += username.size();
 
     memcpy(&(message_to_sign[byte_index_sign]), nonceClient.data(), nonceClient.size());
-    byte_index_sign += nonceClient.size();*/
-
+    byte_index_sign += nonceClient.size();
+    */
     
     //NON VA
-    unsigned int signed_size = clt.crypto->digsign_sign(user_key, message_1, byte_index , message_signed);
-    
-    //cout<< signed_size << endl;
+    unsigned int signed_size = clt.crypto->digsign_sign(user_key, message_1, dim , message_signed);
+
+    cout << "signed_size: " << signed_size << endl;
     //NON VA, scambiare con quella sotto per farlo tornare come prima
     clt.clientConn->send_message(message_signed, signed_size);
     //clt.clientConn->send_message(message_1, dim);

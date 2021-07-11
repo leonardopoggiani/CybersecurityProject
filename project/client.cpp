@@ -50,8 +50,8 @@ int main(int argc, char* const argv[]) {
     cin >> username;
     cout << endl;
 
-    //cout << "Fine! Now insert you password to chat with others" << endl;
-    //password = readPassword();
+    cout << "Fine! Now insert you password to chat with others" << endl;
+    password = readPassword();
 
     cout << "\n**** AUTHENTICATION ****" << endl;
 

@@ -163,16 +163,21 @@ void CryptoOperation::getPublicKeyFromCertificate(X509 *cert, EVP_PKEY *&pubkey)
 }
 
 unsigned int CryptoOperation::sign(unsigned char *message, unsigned int messageLen, unsigned char *buffer, EVP_PKEY *prvKey) {
+
     unsigned char *signature; 
     unsigned int signLen;
+
     signature = new(nothrow) unsigned char[EVP_PKEY_size(prvKey)];
+
     if(!signature) {
         throw runtime_error("Buffer not allocated correctly");
     }
+
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     if (!ctx) {
         throw runtime_error("Context not initialized");
     }
+
     try {
         if(EVP_SignInit(ctx, EVP_sha256()) != 1) {
             throw runtime_error("Error inizializing the sign");
@@ -183,14 +188,17 @@ unsigned int CryptoOperation::sign(unsigned char *message, unsigned int messageL
         if(EVP_SignFinal(ctx, signature, &signLen, prvKey) != 1){
             throw runtime_error("Error finalizing the sign");
         }
+
         memcpy(buffer, signature, signLen);
         delete[] signature;
         EVP_MD_CTX_free(ctx);
+
     } catch(const exception& e) {
         delete[] signature;
         EVP_MD_CTX_free(ctx);
         throw;
     }
+
     return signLen;
 }
 
@@ -267,69 +275,127 @@ void CryptoOperation::keyGeneration(EVP_PKEY *&my_prvkey){
 
 
 //Digital Signature Sign/Verify
-unsigned int CryptoOperation::digsign_sign(EVP_PKEY* prvkey, unsigned char* clear_buf, unsigned int clear_size,   unsigned char* output_buffer){
+unsigned int CryptoOperation::digsign_sign(EVP_PKEY* prvkey, unsigned char* clear_buf, unsigned int clear_size, unsigned char* output_buffer){
 	int ret; // used for return values
-	if(clear_size>constants::MAX_MESSAGE_SIZE){ cerr << "digsign_sign: message too big(invalid)\n"; exit(1); }
+
+	if(clear_size > constants::MAX_MESSAGE_SIZE){ 
+        cerr << "digsign_sign: message too big(invalid)\n"; 
+        exit(1); 
+    }
+
 	// create the signature context:
 	EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
-	if(!md_ctx){ cerr << "digsign_sign: EVP_MD_CTX_new returned NULL\n"; exit(1); }
+	if(!md_ctx){ 
+        cerr << "digsign_sign: EVP_MD_CTX_new returned NULL\n"; 
+        exit(1); 
+    }
+
 	ret = EVP_SignInit(md_ctx, md);
-	if(ret == 0){ cerr << "digsign_sign: EVP_SignInit returned " << ret << "\n"; exit(1); }
+	if(ret == 0){ 
+        cerr << "digsign_sign: EVP_SignInit returned " << ret << "\n"; 
+        exit(1); 
+    }
+
 	ret = EVP_SignUpdate(md_ctx, clear_buf, clear_size);
-	if(ret == 0){ cerr << "digsign_sign: EVP_SignUpdate returned " << ret << "\n"; exit(1); }
-	unsigned int sgnt_size;
-	unsigned char* signature_buffer=(unsigned char*)malloc(EVP_PKEY_size(prvkey));
-	if(!signature_buffer){cerr<<"Malloc Error";exit(1);}
+	if(ret == 0){ 
+        cerr << "digsign_sign: EVP_SignUpdate returned " << ret << "\n"; 
+        exit(1); 
+    }
+
+	unsigned int sgnt_size = 0;
+    int signed_size = 0;
+	unsigned char* signature_buffer = (unsigned char*)malloc(EVP_PKEY_size(prvkey));
+	if(!signature_buffer){
+        cerr<<"Malloc Error";
+        exit(1);
+    
+    }
 	ret = EVP_SignFinal(md_ctx, signature_buffer, &sgnt_size, prvkey);
-	if(ret == 0){ cerr << "digsign_sign: EVP_SignFinal returned " << ret << "\n"; exit(1); }
-	unsigned int written=0;	
-    memcpy(output_buffer, clear_buf, clear_size);
-	written+=clear_size;
-	memcpy(output_buffer + written,  (unsigned char *)&sgnt_size, sizeof(unsigned int));
-	written+=sizeof(unsigned int);
-	memcpy(output_buffer + written, signature_buffer, sgnt_size);
-	written+=sgnt_size;
-	memcpy(output_buffer + written, clear_buf, clear_size);
-	written+=clear_size;
+	if(ret == 0){ 
+        cerr << "digsign_sign: EVP_SignFinal returned " << ret << "\n"; 
+        exit(1); 
+    }
+
+	unsigned int written = 0;	
+    cout << "clear_size: " << clear_size << "sgnt_size: " << sgnt_size << endl;
+
+    // clear_message | signature_size | signature
+
+    memcpy(&(output_buffer[written]), clear_buf, clear_size);
+	written += clear_size;
+
+    cout << "sign size: " << sgnt_size << ", clear size: " << clear_size << endl;
+    signed_size = sgnt_size - clear_size;
+    cout << "size of the signature " << signed_size << endl;
+    
+	memcpy(&(output_buffer[written]), &signed_size, sizeof(unsigned int));
+	written += sizeof(unsigned int);
+
+	memcpy(&(output_buffer[written]), signature_buffer, signed_size);
+	written += signed_size;
+
 	EVP_MD_CTX_free(md_ctx);
-	return written;
+	return sgnt_size;
 }
 
 //da modificare perchè la firma adesso sta alla fine
-int CryptoOperation::digsign_verify(EVP_PKEY* peer_pubkey, unsigned char* input_buffer, unsigned int input_size, unsigned char* output_buffer,  unsigned int dim_msg){
+int CryptoOperation::digsign_verify(EVP_PKEY* peer_pubkey, unsigned char* input_buffer, unsigned int input_size, unsigned char* output_buffer,  unsigned int dim_msg, unsigned int sgnt_size){
 	int ret;
-	unsigned int sgnt_size=*(unsigned int*)input_buffer;
-	unsigned int read=sizeof(unsigned int);
-	if(input_size<=sizeof(unsigned int)+sgnt_size){ cerr << " digsign_verify: empty or invalid message \n"; exit(1); }	
-	unsigned char* signature_buffer=(unsigned char*)malloc(sgnt_size);
-	if(!signature_buffer){cerr<<"Malloc Error";exit(1);}
-    //
-	memcpy(signature_buffer,input_buffer+ dim_msg + read,sgnt_size);
-	read+=sgnt_size;
-	memcpy(output_buffer,input_buffer+read,input_size-read);
-	
+    
+    unsigned int read = sizeof(unsigned int);
+
+    cout << "input_size: " << input_size << ",sizeof(unsigned int): " << read << ",sgnt_size: " << sgnt_size << endl;
+
+	// if(input_size <= sizeof(unsigned int) + sgnt_size){ 
+    //    cerr << " digsign_verify: empty or invalid message \n"; \
+    //    exit(1); 
+    //}
+
+	unsigned char* signature_buffer = (unsigned char*)malloc(sgnt_size);
+
+	if(!signature_buffer){
+        cerr<<"Malloc Error";
+        exit(1);
+    }
+
+	memcpy(signature_buffer, input_buffer + (input_size - sgnt_size), sgnt_size);
+	read += sgnt_size;
+
 	// create the signature context:
 	EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
-	if(!md_ctx){ cerr << "Error: EVP_MD_CTX_new returned NULL\n"; exit(1); }
+	if(!md_ctx){ 
+        cerr << "Error: EVP_MD_CTX_new returned NULL\n"; 
+        exit(1); 
+    }
 
 	// verify the plaintext:
 	// (perform a single update on the whole plaintext, 
 	// assuming that the plaintext is not huge)
 	ret = EVP_VerifyInit(md_ctx, md);
-	if(ret == 0){ cerr << "Error: EVP_VerifyInit returned " << ret << "\n"; exit(1); }
-	ret = EVP_VerifyUpdate(md_ctx, input_buffer+read, input_size-read);  
-	if(ret == 0){ cerr << "Error: EVP_VerifyUpdate returned " << ret << "\n"; exit(1); }
+	if(ret == 0){ 
+        cerr << "Error: EVP_VerifyInit returned " << ret << "\n"; 
+        exit(1); 
+    }
+
+	ret = EVP_VerifyUpdate(md_ctx, input_buffer, (input_size - sgnt_size));  
+	if(ret == 0){ 
+        cerr << "Error: EVP_VerifyUpdate returned " << ret << "\n"; 
+        exit(1); 
+    }
+
 	ret = EVP_VerifyFinal(md_ctx, signature_buffer, sgnt_size, peer_pubkey);
 	if(ret == -1){ // it is 0 if invalid signature, -1 if some other error, 1 if success.
-	cerr << "Error: EVP_VerifyFinal returned " << ret << " (invalid signature?)\n";
-	ERR_error_string_n(ERR_get_error(),(char *)output_buffer,constants::MAX_MESSAGE_SIZE);  
-	cerr<< output_buffer<<"\n";
-	exit(1);
-	}else if(ret == 0){      cerr << "Error: Invalid signature!\n"; return -1;
+	    cerr << "Error: EVP_VerifyFinal returned " << ret << " (invalid signature?)\n";
+	    ERR_error_string_n(ERR_get_error(),(char *)output_buffer,constants::MAX_MESSAGE_SIZE);  
+	    cerr << output_buffer <<"\n";
+	    exit(1);
+	}else if(ret == 0){      
+        cerr << "Error: Invalid signature!\n"; 
+        return -1;
 	}
 
 	// deallocate data:
 	EVP_MD_CTX_free(md_ctx);
 
-	return input_size-read;
+	return input_size - read;
 }

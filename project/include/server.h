@@ -250,28 +250,26 @@ struct Server {
 
 bool authentication(Server &srv, int sd, unsigned char* buffer) {
     array<unsigned char, NONCE_SIZE> nonceServer;
-    unsigned char* message_wsign= NULL;
-    unsigned char* cert_buf= NULL;
+    unsigned char* message_wsign = NULL;
+    unsigned char* cert_buf = NULL;
     X509 *cert;
     unsigned int pubKeyDHBufferLen;
     EVP_PKEY *prvKeyDHServer = NULL;
     EVP_PKEY *pubKeyDHClient = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
-    unsigned int sgnt_size=*(unsigned int*)buffer;
-	sgnt_size+=sizeof(unsigned int);
-    unsigned int message_size = *(unsigned int*)buffer;
+    unsigned int sgnt_size =* (unsigned int*)buffer;
+	sgnt_size += sizeof(unsigned int);
+    unsigned int message_size = 384;
     int byte_index = 0;    
     char opCode;
    
+    int username_size = 0;
+    unsigned int sign_size = 0;
     unsigned char* username;
     unsigned char* signature;
     unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
-
-    int username_size = message_size - sgnt_size- constants::NONCE_SIZE;
     
-    int dim_s = sizeof(char) + sizeof(int) + username_size + constants::NONCE_SIZE;
-
-    byte_index = 0;
+    int dim_s = sizeof(char) + sizeof(int) + username_size + constants::NONCE_SIZE + sizeof(int);
 
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
@@ -286,8 +284,12 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(nonce, &buffer[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    //memcpy(signature, &buffer[byte_index], sgnt_size-byte_index);
-    //byte_index += sgnt_size-byte_index;
+    memcpy(&(sign_size), &buffer[byte_index],sizeof(int));
+    byte_index += sizeof(int);
+
+    signature = (unsigned char*)malloc(sign_size);
+    memcpy(signature, &buffer[byte_index], sign_size);
+    byte_index += sign_size;
 
     std::stringstream filename_stream;
     std::stringstream username_string;
@@ -317,11 +319,15 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     } else
         cout << "pubkey opened" << endl;
 
-    //NON VA
-    unsigned int verify= srv.crypto->digsign_verify(pubkey, buffer, message_size, message_wsign, dim_s);
-    if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
 
-    
+    cout << "sign_size: " << sign_size << " message_size: " << message_size << endl; 
+    //NON VA
+    unsigned int verify = srv.crypto->digsign_verify(pubkey, buffer, message_size, message_wsign, dim_s, sign_size);
+    if(verify < 0) { 
+        cerr << "establishSession: invalid signature!"; 
+        return false;
+    }
+   
     srv.serverConn->insertUser(username_string.str(), sd);
     srv.serverConn->printOnlineUsers();
                          
