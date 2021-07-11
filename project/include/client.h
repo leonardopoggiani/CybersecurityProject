@@ -525,12 +525,9 @@ bool authentication(Client &clt, string username, string password) {
 	
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {cerr<<"User does not have a key file"<<endl; exit(1);}   
-	user_key= PEM_read_PrivateKey(file, NULL, NULL, NULL);
+	user_key = PEM_read_PrivateKey(file, NULL, NULL, (void*)password.c_str());
 	if(!user_key) {cerr<<"user_key Error"<<endl; exit(1);}
 	fclose(file);
-
-    
-
     
     // pacchetto: opCode | username_size | username | nonceClient
 
@@ -542,10 +539,7 @@ bool authentication(Client &clt, string username, string password) {
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
     int dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
-    unsigned char* message_1 = (unsigned char*)malloc(dim);  
-    unsigned char* message_signed = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
-
-    
+    unsigned char* message_1 = (unsigned char*)malloc(dim);      
 
     memcpy(&(message_1[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
@@ -570,9 +564,13 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(message_to_sign[byte_index_sign]), nonceClient.data(), nonceClient.size());
     byte_index_sign += nonceClient.size();*/
 
-    
+    unsigned char* clear_buffer = (unsigned char*)malloc(sizeof(char));
+    clear_buffer[0] = constants::AUTH;
+
+    unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    unsigned int signed_size = clt.crypto->digsign_sign(user_key, clear_buffer, sizeof(char) , message_signed);
     //NON VA
-    unsigned int signed_size = clt.crypto->digsign_sign(user_key, message_1, byte_index , message_signed);
+    // unsigned int signed_size = clt.crypto->digsign_sign(user_key, message_1, byte_index , message_signed);
     
     //cout<< signed_size << endl;
     //NON VA, scambiare con quella sotto per farlo tornare come prima

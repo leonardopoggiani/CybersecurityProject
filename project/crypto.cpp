@@ -267,7 +267,7 @@ void CryptoOperation::keyGeneration(EVP_PKEY *&my_prvkey){
 
 
 //Digital Signature Sign/Verify
-unsigned int CryptoOperation::digsign_sign(EVP_PKEY* prvkey, unsigned char* clear_buf, unsigned int clear_size,   unsigned char* output_buffer){
+unsigned int CryptoOperation::digsign_sign(EVP_PKEY* prvkey, unsigned char* clear_buf, unsigned int clear_size, unsigned char* output_buffer){
 	int ret; // used for return values
 	if(clear_size>constants::MAX_MESSAGE_SIZE){ cerr << "digsign_sign: message too big(invalid)\n"; exit(1); }
 	// create the signature context:

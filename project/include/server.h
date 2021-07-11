@@ -273,6 +273,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     byte_index = 0;
 
+    /*
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
@@ -297,6 +298,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         username_string << username[i];
     }
 
+    *
     filename_stream << "_pubkey.pem";
 
     string filename = filename_stream.str();  // The resulting string
@@ -309,6 +311,14 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         throw runtime_error("An error occurred, the file doesn't exist.");
     else
         cout << "file opened" << endl;
+    */
+
+    FILE* file;
+    file = fopen("./keys/public/leonardo_pubkey.pem", "r");
+    if(!file)
+        throw runtime_error("An error occurred, the file doesn't exist.");
+    else
+        cout << "file opened" << endl;
 
     EVP_PKEY *pubkey = PEM_read_PUBKEY(file, NULL, NULL, NULL);
     if(!pubkey){
@@ -317,12 +327,33 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     } else
         cout << "pubkey opened" << endl;
 
+    unsigned char* clear_buf = (unsigned char*)malloc(sizeof(char));
+
+    memcpy(clear_buf, &buffer[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    cout << "must be 1 | " << clear_buf[0] << endl;
+
+    int sign_size = 0;
+    memcpy(&sign_size, &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+    cout << "sign_size: " << sign_size << endl;
+
+    unsigned char* sign = (unsigned char*)malloc(sign_size);
+    memcpy(&sign_size, &buffer[byte_index], sign_size);
+    byte_index += sign_size;
+    cout << "sign: "; 
+    for(int i = 0; i < sign_size; i++) {
+        cout << sign[i];
+    }
+    cout << endl;
+ 
     //NON VA
-    unsigned int verify= srv.crypto->digsign_verify(pubkey, buffer, message_size, message_wsign, dim_s);
+    unsigned int verify = srv.crypto->digsign_verify(pubkey, buffer, byte_index, message_wsign, byte_index-sizeof(char));
     if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
 
     
-    srv.serverConn->insertUser(username_string.str(), sd);
+    //srv.serverConn->insertUser(username_string.str(), sd);
     srv.serverConn->printOnlineUsers();
                          
     //Send packet with certificate
@@ -364,6 +395,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
     */
+
     srv.serverConn->send_message(message,sd,dim);
 
     fclose(file);
