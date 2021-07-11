@@ -522,7 +522,7 @@ bool authentication(Client &clt, string username, string password) {
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
 
-    string filename = "./keys/private/"+ username +"_prvkey.pem";
+    string filename = "./keys/private/" + username + "_prvkey.pem";
 	
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {
@@ -575,7 +575,7 @@ bool authentication(Client &clt, string username, string password) {
     */
     
     //NON VA
-    unsigned int signed_size = clt.crypto->digsign_sign(user_key, message_1, dim , message_signed);
+    unsigned int signed_size = clt.crypto->digsign_sign(prv_key, message_1, dim , message_signed);
 
     cout << "signed_size: " << signed_size << endl;
     //NON VA, scambiare con quella sotto per farlo tornare come prima
