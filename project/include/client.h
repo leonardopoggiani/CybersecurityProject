@@ -501,7 +501,7 @@ void setStdinEcho(bool enable = true) {
 
 string readPassword() {
     string password;
-    cout << "Insert password: ";
+    cout << "Insert password -> ";
     setStdinEcho(false);
     cin >> password;
     cin.ignore();
@@ -516,24 +516,25 @@ bool authentication(Client &clt, string username, string password) {
     EVP_PKEY* user_key;
     vector<unsigned char> buffer;
     vector<unsigned char> packet;
-    unsigned char* signature;
     unsigned char* nonceServer;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
 
-    string filename = "./keys/private/"+ username +"_prvkey.pem";
+    string filename = "./keys/private/" + username + "_prvkey.pem";
 	
 	FILE* file = fopen(filename.c_str(), "r");
-	if(!file) {cerr<<"User does not have a key file"<<endl; exit(1);}   
-	user_key= PEM_read_PrivateKey(file, NULL, NULL, NULL);
-	if(!user_key) {cerr<<"user_key Error"<<endl; exit(1);}
+	if(!file) {
+        cerr << "User does not have a key file" << endl; 
+        exit(1);
+    }   
+
+	user_key = PEM_read_PrivateKey(file, NULL, NULL, (void*)password.c_str());
+	if(!user_key) {
+        cerr << "user_key Error" << endl; 
+        exit(1);
+    }
 	fclose(file);
-
     
-
-    
-    // pacchetto: opCode | username_size | username | nonceClient
-
     clt.crypto->generateNonce(nonceClient.data());
 
     unsigned int byte_index = 0;   
@@ -542,47 +543,30 @@ bool authentication(Client &clt, string username, string password) {
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
     int dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
-    unsigned char* message_1 = (unsigned char*)malloc(dim);  
-    unsigned char* message_signed = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
 
-    
+    unsigned char* message_sent = (unsigned char*)malloc(dim);      
 
-    memcpy(&(message_1[byte_index]), &constants::AUTH, sizeof(char));
+    memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(&(message_1[byte_index]), &username_size, sizeof(int));
+    memcpy(&(message_sent[byte_index]), &username_size, sizeof(int));
     byte_index += sizeof(int);
 
-    memcpy(&(message_1[byte_index]), username.c_str(), username.size());
+    memcpy(&(message_sent[byte_index]), username.c_str(), username.size());
     byte_index += username.size();
 
-    memcpy(&(message_1[byte_index]), nonceClient.data(), nonceClient.size());
+    memcpy(&(message_sent[byte_index]), nonceClient.data(), nonceClient.size());
     byte_index += nonceClient.size();
 
-    //Creare buffer da firmare
-    /*
-    memcpy(&(message_to_sign[byte_index_sign]), &constants::AUTH, sizeof(char));
-    byte_index_sign += sizeof(char);
-
-    memcpy(&(message_to_sign[byte_index_sign]), username.c_str(), username.size());
-    byte_index_sign += username.size();
-
-    memcpy(&(message_to_sign[byte_index_sign]), nonceClient.data(), nonceClient.size());
-    byte_index_sign += nonceClient.size();*/
-
-    
-    //NON VA
-    unsigned int signed_size = clt.crypto->digsign_sign(user_key, message_1, byte_index , message_signed);
-    
-    //cout<< signed_size << endl;
-    //NON VA, scambiare con quella sotto per farlo tornare come prima
+    unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    unsigned int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
+   
     clt.clientConn->send_message(message_signed, signed_size);
-    //clt.clientConn->send_message(message_1, dim);
-    free(message_1);
+    free(message_sent);
 
     //ricevere certificato
-    unsigned char* message = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
-    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message);
+    unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
+    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message_received);
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
         perror("Send Error");
         throw runtime_error("Send failed");
@@ -592,22 +576,22 @@ bool authentication(Client &clt, string username, string password) {
     int size_cert = 0;
     char opcode;
 
-    memcpy(&(opcode), &message[byte_index], sizeof(char));
+    memcpy(&(opcode), &message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(&(size_cert), &message[byte_index], sizeof(int));
+    memcpy(&(size_cert), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
     unsigned char* certificato = (unsigned char*)malloc(size_cert);
 
-    memcpy(certificato, &message[byte_index], size_cert);
+    memcpy(certificato, &message_received[byte_index], size_cert);
     byte_index += size_cert;
 
     nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
 
-    memcpy(nonceServer, &message[byte_index], constants::NONCE_SIZE);
+    memcpy(nonceServer, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
-    free(message);
+    free(message_received);
 
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
 

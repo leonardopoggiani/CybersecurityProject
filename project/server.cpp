@@ -40,8 +40,6 @@ int main(int argc, char* const argv[]) {
   
     while(1) {
 
-        memset(buffer, 0, sizeof(buffer));
-
         cout << "--- waiting for connections ---" << endl;
 
         srv.serverConn->initSet();
