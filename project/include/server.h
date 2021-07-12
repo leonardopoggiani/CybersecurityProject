@@ -317,41 +317,29 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     file = fopen("./keys/public/leonardo_pubkey.pem", "r");
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
-    else
-        cout << "file opened" << endl;
 
     EVP_PKEY *pubkey = PEM_read_PUBKEY(file, NULL, NULL, NULL);
     if(!pubkey){
         fclose(file);
         throw runtime_error("An error occurred while reading the public key.");
-    } else
-        cout << "pubkey opened" << endl;
+    }
 
     unsigned char* clear_buf = (unsigned char*)malloc(sizeof(char));
 
     memcpy(clear_buf, &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
-    cout << "must be 1 | " << clear_buf[0] << endl;
-
     int sign_size = 0;
     memcpy(&sign_size, &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
-    cout << "sign_size: " << sign_size << endl;
 
     unsigned char* sign = (unsigned char*)malloc(sign_size);
-    memcpy(&sign_size, &buffer[byte_index], sign_size);
+    memcpy(sign, &buffer[byte_index], sign_size);
     byte_index += sign_size;
-    cout << "sign: "; 
-    for(int i = 0; i < sign_size; i++) {
-        cout << sign[i];
-    }
-    cout << endl;
  
     //NON VA
-    unsigned int verify = srv.crypto->digsign_verify(pubkey, buffer, byte_index, message_wsign, byte_index-sizeof(char));
+    unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey);
     if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
-
     
     //srv.serverConn->insertUser(username_string.str(), sd);
     srv.serverConn->printOnlineUsers();
@@ -367,14 +355,11 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         throw runtime_error("An error occurred during the reading of the certificate."); 
     }
 
-    cout << "serialization of certificate ok" << endl;
-
     // srv.crypto->keyGeneration(prvKeyDHServer);
     // pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
 
     byte_index = 0;    
     int dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE;
-    cout << "dim: " << dim << endl;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));

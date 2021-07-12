@@ -35,8 +35,8 @@ class CryptoOperation {
     void deserializePublicKey(unsigned char *pubkey_buf, unsigned int pubkey_size, EVP_PKEY *&pubkey);
     void getPublicKeyFromCertificate(X509 *cert, EVP_PKEY *&pubkey);
 
-    int digsign_verify(EVP_PKEY* peer_pubkey, unsigned char* input_buffer, unsigned int input_size, unsigned char* output_buffer, unsigned int dim_msg);
-    unsigned int digsign_sign(EVP_PKEY* prvkey, unsigned char* clear_buf, unsigned int clear_size, unsigned char* output_buffer);
+    bool digsign_verify(unsigned char *signature, unsigned int signLen, unsigned char *message, unsigned int messageLen, EVP_PKEY *pubKey);
+    unsigned int digsign_sign(unsigned char* clear_buf, unsigned int clear_size, unsigned char* output_buffer, EVP_PKEY* prvkey);
 
     // DH
     static DH *get_dh2048(void)
