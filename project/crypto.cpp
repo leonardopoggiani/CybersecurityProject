@@ -287,11 +287,11 @@ unsigned int CryptoOperation::digsign_sign(unsigned char *message, unsigned int 
             throw runtime_error("Error finalizing the sign");
         }
 
-        cout << "signature length " << signLen << endl;
-
         memcpy(buffer, message, messageLen);
         memcpy(buffer + messageLen, &signLen, sizeof(int));
         memcpy(buffer + messageLen + sizeof(int), signature, signLen);
+        cout << "opcode " << message[0] << endl;
+
         delete[] signature;
         EVP_MD_CTX_free(ctx);
     } catch(const exception& e) {
@@ -300,7 +300,6 @@ unsigned int CryptoOperation::digsign_sign(unsigned char *message, unsigned int 
         throw;
     }
 
-    cout << "signing complete" << endl;
     return signLen;
 }
 

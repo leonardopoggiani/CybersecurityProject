@@ -250,7 +250,6 @@ struct Server {
 
 bool authentication(Server &srv, int sd, unsigned char* buffer) {
     array<unsigned char, NONCE_SIZE> nonceServer;
-    unsigned char* message_wsign= NULL;
     unsigned char* cert_buf= NULL;
     X509 *cert;
     unsigned int pubKeyDHBufferLen;
@@ -259,7 +258,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
     unsigned int sgnt_size=*(unsigned int*)buffer;
 	sgnt_size+=sizeof(unsigned int);
-    unsigned int message_size = *(unsigned int*)buffer;
     int byte_index = 0;    
     char opCode;
    
@@ -288,6 +286,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(signature_size), &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
+    signature = (unsigned char*)malloc(signature_size);
     memcpy(signature, &buffer[byte_index], signature_size);
     byte_index += signature_size;
 
@@ -298,6 +297,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         filename_stream << username[i];
         username_string << username[i];
     }
+
+    cout << endl;
 
     filename_stream << "_pubkey.pem";
 
@@ -310,20 +311,16 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
 
-    FILE* file;
-    file = fopen("./keys/public/leonardo_pubkey.pem", "r");
-    if(!file)
-        throw runtime_error("An error occurred, the file doesn't exist.");
-
     EVP_PKEY *pubkey = PEM_read_PUBKEY(file, NULL, NULL, NULL);
     if(!pubkey){
         fclose(file);
         throw runtime_error("An error occurred while reading the public key.");
     }
 
-    unsigned char* clear_buf = (unsigned char*)malloc(sizeof(char));
+    int dim = sizeof(char) + sizeof(int) + username_size + constants::NONCE_SIZE; 
+    unsigned char* clear_buf = (unsigned char*)malloc(dim);
 
-    memcpy(clear_buf, &buffer[byte_index], sizeof(char));
+    memcpy(clear_buf, &buffer[byte_index], dim);
     byte_index += sizeof(char);
 
     int sign_size = 0;
@@ -338,7 +335,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey);
     if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
     
-    //srv.serverConn->insertUser(username_string.str(), sd);
+    srv.serverConn->insertUser(username_string.str(), sd);
     srv.serverConn->printOnlineUsers();
                          
     //Send packet with certificate
@@ -356,7 +353,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
 
     byte_index = 0;    
-    int dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+    dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
     cout << "dim: " << dim << endl;
     unsigned char* message = (unsigned char*)malloc(dim);  
 

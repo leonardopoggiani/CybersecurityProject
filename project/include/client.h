@@ -516,7 +516,6 @@ bool authentication(Client &clt, string username, string password) {
     EVP_PKEY* user_key;
     vector<unsigned char> buffer;
     vector<unsigned char> packet;
-    unsigned char* signature;
     unsigned char* nonceServer;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
@@ -524,9 +523,16 @@ bool authentication(Client &clt, string username, string password) {
     string filename = "./keys/private/" + username + "_prvkey.pem";
 	
 	FILE* file = fopen(filename.c_str(), "r");
-	if(!file) {cerr<<"User does not have a key file"<<endl; exit(1);}   
+	if(!file) {
+        cerr << "User does not have a key file" << endl; 
+        exit(1);
+    }   
+
 	user_key = PEM_read_PrivateKey(file, NULL, NULL, (void*)password.c_str());
-	if(!user_key) {cerr<<"user_key Error"<<endl; exit(1);}
+	if(!user_key) {
+        cerr << "user_key Error" << endl; 
+        exit(1);
+    }
 	fclose(file);
     
     clt.crypto->generateNonce(nonceClient.data());
@@ -537,7 +543,7 @@ bool authentication(Client &clt, string username, string password) {
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
     int dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
-    
+
     unsigned char* message_sent = (unsigned char*)malloc(dim);      
 
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
@@ -552,11 +558,8 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(message_sent[byte_index]), nonceClient.data(), nonceClient.size());
     byte_index += nonceClient.size();
 
-    unsigned char* clear_buffer = (unsigned char*)malloc(sizeof(char));
-    clear_buffer[0] = constants::AUTH;
-
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-    unsigned int signed_size = clt.crypto->digsign_sign(clear_buffer, sizeof(char), message_signed, user_key);
+    unsigned int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
    
     clt.clientConn->send_message(message_signed, signed_size);
     free(message_sent);
