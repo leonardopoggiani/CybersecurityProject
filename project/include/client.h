@@ -521,7 +521,7 @@ bool authentication(Client &clt, string username, string password) {
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
 
-    string filename = "./keys/private/"+ username +"_prvkey.pem";
+    string filename = "./keys/private/" + username + "_prvkey.pem";
 	
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {cerr<<"User does not have a key file"<<endl; exit(1);}   
@@ -529,8 +529,6 @@ bool authentication(Client &clt, string username, string password) {
 	if(!user_key) {cerr<<"user_key Error"<<endl; exit(1);}
 	fclose(file);
     
-    // pacchetto: opCode | username_size | username | nonceClient
-
     clt.crypto->generateNonce(nonceClient.data());
 
     unsigned int byte_index = 0;   
@@ -539,6 +537,7 @@ bool authentication(Client &clt, string username, string password) {
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
     int dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
+    
     unsigned char* message_sent = (unsigned char*)malloc(dim);      
 
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));

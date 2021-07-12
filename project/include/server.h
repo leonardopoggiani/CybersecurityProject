@@ -288,7 +288,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(signature_size), &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    memcpy(signature, &buffer[byte_index], signature_size;
+    memcpy(signature, &buffer[byte_index], signature_size);
     byte_index += signature_size;
 
     std::stringstream filename_stream;
