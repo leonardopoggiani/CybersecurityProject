@@ -267,13 +267,11 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     unsigned char* signature;
     unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
 
-    int username_size = message_size - sgnt_size- constants::NONCE_SIZE;
+    int username_size = 0;
+    int signature_size = 0;
     
-    int dim_s = sizeof(char) + sizeof(int) + username_size + constants::NONCE_SIZE;
-
     byte_index = 0;
-
-    /*
+    
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
@@ -287,8 +285,11 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(nonce, &buffer[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    //memcpy(signature, &buffer[byte_index], sgnt_size-byte_index);
-    //byte_index += sgnt_size-byte_index;
+    memcpy(&(signature_size), &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(signature, &buffer[byte_index], signature_size;
+    byte_index += signature_size;
 
     std::stringstream filename_stream;
     std::stringstream username_string;
@@ -298,7 +299,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         username_string << username[i];
     }
 
-    *
     filename_stream << "_pubkey.pem";
 
     string filename = filename_stream.str();  // The resulting string
@@ -309,9 +309,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     file = fopen(filename_dir.c_str(), "r");
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
-    else
-        cout << "file opened" << endl;
-    */
 
     FILE* file;
     file = fopen("./keys/public/leonardo_pubkey.pem", "r");
