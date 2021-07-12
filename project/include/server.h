@@ -352,11 +352,12 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         throw runtime_error("An error occurred during the reading of the certificate."); 
     }
 
-    // srv.crypto->keyGeneration(prvKeyDHServer);
-    // pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
+    srv.crypto->keyGeneration(prvKeyDHServer);
+    pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
 
     byte_index = 0;    
-    int dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE;
+    int dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+    cout << "dim: " << dim << endl;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
@@ -371,12 +372,11 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    /* memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+    memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
     byte_index += sizeof(int);
 
     memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
-    */
 
     srv.serverConn->send_message(message,sd,dim);
 
