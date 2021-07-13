@@ -499,7 +499,9 @@ bool authentication(Client &clt, string username, string password) {
     EVP_PKEY* user_key;
     vector<unsigned char> buffer;
     vector<unsigned char> packet;
-    unsigned char* nonceServer;
+    unsigned char* nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
+    unsigned char* nonceClient_rec = (unsigned char*)malloc(constants::NONCE_SIZE);
+     unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
 
@@ -519,6 +521,8 @@ bool authentication(Client &clt, string username, string password) {
 	fclose(file);
     
     clt.crypto->generateNonce(nonceClient.data());
+
+    nonceClient_t = nonceClient.data();
 
     unsigned int byte_index = 0;   
     unsigned int byte_index_sign = 0;  
@@ -575,9 +579,14 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(nonceServer, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
+    memcpy(nonceClient_rec, &message_received[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
     
 
     free(message_received);
+
+    //Verify certificate
 
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
 
@@ -597,7 +606,35 @@ bool authentication(Client &clt, string username, string password) {
 
     //Verificare firma
 
+    byte_index = 0;
+    dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
+    unsigned char* clear_buf = (unsigned char*)malloc(dim);
+
+    memcpy(clear_buf, &buffer[byte_index], dim);
+    byte_index += sizeof(char);
+
+    int sign_size = 0;
+    memcpy(&sign_size, &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    unsigned char* sign = (unsigned char*)malloc(sign_size);
+    memcpy(sign, &buffer[byte_index], sign_size);
+    byte_index += sign_size;
+ 
+    
+    unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
+    if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
+
     //Verificare nonce
+
+    if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE)!=0){
+        cerr<<"nonce received is not valid!";
+        exit(1);
+    }
+    else
+    {
+        cout << "Nonce verified!!" << endl;
+    }
 
     free(nonceServer);
     return true;

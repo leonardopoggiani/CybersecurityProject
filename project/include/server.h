@@ -266,8 +266,10 @@ struct Server {
 
 bool authentication(Server &srv, int sd, unsigned char* buffer) {
     array<unsigned char, NONCE_SIZE> nonceServer;
+    unsigned char* nonceServer_rec= (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* cert_buf= NULL;
     X509 *cert;
+    EVP_PKEY* server_key;
     unsigned int pubKeyDHBufferLen;
     EVP_PKEY *prvKeyDHServer = NULL;
     EVP_PKEY *pubKeyDHClient = NULL;
@@ -279,7 +281,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
    
     unsigned char* username;
     unsigned char* signature;
-    unsigned char* nonce = (unsigned char*)malloc(constants::NONCE_SIZE);
+    unsigned char* nonceClient = (unsigned char*)malloc(constants::NONCE_SIZE);
 
     int username_size = 0;
     int signature_size = 0;
@@ -296,7 +298,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(username, &buffer[byte_index], username_size);
     byte_index += username_size;
 
-    memcpy(nonce, &buffer[byte_index], constants::NONCE_SIZE);
+    memcpy(nonceClient, &buffer[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
     memcpy(&(signature_size), &buffer[byte_index], sizeof(int));
@@ -356,6 +358,14 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
                          
     //Send packet with certificate
 
+    //retrieve server key
+	
+	FILE* file = fopen("./certificates/", "r");
+	if(!file) {cerr<<"establishSession: File Open Error";exit(1);}   
+	server_key= PEM_read_PrivateKey(file, NULL, NULL, NULL);
+	if(!server_key) {cerr<<"establishSession: server_key Error";exit(1);}
+	fclose(file);
+
     srv.crypto->generateNonce(nonceServer.data());
 
     srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
@@ -369,7 +379,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
 
     byte_index = 0;    
-    dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+    //dim = sizeof(char) + sizeof(int) + cert_size + 2*constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+    dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + constants::NONCE_SIZE;
     cout << "dim: " << dim << endl;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
@@ -385,15 +396,23 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    
+    //Aggiungere nonce client
+
+    memcpy(&(message[byte_index]), nonceClient, constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+    //Aggiungere la firma su tutto
+
+    unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    unsigned int signed_size = clt.crypto->digsign_sign(message, dim, message_signed, server_key);
 
     //Spostare nel prossimo messaggio
 
-    memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+   /* memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
     byte_index += sizeof(int);
 
     memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
-    byte_index += pubKeyDHBufferLen;
+    byte_index += pubKeyDHBufferLen;*/
 
 
     //Aggiungere la firma
@@ -401,7 +420,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     srv.serverConn->send_message(message,sd,dim);
 
     fclose(file);
-    free(nonce);
+    free(nonceClient);
     free(username);
     free(message);
     return true;   
