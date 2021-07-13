@@ -366,7 +366,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     srv.crypto->generateNonce(nonceServer.data());
 
-    srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
+    srv.crypto->loadCertificate(cert, "server_cert");
 
     int cert_size = i2d_X509(cert, &cert_buf);        
     if(cert_size< 0) { 

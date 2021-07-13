@@ -53,7 +53,7 @@ void CryptoOperation::deserializeCertificate(int cert_len,unsigned char* cert_bu
 }
 
 void CryptoOperation::loadCRL(X509_CRL*& crl, string path){
-    FILE* file = fopen(path.c_str(), "r");
+    FILE* file = fopen("certificates/FoundationOfCybersecurity_crl.pem", "r");
 
     if(!file)
         throw runtime_error("An error occurred opening crl.pem.");

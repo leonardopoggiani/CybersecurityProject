@@ -513,7 +513,8 @@ bool authentication(Client &clt, string username, string password) {
     vector<unsigned char> packet;
     unsigned char* nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_rec = (unsigned char*)malloc(constants::NONCE_SIZE);
-     unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
+    unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
+    unsigned char* signature = NULL;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
     clt.username = username;
@@ -574,6 +575,7 @@ bool authentication(Client &clt, string username, string password) {
 
     byte_index = 0;    
     int size_cert = 0;
+    int signature_size = 0;
     char opcode;
 
     memcpy(&(opcode), &message_received[byte_index], sizeof(char));
@@ -595,9 +597,16 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(nonceClient_rec, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
+    memcpy(&(signature_size), &message_received[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    signature = (unsigned char*)malloc(signature_size);
+    memcpy(signature, &message_received[byte_index], signature_size);
+    byte_index += signature_size;
+
     
 
-    free(message_received);
+    //free(message_received);
 
     //Verify certificate
 
@@ -619,19 +628,19 @@ bool authentication(Client &clt, string username, string password) {
 
     //Verificare firma
 
-    byte_index = 0;
+    //byte_index = 0;
     dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
     unsigned char* clear_buf = (unsigned char*)malloc(dim);
 
-    memcpy(clear_buf, &buffer[byte_index], dim);
+    memcpy(clear_buf, &message_received[byte_index], dim);
     byte_index += sizeof(char);
 
     int sign_size = 0;
-    memcpy(&sign_size, &buffer[byte_index], sizeof(int));
+    memcpy(&sign_size, &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
     unsigned char* sign = (unsigned char*)malloc(sign_size);
-    memcpy(sign, &buffer[byte_index], sign_size);
+    memcpy(sign, &message_received[byte_index], sign_size);
     byte_index += sign_size;
  
     
