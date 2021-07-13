@@ -175,7 +175,6 @@ class clientConnection {
 
             do {
                 message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
-                cout << "returned: " << message_len << endl;
                 
                 if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Receive Error");
@@ -192,7 +191,6 @@ class clientConnection {
 
             do {
                 message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
-                cout << "returned: " << message_len << endl;
                 
                 if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Receive Error");
@@ -275,7 +273,7 @@ class clientConnection {
 
             send_message(message, dim);
 
-            unsigned char* response = (unsigned char*)malloc(sizeof(char));  
+            unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
             receive_message(getMasterFD(), response);
 
             if(response[0] == 'y'){
@@ -354,10 +352,8 @@ class clientConnection {
             fd_set fds;
             string message;
             unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-            memset(buffer,0,constants::MAX_MESSAGE_SIZE);
+            unsigned char* to_send;
             int maxfd;
-
-            cout << "receiving username " << endl;
 
             int ret = receive_message(getMasterFD(), buffer);
             if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
@@ -367,18 +363,14 @@ class clientConnection {
 
             int username_size = 0;
             int byte_index = 0;
-            char opCode;
-            unsigned char* username_talking_to;
-
-            memcpy(&(opCode), &buffer[byte_index], sizeof(char));
-            byte_index += sizeof(char);
 
             memcpy(&(username_size), &buffer[byte_index], sizeof(int));
             byte_index += sizeof(int);
 
-            cout << "opcode " << opCode << ", username_size " << username_size << endl;
-
-            username_talking_to = (unsigned char*)malloc(username_size);
+            unsigned char* username_talking_to = (unsigned char*)malloc(username_size);
+            if(!username_talking_to) {
+                throw runtime_error("malloc failed");
+            }
 
             memcpy(username_talking_to, &buffer[byte_index], username_size);
             byte_index += username_size;
@@ -394,6 +386,7 @@ class clientConnection {
             cout << endl;
 
             while(1) {
+
                 maxfd = (getMasterFD() > STDIN_FILENO) ? getMasterFD() : STDIN_FILENO;
                 FD_ZERO(&fds);
                 FD_SET(getMasterFD(), &fds); 
@@ -403,8 +396,22 @@ class clientConnection {
 
                 if(FD_ISSET(0, &fds)) {  
                     cin >> message;
-                    buffer = (unsigned char*)malloc(message.size());
-                    send_message_chat(message);
+
+                    int byte_index = 0;
+                    int dim_send = sizeof(char) + sizeof(int) + message.size();
+                    to_send = (unsigned char*)malloc(dim_send);
+
+                    memcpy(&(to_send[byte_index]), &(constants::CHAT), sizeof(char));
+                    byte_index += sizeof(char);
+
+                    int message_size = message.size();
+                    memcpy(&(to_send[byte_index]), &message_size , sizeof(int));
+                    byte_index += sizeof(int);
+
+                    memcpy(&(to_send[byte_index]), message.c_str(), message_size);
+                    byte_index += message_size;
+
+                    send_message(to_send, dim_send);
                     cin.ignore();
                 }
 
@@ -414,22 +421,17 @@ class clientConnection {
 
                     int message_size = 0;
                     int byte_index = 0;
-                    char opCode;
 
                     unsigned char* message;
-
-                    memcpy(&(opCode), &buffer[byte_index], sizeof(char));
-                    byte_index += sizeof(char);
 
                     memcpy(&(message_size), &buffer[byte_index], sizeof(int));
                     byte_index += sizeof(int);
 
                     message = (unsigned char*)malloc(message_size);
                     
-                    memcpy(&(message), &buffer[byte_index], message_size);
+                    memcpy(message, &buffer[byte_index], message_size);
                     byte_index += message_size;
 
-                    cout << "received message!" << endl;
                     
                     for(int i = 0; i < message_size; i++) {
                         cout << message[i];
@@ -441,25 +443,6 @@ class clientConnection {
             
         }
 
-        int send_message_chat(string message) {
-            int ret;
-
-            string to_send = "4";
-            to_send.append(to_string(message.size()));
-            to_send.append(message);
-
-            if (to_send.length() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
-            }
-
-            do {
-                ret = send(getMasterFD(), to_send.c_str(), to_send.length(), 0);
-                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
-                }   
-            } while (ret != (int) to_send.length());
-        }
 };
 
 
@@ -669,8 +652,6 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
 
     memcpy(response_to_request, &response, sizeof(char));
     byte_index += sizeof(char);
-
-    cout << "response " << response_to_request << endl;
 
     clt.clientConn->send_message(response_to_request, dim);
 
