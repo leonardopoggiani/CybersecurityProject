@@ -74,7 +74,7 @@ int main(int argc, char* const argv[]) {
                         cout << "\n**** START CHAT ****" << endl;
 
                         if (!start_chat(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
-                        cout << " Chat started! " << endl;
+                        cout << "Chat started! " << endl;
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::CHAT) {
@@ -82,6 +82,7 @@ int main(int argc, char* const argv[]) {
 
                         if (!chatting(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
                         cout << "-----------------------------" << endl << endl;
+
                     } else if(buffer[0] == constants::LOGOUT) {
                         cout << "\n**** LOGOUT ****" << endl;
                         srv.serverConn->disconnect_host(sd, i);

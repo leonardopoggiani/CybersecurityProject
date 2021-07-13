@@ -641,21 +641,15 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     memcpy(message_received, &buffer[byte_index], message_size);
     byte_index += message_size;
 
-    int dim_to_send = sizeof(char) + sizeof(int) + message_size;
-    unsigned char* message_sent = (unsigned char*) malloc(dim_to_send);
-    byte_index = 0;
+    cout << "Received: " << endl;
+    for(int i = 0; i < sizeof(char) + sizeof(int) + message_size; i++) {
+        cout << message_received[i];
+    }
+    cout << endl;
 
-    memcpy(&message_sent[byte_index], &(opCode), sizeof(char));
-    byte_index += sizeof(char);
+    srv.serverConn->send_message(buffer, sd_to_send, byte_index);
 
-    memcpy(&(message_sent[byte_index]), &message_size, sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&(message_sent[byte_index]), message_received, message_size);
-    byte_index += message_size;
-
-    srv.serverConn->send_message(message_sent, sd_to_send, dim_to_send);
-
+    free(message_received);
     return true;   
 }
 
