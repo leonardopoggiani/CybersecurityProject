@@ -296,6 +296,15 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(username, &buffer[byte_index], username_size);
     byte_index += username_size;
 
+    vector<users> users_logged_in = srv.serverConn->getUsersList();
+
+    for(auto users : srv.serverConn->getUsersList()) {
+        if(memcpy((void*) users.username.c_str(),username,username_size) == 0) {
+            cout << "Already logged in" << endl;
+            return false;
+        }
+    }
+   
     memcpy(nonce, &buffer[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
@@ -500,7 +509,9 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
         perror("Send Error");
         throw runtime_error("Send failed");
-    }   
+    } else if(ret == 0) {
+        cout << "client disconnected" << endl;
+    }
 
     srv.serverConn->send_message(response, sd, dim);
 
