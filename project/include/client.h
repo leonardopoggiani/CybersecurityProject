@@ -591,6 +591,9 @@ bool authentication(Client &clt, string username, string password) {
 
     memcpy(nonceServer, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
+
+    
+
     free(message_received);
 
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
@@ -608,6 +611,10 @@ bool authentication(Client &clt, string username, string password) {
     free(tmp2);
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
+
+    //Verificare firma
+
+    //Verificare nonce
 
     free(nonceServer);
     return true;

@@ -331,7 +331,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(sign, &buffer[byte_index], sign_size);
     byte_index += sign_size;
  
-    //NON VA
+    
     unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey);
     if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
     
@@ -369,11 +369,18 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
+    
+
+    //Spostare nel prossimo messaggio
+
     memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
     byte_index += sizeof(int);
 
     memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
+
+
+    //Aggiungere la firma
 
     srv.serverConn->send_message(message,sd,dim);
 
