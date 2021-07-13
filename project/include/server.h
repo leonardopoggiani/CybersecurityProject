@@ -347,7 +347,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(sign, &buffer[byte_index], sign_size);
     byte_index += sign_size;
  
-    //NON VA
     unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey);
     if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
     
@@ -358,7 +357,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     srv.crypto->generateNonce(nonceServer.data());
 
-    srv.crypto->loadCertificate(cert, "ChatAppServer_cert");
+    srv.crypto->loadCertificate(cert, constants::CA_CERT_PATH);
 
     int cert_size = i2d_X509(cert, &cert_buf);        
     if(cert_size< 0) { 
@@ -370,7 +369,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     byte_index = 0;    
     dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
-    cout << "dim: " << dim << endl;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
@@ -614,12 +612,6 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     message_received = (unsigned char*)malloc(message_size);
     memcpy(message_received, &buffer[byte_index], message_size);
     byte_index += message_size;
-
-    cout << "Received: " << endl;
-    for(int i = 0; i < sizeof(char) + sizeof(int) + message_size; i++) {
-        cout << message_received[i];
-    }
-    cout << endl;
 
     srv.serverConn->send_message(buffer, sd_to_send, byte_index);
 

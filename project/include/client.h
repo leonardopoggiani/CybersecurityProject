@@ -273,7 +273,17 @@ class clientConnection {
             send_message(message, dim);
 
             unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
-            receive_message(getMasterFD(), response);
+            int ret = receive_message(getMasterFD(), response);
+
+            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                perror("Receive Error");
+                throw runtime_error("Receive failed");
+            } else if(ret == 0) {
+                cout << "The other client get disconnected" << endl;
+                free(response);
+                free(message);
+                return;
+            }
 
             if(response[0] == 'y'){
                 cout << "request accepted, starting the chat" << endl;
@@ -288,10 +298,11 @@ class clientConnection {
             } else {
                 cout << "we're sorry :(" << endl;
             }
+
+            free(response);
         }
 
         void start_chat(string username, string username_to_contact) {
-            cout << "start chat " << endl;
             int dim = username.size() + username_to_contact.size() + sizeof(char) + sizeof(int) + sizeof(int);
             unsigned char* buffer = (unsigned char*)malloc(dim);
             int byte_index = 0;    
@@ -327,7 +338,8 @@ class clientConnection {
 
             memcpy(&(message[byte_index]), &constants::LOGOUT, sizeof(char));
             byte_index += sizeof(char);
-            send_message(message, dim);
+
+            send_message(message, dim);          
         }
 
         int getMasterFD(){
@@ -356,9 +368,13 @@ class clientConnection {
 
             int ret = receive_message(getMasterFD(), buffer);
             if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                perror("Send Error");
-                throw runtime_error("Send failed");
-            }   
+                perror("Receive Error");
+                throw runtime_error("Receive failed");
+            } else if(ret == 0) {
+                cout << "The other client get disconnected" << endl;
+                free(buffer);
+                return;
+            }
 
             int username_size = 0;
             int byte_index = 0;
@@ -379,12 +395,7 @@ class clientConnection {
             for(int i = 0; i < username_size; i++) {
                 cout << username_talking_to[i];
             }
-
-            talking_to = username_talking_to; 
-
             cout << endl;
-
-            buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
 
             while(1) {
                 memset(buffer,0,constants::MAX_MESSAGE_SIZE);
@@ -414,18 +425,18 @@ class clientConnection {
                     byte_index += message_size;
 
                     send_message(to_send, dim_send);
-
-                    cout << "sending: ";
-                    for(int i = sizeof(char) + sizeof(int); i < dim_send; i++) {
-                        cout << to_send[i];
-                    }
-                    cout << endl;
-
-                    cin.ignore();
                 }
 
                 if(FD_ISSET(getMasterFD(), &fds)) {
                     receive_message(getMasterFD(), buffer);
+                    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                        perror("Receive Error");
+                        throw runtime_error("Receive failed");
+                    } else if(ret == 0) {
+                        cout << "The other client get disconnected" << endl;
+                        free(buffer);
+                        return;
+                    }
 
                     int message_size = 0;
                     int byte_index = sizeof(char);
@@ -452,6 +463,8 @@ class clientConnection {
                     cout << endl;
                 }
             }
+
+            free(username_talking_to);
             
         }
 
