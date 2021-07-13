@@ -604,10 +604,6 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(signature, &message_received[byte_index], signature_size);
     byte_index += signature_size;
 
-    
-
-    //free(message_received);
-
     //Verify certificate
 
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
@@ -649,8 +645,8 @@ bool authentication(Client &clt, string username, string password) {
 
     //Verificare nonce
 
-    if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE)!=0){
-        cerr<<"nonce received is not valid!";
+    if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE) != 0){
+        cerr<<"Nonce received is not valid!";
         exit(1);
     }
     else
@@ -658,6 +654,7 @@ bool authentication(Client &clt, string username, string password) {
         cout << "Nonce verified!!" << endl;
     }
 
+    free(message_received);
     free(nonceServer);
     return true;
 }

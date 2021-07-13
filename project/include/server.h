@@ -320,7 +320,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     filename_stream << "_pubkey.pem";
 
-    string filename = filename_stream.str();  // The resulting string
+    string filename = filename_stream.str();
 
     string filename_dir = "keys/public/" + filename;
         
@@ -417,7 +417,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     srv.serverConn->send_message(message,sd,dim);
 
-    fclose(file);
     free(nonceClient);
     free(username);
     free(message);
@@ -638,12 +637,6 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     message_received = (unsigned char*)malloc(message_size);
     memcpy(message_received, &buffer[byte_index], message_size);
     byte_index += message_size;
-
-    cout << "Received: " << endl;
-    for(int i = 0; i < sizeof(char) + sizeof(int) + message_size; i++) {
-        cout << message_received[i];
-    }
-    cout << endl;
 
     srv.serverConn->send_message(buffer, sd_to_send, byte_index);
 
