@@ -635,7 +635,7 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += sign_size;
  
     
-    unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
+    unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
 
     //Verificare nonce

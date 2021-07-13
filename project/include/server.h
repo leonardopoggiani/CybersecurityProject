@@ -360,7 +360,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     //retrieve server key
 	
-	FILE* file = fopen("./certificates/", "r");
+	file = fopen("./certificates/srv_prvkey.pem", "r");
 	if(!file) {cerr<<"establishSession: File Open Error";exit(1);}   
 	server_key= PEM_read_PrivateKey(file, NULL, NULL, NULL);
 	if(!server_key) {cerr<<"establishSession: server_key Error";exit(1);}
@@ -404,7 +404,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     //Aggiungere la firma su tutto
 
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-    unsigned int signed_size = clt.crypto->digsign_sign(message, dim, message_signed, server_key);
+    unsigned int signed_size = srv.crypto->digsign_sign(message, dim, message_signed, server_key);
 
     //Spostare nel prossimo messaggio
 
