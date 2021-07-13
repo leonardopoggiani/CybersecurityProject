@@ -22,9 +22,7 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
 //CERTIFICATES
 
 void CryptoOperation::loadCertificate(X509*& cert, string path){
-    
-    string path_str = "certificates/" + path + ".pem";
-    FILE *file = fopen(path_str.c_str(),"r");
+    FILE *file = fopen(path.c_str(),"r");
     if(!file)
         throw runtime_error("An error occurred while opening the file.");
     cert = PEM_read_X509(file, NULL, NULL, NULL);
