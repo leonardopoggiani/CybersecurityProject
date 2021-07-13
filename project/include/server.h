@@ -30,6 +30,22 @@ struct users {
     }
 };
 
+struct chat {
+    unsigned char* username_1;
+    int sd_1;
+    unsigned char* username_2;
+    int sd_2;
+
+    chat(unsigned char* us1, int s1, unsigned char* us2, int s2) {
+        username_1 = us1;
+        username_2 = us2;
+        sd_1 = s1;
+        sd_2 = s2;
+    }
+};
+
+vector<chat*> activeChat;
+
 class serverConnection : public clientConnection {
 
     private:
@@ -480,7 +496,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
         }
     }
 
-    unsigned char* response = (unsigned char*)malloc(sizeof(char));
+    unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
 
     int ret = srv.serverConn->receive_message(user_to_talk_to_sd, response);
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
@@ -494,3 +510,126 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     free(username);
     return true;       
 }
+
+bool start_chat(Server srv, int sd, unsigned char* buffer) {
+    char opCode;
+    int byte_index = 0;
+    unsigned char* username_1;
+    unsigned char* username_2;
+    int username_1_size = 0;
+
+    int username_2_size = 0;
+
+    memcpy(&(opCode), &buffer[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(username_1_size), &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    username_1 = (unsigned char*)malloc(username_1_size);
+    memcpy(username_1, &buffer[byte_index], username_1_size);
+    byte_index += username_1_size;
+
+    memcpy(&(username_2_size), &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    username_2 = (unsigned char*)malloc(username_2_size);
+    memcpy(username_2, &buffer[byte_index], username_2_size);
+    byte_index += username_2_size;
+
+    int sd_1 = 0;
+    int sd_2 = 0;
+
+    vector<users> users_logged_in = srv.serverConn->getUsersList();
+    for(auto user : users_logged_in) {
+        if(memcmp(user.username.c_str(), username_1, username_1_size) == 0) {
+            sd_1 = user.sd;
+        }
+
+        if(memcmp(user.username.c_str(), username_2, username_2_size) == 0) {
+            sd_2 = user.sd;
+        }
+    }
+
+    chat *new_chat = new chat(username_1, sd_1, username_2, sd_2);
+    activeChat.push_back(new_chat);
+
+    byte_index = 0;
+
+    int dim_m1 = username_2_size + sizeof(int);
+    unsigned char* m1 = (unsigned char*)malloc(dim_m1);
+
+    memcpy(&(m1[byte_index]), &username_2_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(m1[byte_index]), username_2, username_2_size);
+    byte_index += username_2_size;
+
+    srv.serverConn->send_message(m1, sd_1, dim_m1);
+
+    byte_index = 0;
+
+    int dim_m2 = username_2_size + sizeof(int);
+    unsigned char* m2 = (unsigned char*) malloc(dim_m2);
+
+    memcpy(&(m2[byte_index]), &username_1_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(m2[byte_index]), username_1, username_1_size);
+    byte_index += username_1_size;
+
+    srv.serverConn->send_message(m2, sd_2, dim_m2);
+
+    return true;
+}
+
+bool chatting(Server srv, int sd, unsigned char* buffer) {
+
+    unsigned char* message_received;
+    int message_size = 0;
+    int byte_index = 0;
+    int sd_to_send = -1;
+    char opCode;
+
+    for(chat* c : activeChat) {
+        if(c->sd_1 == sd) {
+            sd_to_send = c->sd_2;
+        } else if(c->sd_2 == sd) {
+            sd_to_send = c->sd_1;
+        } else 
+            sd_to_send = -1;
+    }
+
+    if(sd_to_send == -1) {
+        cout << "no chat found" << endl;
+        return false;
+    }
+
+    memcpy(&(opCode), &buffer[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(message_size), &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    message_received = (unsigned char*)malloc(message_size);
+    memcpy(message_received, &buffer[byte_index], message_size);
+    byte_index += message_size;
+
+    int dim_to_send = sizeof(char) + sizeof(int) + message_size;
+    unsigned char* message_sent = (unsigned char*) malloc(dim_to_send);
+    byte_index = 0;
+
+    memcpy(&message_sent[byte_index], &(opCode), sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(message_sent[byte_index]), &message_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message_sent[byte_index]), message_received, message_size);
+    byte_index += message_size;
+
+    srv.serverConn->send_message(message_sent, sd_to_send, dim_to_send);
+
+    return true;   
+}
+

@@ -17,7 +17,7 @@
 
 using namespace std;
 
-const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n Choose a valid option -> ";
+const string menu = "Hi! This is a secure messaging system. \n What do you want to do? \n 1) See online people \n 2) Send a request talk \n 3) Logout \n\n Choose a valid option -> ";
 
 int main(int argc, char* const argv[]) {
     
