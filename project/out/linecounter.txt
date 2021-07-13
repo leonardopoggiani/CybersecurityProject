@@ -1,0 +1,50 @@
+===============================================================================
+EXTENSION NAME : linecounter
+EXTENSION VERSION : 0.2.7
+-------------------------------------------------------------------------------
+count time : 2021-07-13 16:18:57
+count workspace : /home/poggio/Documents/GitHub/CybersecurityProject/project
+total files : 29
+total code lines : 1923
+total comment lines : 69
+total blank lines : 473
+
+    statistics
+   |      extension|     total code|  total comment|    total blank|percent|
+   -------------------------------------------------------------------------
+   |           .cpp|            441|             30|            111|     23|
+   |               |             20|              0|              8|    1.0|
+   |           .pem|            284|              6|              3|     15|
+   |           .txt|              7|              0|              0|   0.36|
+   |             .h|           1171|             33|            351|     61|
+   -------------------------------------------------------------------------
+certificates/ca_cert.pem, code is 22, comment is 0, blank is 0.
+certificates/ca_prvkey.pem, code is 30, comment is 1, blank is 0.
+certificates/ChatAppServer_cert.pem, code is 21, comment is 0, blank is 0.
+certificates/crl_cert.pem, code is 12, comment is 0, blank is 0.
+certificates/csr.pem, code is 16, comment is 0, blank is 0.
+client, it is a binary file.
+client.cpp, code is 97, comment is 1, blank is 23.
+crypto.cpp, code is 264, comment is 4, blank is 60.
+docs/coding_standards.txt, code is 4, comment is 0, blank is 0.
+docs/docs.txt, code is 0, comment is 0, blank is 0.
+include/client.h, code is 508, comment is 8, blank is 167.
+include/connection.h, code is 15, comment is 3, blank is 6.
+include/constants.h, code is 22, comment is 0, blank is 2.
+include/crypto.h, code is 81, comment is 4, blank is 11.
+include/server.h, code is 473, comment is 4, blank is 153.
+include/session.h, code is 37, comment is 13, blank is 4.
+include/utils.h, code is 35, comment is 1, blank is 8.
+keys/private/clarissa_prvkey.pem, code is 41, comment is 2, blank is 1.
+keys/private/gaia_prvkey.pem, code is 41, comment is 1, blank is 1.
+keys/private/leonardo_prvkey.pem, code is 41, comment is 1, blank is 1.
+keys/private/password.txt, code is 3, comment is 0, blank is 0.
+keys/public/clarissa_pubkey.pem, code is 11, comment is 1, blank is 0.
+keys/public/gaia_pubkey.pem, code is 11, comment is 0, blank is 0.
+keys/public/leonardo_pubkey.pem, code is 11, comment is 0, blank is 0.
+Makefile, code is 20, comment is 0, blank is 8.
+rsa_privkey.pem, code is 27, comment is 0, blank is 0.
+server, it is a binary file.
+server.cpp, code is 79, comment is 0, blank is 27.
+session.cpp, code is 1, comment is 25, blank is 1.
+===============================================================================

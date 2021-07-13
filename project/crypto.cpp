@@ -290,7 +290,6 @@ unsigned int CryptoOperation::digsign_sign(unsigned char *message, unsigned int 
         memcpy(buffer, message, messageLen);
         memcpy(buffer + messageLen, &signLen, sizeof(int));
         memcpy(buffer + messageLen + sizeof(int), signature, signLen);
-        cout << "opcode " << message[0] << endl;
 
         delete[] signature;
         EVP_MD_CTX_free(ctx);

@@ -248,7 +248,6 @@ class clientConnection {
         }
 
         void sendRequestToTalk(string username_to_contact, string username) {
-            cout << "let me talk to someone" << endl;
             int byte_index = 0;    
 
             int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
@@ -385,7 +384,10 @@ class clientConnection {
 
             cout << endl;
 
+            buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+
             while(1) {
+                memset(buffer,0,constants::MAX_MESSAGE_SIZE);
 
                 maxfd = (getMasterFD() > STDIN_FILENO) ? getMasterFD() : STDIN_FILENO;
                 FD_ZERO(&fds);
@@ -395,7 +397,7 @@ class clientConnection {
                 select(maxfd+1, &fds, NULL, NULL, NULL); 
 
                 if(FD_ISSET(0, &fds)) {  
-                    cin >> message;
+                    getline(cin, message); 
 
                     int byte_index = 0;
                     int dim_send = sizeof(char) + sizeof(int) + message.size();
@@ -412,27 +414,37 @@ class clientConnection {
                     byte_index += message_size;
 
                     send_message(to_send, dim_send);
+
+                    cout << "sending: ";
+                    for(int i = sizeof(char) + sizeof(int); i < dim_send; i++) {
+                        cout << to_send[i];
+                    }
+                    cout << endl;
+
                     cin.ignore();
                 }
 
                 if(FD_ISSET(getMasterFD(), &fds)) {
-                    buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
                     receive_message(getMasterFD(), buffer);
 
                     int message_size = 0;
-                    int byte_index = 0;
+                    int byte_index = sizeof(char);
 
                     unsigned char* message;
 
                     memcpy(&(message_size), &buffer[byte_index], sizeof(int));
                     byte_index += sizeof(int);
 
-                    message = (unsigned char*)malloc(message_size);
+                    message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + message_size);
                     
                     memcpy(message, &buffer[byte_index], message_size);
                     byte_index += message_size;
 
-                    
+                    for(int i = 0; i < username_size; i++) {
+                        cout << username_talking_to[i];
+                    }
+                    cout << ": ";
+        
                     for(int i = 0; i < message_size; i++) {
                         cout << message[i];
                     }
@@ -445,11 +457,11 @@ class clientConnection {
 
 };
 
-
 struct Client {
     EVP_PKEY *prvKeyClient;
     clientConnection *clientConn;
-    CryptoOperation *crypto;    
+    CryptoOperation *crypto;  
+    string username;  
 
     Client() {
         clientConn = new clientConnection();
@@ -502,6 +514,7 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* nonceServer;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
+    clt.username = username;
 
     string filename = "./keys/private/" + username + "_prvkey.pem";
 	
@@ -609,19 +622,29 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     int byte_index = 0;
     unsigned char* username;
     int username_size;
-    char opCode;
     unsigned char response = 'n';
 
-    memcpy(&(opCode), &msg[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
     memcpy(&(username_size), &msg[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
+    if(username_size < 0 || username_size > constants::MAX_MESSAGE_SIZE) {
+        throw runtime_error("Username size error");
+    }
+
     username = (unsigned char*)malloc(username_size);
+    if(username == NULL) {
+        throw runtime_error("Malloc error");
+    }
 
     memcpy(username, &msg[byte_index], username_size);
     byte_index += username_size;
+
+    if(memcpy((void*)clt.username.c_str(), username, username_size) == 0) {
+        cout << "You're trying to speak with yourself, insert a valid username" << endl;
+        return false;
+    }
 
     cout << "Do you want to talk with ";
     for(int i = 0; i < username_size; i++) {
@@ -642,6 +665,9 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     int dim = sizeof(char);
     byte_index = 0;
     unsigned char* response_to_request = (unsigned char*)malloc(dim);  
+    if(response_to_request == NULL) {
+        throw runtime_error("Malloc error");
+    }
 
     memcpy(response_to_request, &response, sizeof(char));
     byte_index += sizeof(char);

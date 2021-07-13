@@ -1,0 +1,220 @@
+{
+    "extension": "linecounter",
+    "version": "0.2.7",
+    "workspace": "/home/poggio/Documents/GitHub/CybersecurityProject/project",
+    "linecount": [
+        {
+            "version": "0.2.7",
+            "counttime": "2021-07-13 16:18:57",
+            "filesum": 29,
+            "codesum": 1923,
+            "commentsum": 69,
+            "blanksum": 473,
+            "statistics": {
+                ".cpp": {
+                    "code": 441,
+                    "comment": 30,
+                    "blank": 111
+                },
+                "": {
+                    "code": 20,
+                    "comment": 0,
+                    "blank": 8
+                },
+                ".pem": {
+                    "code": 284,
+                    "comment": 6,
+                    "blank": 3
+                },
+                ".txt": {
+                    "code": 7,
+                    "comment": 0,
+                    "blank": 0
+                },
+                ".h": {
+                    "code": 1171,
+                    "comment": 33,
+                    "blank": 351
+                }
+            },
+            "filelist": [
+                {
+                    "blank": 0,
+                    "code": 22,
+                    "comment": 0,
+                    "filename": "certificates/ca_cert.pem"
+                },
+                {
+                    "blank": 0,
+                    "code": 30,
+                    "comment": 1,
+                    "filename": "certificates/ca_prvkey.pem"
+                },
+                {
+                    "blank": 0,
+                    "code": 21,
+                    "comment": 0,
+                    "filename": "certificates/ChatAppServer_cert.pem"
+                },
+                {
+                    "blank": 0,
+                    "code": 12,
+                    "comment": 0,
+                    "filename": "certificates/crl_cert.pem"
+                },
+                {
+                    "blank": 0,
+                    "code": 16,
+                    "comment": 0,
+                    "filename": "certificates/csr.pem"
+                },
+                {
+                    "filename": "client",
+                    "isbinaryfile": true,
+                    "blank": 0,
+                    "code": 0,
+                    "comment": 0
+                },
+                {
+                    "blank": 23,
+                    "code": 97,
+                    "comment": 1,
+                    "filename": "client.cpp"
+                },
+                {
+                    "blank": 60,
+                    "code": 264,
+                    "comment": 4,
+                    "filename": "crypto.cpp"
+                },
+                {
+                    "blank": 0,
+                    "code": 4,
+                    "comment": 0,
+                    "filename": "docs/coding_standards.txt"
+                },
+                {
+                    "blank": 0,
+                    "code": 0,
+                    "comment": 0,
+                    "filename": "docs/docs.txt"
+                },
+                {
+                    "blank": 167,
+                    "code": 508,
+                    "comment": 8,
+                    "filename": "include/client.h"
+                },
+                {
+                    "blank": 6,
+                    "code": 15,
+                    "comment": 3,
+                    "filename": "include/connection.h"
+                },
+                {
+                    "blank": 2,
+                    "code": 22,
+                    "comment": 0,
+                    "filename": "include/constants.h"
+                },
+                {
+                    "blank": 11,
+                    "code": 81,
+                    "comment": 4,
+                    "filename": "include/crypto.h"
+                },
+                {
+                    "blank": 153,
+                    "code": 473,
+                    "comment": 4,
+                    "filename": "include/server.h"
+                },
+                {
+                    "blank": 4,
+                    "code": 37,
+                    "comment": 13,
+                    "filename": "include/session.h"
+                },
+                {
+                    "blank": 8,
+                    "code": 35,
+                    "comment": 1,
+                    "filename": "include/utils.h"
+                },
+                {
+                    "blank": 1,
+                    "code": 41,
+                    "comment": 2,
+                    "filename": "keys/private/clarissa_prvkey.pem"
+                },
+                {
+                    "blank": 1,
+                    "code": 41,
+                    "comment": 1,
+                    "filename": "keys/private/gaia_prvkey.pem"
+                },
+                {
+                    "blank": 1,
+                    "code": 41,
+                    "comment": 1,
+                    "filename": "keys/private/leonardo_prvkey.pem"
+                },
+                {
+                    "blank": 0,
+                    "code": 3,
+                    "comment": 0,
+                    "filename": "keys/private/password.txt"
+                },
+                {
+                    "blank": 0,
+                    "code": 11,
+                    "comment": 1,
+                    "filename": "keys/public/clarissa_pubkey.pem"
+                },
+                {
+                    "blank": 0,
+                    "code": 11,
+                    "comment": 0,
+                    "filename": "keys/public/gaia_pubkey.pem"
+                },
+                {
+                    "blank": 0,
+                    "code": 11,
+                    "comment": 0,
+                    "filename": "keys/public/leonardo_pubkey.pem"
+                },
+                {
+                    "blank": 8,
+                    "code": 20,
+                    "comment": 0,
+                    "filename": "Makefile"
+                },
+                {
+                    "blank": 0,
+                    "code": 27,
+                    "comment": 0,
+                    "filename": "rsa_privkey.pem"
+                },
+                {
+                    "filename": "server",
+                    "isbinaryfile": true,
+                    "blank": 0,
+                    "code": 0,
+                    "comment": 0
+                },
+                {
+                    "blank": 27,
+                    "code": 79,
+                    "comment": 0,
+                    "filename": "server.cpp"
+                },
+                {
+                    "blank": 1,
+                    "code": 1,
+                    "comment": 25,
+                    "filename": "session.cpp"
+                }
+            ]
+        }
+    ]
+}
