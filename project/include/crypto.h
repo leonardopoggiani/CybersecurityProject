@@ -19,7 +19,7 @@ class CryptoOperation {
     void handleErrors(void);
 
     //CERTIFICATES
-    void loadCRL(X509_CRL*& crl);
+    void loadCRL(X509_CRL*& crl, string path);
     void loadCertificate(X509*& cert, string path);
     unsigned int serializeCertificate(X509* cert, unsigned char* cert_buf);
     void deserializeCertificate(int cert_len, unsigned char* cert_buff, X509*& buff);

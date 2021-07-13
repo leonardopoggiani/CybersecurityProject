@@ -23,7 +23,7 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
 
 void CryptoOperation::loadCertificate(X509*& cert, string path){
     
-    std::string path_str = "certificates/" + path + ".pem";
+    string path_str = "certificates/" + path + ".pem";
     FILE *file = fopen(path_str.c_str(),"r");
     if(!file)
         throw runtime_error("An error occurred while opening the file.");
@@ -52,8 +52,8 @@ void CryptoOperation::deserializeCertificate(int cert_len,unsigned char* cert_bu
         throw runtime_error("An error occurred during the reading of the certificate.");
 }
 
-void CryptoOperation::loadCRL(X509_CRL*& crl){
-    FILE* file = fopen("./certificates/crl_cert.pem", "r");
+void CryptoOperation::loadCRL(X509_CRL*& crl, string path){
+    FILE* file = fopen(path.c_str(), "r");
 
     if(!file)
         throw runtime_error("An error occurred opening crl.pem.");
@@ -75,7 +75,7 @@ bool CryptoOperation::verifyCertificate(X509* cert_to_verify) {
     X509_CRL* crl;
 
     loadCertificate(ca_cert, constants::CA_CERT_PATH);
-    loadCRL(crl);
+    loadCRL(crl, constants::CRL_PATH);
 
     store = X509_STORE_new();
     if(!store)
@@ -160,38 +160,6 @@ void CryptoOperation::getPublicKeyFromCertificate(X509 *cert, EVP_PKEY *&pubkey)
     pubkey = X509_get_pubkey(cert);
     if(!pubkey)
         throw runtime_error("An error occurred while getting the key from the certificate.");
-}
-
-unsigned int CryptoOperation::sign(unsigned char *message, unsigned int messageLen, unsigned char *buffer, EVP_PKEY *prvKey) {
-    unsigned char *signature; 
-    unsigned int signLen;
-    signature = new(nothrow) unsigned char[EVP_PKEY_size(prvKey)];
-    if(!signature) {
-        throw runtime_error("Buffer not allocated correctly");
-    }
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    if (!ctx) {
-        throw runtime_error("Context not initialized");
-    }
-    try {
-        if(EVP_SignInit(ctx, EVP_sha256()) != 1) {
-            throw runtime_error("Error inizializing the sign");
-        }
-        if(EVP_SignUpdate(ctx, message, messageLen) != 1) {
-            throw runtime_error("Error updating the sign");
-        }
-        if(EVP_SignFinal(ctx, signature, &signLen, prvKey) != 1){
-            throw runtime_error("Error finalizing the sign");
-        }
-        memcpy(buffer, signature, signLen);
-        delete[] signature;
-        EVP_MD_CTX_free(ctx);
-    } catch(const exception& e) {
-        delete[] signature;
-        EVP_MD_CTX_free(ctx);
-        throw;
-    }
-    return signLen;
 }
 
 unsigned int CryptoOperation::serializePublicKey(EVP_PKEY *pub_key, unsigned char *pubkey_buf){
