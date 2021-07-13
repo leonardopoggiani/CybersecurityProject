@@ -113,7 +113,7 @@ bool CryptoOperation::verifyCertificate(X509* cert_to_verify) {
 
 void CryptoOperation::readPrivateKey(EVP_PKEY *&prvKey) {
     FILE* file;
-    file = fopen("./keys/server_prv_key.pem", "r");
+    file = fopen("./keys/srv_prvkey.pem", "r");
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
     prvKey = PEM_read_PrivateKey(file, NULL, NULL, NULL);
@@ -128,7 +128,7 @@ void CryptoOperation::readPrivateKey(EVP_PKEY *&prvKey) {
 void CryptoOperation::readPrivateKey(string usr, string pwd, EVP_PKEY *& prvKey) {
     FILE* file;
     string path;
-    path = "./keys/" + usr + "_prvkey.pem";
+    path = "./keys/private/" + usr + "_prvkey.pem";
     file = fopen(path.c_str(), "r");
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");

@@ -358,11 +358,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
                          
     //Send packet with certificate
 
-    //retrieve server key
+    //retrieve server private key
 	
-	file = fopen("./certificates/srv_prvkey.pem", "r");
-	if(!file) {cerr<<"establishSession: File Open Error";exit(1);}   
-	server_key= PEM_read_PrivateKey(file, NULL, NULL, NULL);
+	srv.crypto->readPrivateKey("srv", "cybersecurity", server_key);
 	if(!server_key) {cerr<<"establishSession: server_key Error";exit(1);}
 	fclose(file);
 
