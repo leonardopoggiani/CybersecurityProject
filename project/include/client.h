@@ -27,7 +27,6 @@ class clientConnection {
         int port;
         unsigned char* talking_to;
 
-
     public:
 
         clientConnection(){
@@ -39,14 +38,12 @@ class clientConnection {
                 cout << "--- socket created ---" << endl;
             }
 
-            // Specifico di riusare il socket
             const int trueFlag = 1;
             setsockopt(master_fd, SOL_SOCKET, SO_REUSEADDR, &trueFlag, sizeof(int));
 
             address.sin_family = AF_INET;
             address.sin_port = htons(constants::CLIENT_PORT);
             
-            // Convert IPv4 and IPv6 addresses from text to binary form
             if(inet_pton(AF_INET, constants::LOCALHOST, &address.sin_addr)<=0) {
                 cerr << "\nInvalid address/ Address not supported \n" << endl;
                 exit(EXIT_FAILURE);
@@ -66,7 +63,7 @@ class clientConnection {
                 throw runtime_error("Connection Failed");
             }
 
-            if( (flags & O_NONBLOCK) == 0){
+            if((flags & O_NONBLOCK) == 0) {
                 is_blocking = true;
             } else {
                 is_blocking = false;
@@ -75,7 +72,6 @@ class clientConnection {
             ret = connect(master_fd, (struct sockaddr *)&address, sizeof(address));
 
             if (ret == -1) {
-
                 if(is_blocking || errno != EINPROGRESS) { 
                     perror("Connection error");
                     throw runtime_error("Connection Failed");
@@ -109,7 +105,6 @@ class clientConnection {
         }
 
         void seeOnlineUsers(){
-            cout << "Let me see online users" << endl;
 
             int byte_index = 0;    
 
@@ -131,7 +126,6 @@ class clientConnection {
 
             byte_index = 0;    
 
-            dim = sizeof(char) + sizeof(int);
             char opCode;
             int list_size = 0; 
 
@@ -148,6 +142,7 @@ class clientConnection {
 
                 for(int i = 0; i < list_size; i++) {
                     int username_size = 0;
+
                     memcpy(&(username_size), &buffer[byte_index], sizeof(int));
                     byte_index += sizeof(int);
 
@@ -159,7 +154,7 @@ class clientConnection {
                         cout << username[j];
                     }
 
-                    cout << " | ";
+                    cout << " || ";
                     free(username);
                 }
 
@@ -288,11 +283,14 @@ class clientConnection {
             } else {
                 cout << "we're sorry :(" << endl;
             }
+
+            free(response);
         }
 
         void start_chat(string username, string username_to_contact) {
-            cout << "start chat " << endl;
+
             int dim = username.size() + username_to_contact.size() + sizeof(char) + sizeof(int) + sizeof(int);
+
             unsigned char* buffer = (unsigned char*)malloc(dim);
             int byte_index = 0;    
 
@@ -313,13 +311,11 @@ class clientConnection {
             memcpy(&(buffer[byte_index]), username_to_contact.c_str(), username_to_contact.size());
             byte_index += username_to_contact.size();
 
-            cout << " ---- initializing chat ----" << endl;
-
             send_message(buffer,dim);
         }
         
         void logout() {
-            cout << "logout" << endl;
+            cout << "--- LOGOUT ---" << endl;
             int byte_index = 0;    
 
             int dim = sizeof(char);
@@ -379,14 +375,14 @@ class clientConnection {
             for(int i = 0; i < username_size; i++) {
                 cout << username_talking_to[i];
             }
-
-            talking_to = username_talking_to; 
-
             cout << endl;
+
+            talking_to = username_talking_to;
 
             buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
 
             while(1) {
+
                 memset(buffer,0,constants::MAX_MESSAGE_SIZE);
 
                 maxfd = (getMasterFD() > STDIN_FILENO) ? getMasterFD() : STDIN_FILENO;
@@ -397,7 +393,11 @@ class clientConnection {
                 select(maxfd+1, &fds, NULL, NULL, NULL); 
 
                 if(FD_ISSET(0, &fds)) {  
-                    getline(cin, message); 
+                    getline(cin, message);
+
+                    if(message.compare(":q!")) {
+                        break;
+                    }
 
                     int byte_index = 0;
                     int dim_send = sizeof(char) + sizeof(int) + message.size();
@@ -414,14 +414,6 @@ class clientConnection {
                     byte_index += message_size;
 
                     send_message(to_send, dim_send);
-
-                    cout << "sending: ";
-                    for(int i = sizeof(char) + sizeof(int); i < dim_send; i++) {
-                        cout << to_send[i];
-                    }
-                    cout << endl;
-
-                    cin.ignore();
                 }
 
                 if(FD_ISSET(getMasterFD(), &fds)) {

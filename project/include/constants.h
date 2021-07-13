@@ -13,7 +13,6 @@ namespace constants
     constexpr const char* CA_CERT_PATH = "ca_cert";
     constexpr const char* CRL_PATH = "certificates/FoundationsOfCybersecurity_crl.pem";
 
-
     constexpr char AUTH = '1';
     constexpr char ONLINE = '2';
     constexpr char REQUEST = '3';

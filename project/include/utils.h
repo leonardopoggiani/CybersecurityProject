@@ -14,30 +14,3 @@
 
 using namespace std;
 
-
-
-size_t get_file_size(std::string filename){
-	size_t file_size = 0;
-	std::ifstream file(filename, std::ios::binary);
-	if(file){
-		file.seekg(0, std::ios::end);
-		file_size = file.tellg();
-		file.close();
-	}
-	return file_size;
-}
-
-
-
-std::vector<std::string> split( const std::string& input, const std::string& delims ) {
-    std::vector<std::string> ret;
-    for (size_t start = 0, pos; ; start = pos + 1) {
-        pos = input.find_first_of(delims, start);
-        std::string token = input.substr(start, pos - start);
-        if (token.length() > 0)  // ignore empty tokens
-            ret.push_back(token);
-        if (pos == std::string::npos) break;
-    }
-    return ret;
-}
-
