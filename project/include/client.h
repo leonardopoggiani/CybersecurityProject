@@ -19,456 +19,6 @@
 using namespace std;
 using namespace constants;
 
-class clientConnection {
-
-    protected:
-        struct sockaddr_in address;
-        int master_fd;
-        int port;
-        unsigned char* talking_to;
-
-    public:
-
-        clientConnection(){
-            port = 8080;
-            if ((master_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-                cerr << "\n Socket creation error \n" << endl;
-                exit(EXIT_FAILURE);
-            } else {
-                cout << "--- socket created ---" << endl;
-            }
-
-            const int trueFlag = 1;
-            setsockopt(master_fd, SOL_SOCKET, SO_REUSEADDR, &trueFlag, sizeof(int));
-
-            address.sin_family = AF_INET;
-            address.sin_port = htons(constants::CLIENT_PORT);
-            
-            if(inet_pton(AF_INET, constants::LOCALHOST, &address.sin_addr)<=0) {
-                cerr << "\nInvalid address/ Address not supported \n" << endl;
-                exit(EXIT_FAILURE);
-            } else {
-                cout << "--- address valid ---" << endl;
-            }
-        }
-
-        void make_connection(){
-            bool is_blocking;
-            int flags;
-            int ret;
-            flags = fcntl(master_fd, F_GETFL, 0);
-
-            if(flags < 0) {
-                perror("Connection error");
-                throw runtime_error("Connection Failed");
-            }
-
-            if((flags & O_NONBLOCK) == 0) {
-                is_blocking = true;
-            } else {
-                is_blocking = false;
-            }
-
-            ret = connect(master_fd, (struct sockaddr *)&address, sizeof(address));
-
-            if (ret == -1) {
-                if(is_blocking || errno != EINPROGRESS) { 
-                    perror("Connection error");
-                    throw runtime_error("Connection Failed");
-                }
-
-                if(!wait(master_fd)) {
-                    perror("Connection Error");
-                    throw runtime_error("Connection Failed");
-                }
-            }
-        }
-
-        bool wait(int socket) {
-            struct pollfd fds[1];
-            int poll_response;
-
-            if(socket < 0){
-                throw runtime_error("Socket descriptor not valid.");
-            }
-
-            fds[0].fd = socket;
-            fds[0].events = POLLIN;
-
-            poll_response = poll(fds, sizeof(fds)/sizeof(struct pollfd), 50);
-
-            if (poll_response <= 0) {
-                return false;
-            }
-
-            return true;
-        }
-
-        void seeOnlineUsers(){
-
-            int byte_index = 0;    
-
-            int dim = sizeof(char);
-            unsigned char* message = (unsigned char*)malloc(dim);  
-
-            memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
-            byte_index += sizeof(char);
-
-            send_message(message, dim);
-
-            unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-
-            int ret = receive_message(getMasterFD(), buffer);
-            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                perror("Receive Error");
-                throw runtime_error("Receive failed");
-            } 
-
-            byte_index = 0;    
-
-            char opCode;
-            int list_size = 0; 
-
-            memcpy(&(opCode), &buffer[byte_index], sizeof(char));
-            byte_index += sizeof(char);
-
-            memcpy(&(list_size), &buffer[byte_index], sizeof(int));
-            byte_index += sizeof(int);
-
-            if(list_size == 0) {
-                cout << "--- no user online ---" << endl;
-            } else {
-                cout << "--- online users ---" << endl;
-
-                for(int i = 0; i < list_size; i++) {
-                    int username_size = 0;
-
-                    memcpy(&(username_size), &buffer[byte_index], sizeof(int));
-                    byte_index += sizeof(int);
-
-                    unsigned char* username = (unsigned char*)malloc(username_size);
-                    memcpy(username, &buffer[byte_index], username_size);
-                    byte_index += username_size;
-
-                    for(int j = 0; j < username_size; j++){
-                        cout << username[j];
-                    }
-
-                    cout << " || ";
-                    free(username);
-                }
-
-                cout << endl;
-            }
-
-            free(message);
-            free(buffer);
-        }
-
-        int receive_message(int sd, char* buffer) {
-            int message_len;
-
-            do {
-                message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
-                
-                if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Receive Error");
-                    throw runtime_error("Receive failed");
-                }  
-            } while (message_len < 0);
-
-            buffer[message_len] = '\0';
-            return message_len;
-        }
-
-        int receive_message(int sd, unsigned char* buffer) {
-            int message_len;
-
-            do {
-                message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
-                
-                if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Receive Error");
-                    throw runtime_error("Receive failed");
-                }  
-            } while (message_len < 0);
-
-            return message_len;
-        }
-
-
-        void send_message(string message) {
-            int ret;
-
-            if (message.length() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
-            }
-
-            do {
-                ret = send(getMasterFD(), message.c_str(), message.length(), 0);
-                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
-                }   
-            } while (ret != (int) message.length());
-        }
-
-        void send_message(vector<unsigned char> message) {
-            int ret;
-
-            if (message.size() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
-            }
-            
-            do {
-                ret = send(getMasterFD(), &message[0], message.size(), 0);
-                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
-                }   
-            } while (ret != (int) message.size());
-        }
-
-        void send_message(unsigned char* message, int dim) {
-            int ret = 0;
-            
-            do {
-                ret = send(getMasterFD(), &message[0], dim, 0);
-                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
-                }   
-            } while (ret != dim);
-
-        }
-
-        void sendRequestToTalk(string username_to_contact, string username) {
-            int byte_index = 0;    
-
-            int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
-            unsigned char* message = (unsigned char*)malloc(dim);  
-
-            memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
-            byte_index += sizeof(char);
-
-            int username_to_contact_size = username_to_contact.size();
-            memcpy(&(message[byte_index]), &username_to_contact_size, sizeof(int));
-            byte_index += sizeof(int);
-
-            memcpy(&(message[byte_index]), username_to_contact.c_str(), username_to_contact.size());
-            byte_index += username_to_contact.size();
-
-            int username_size = username.size();
-            memcpy(&(message[byte_index]), &username_size, sizeof(int));
-            byte_index += sizeof(int);
-
-            memcpy(&(message[byte_index]), username.c_str(), username.size());
-            byte_index += username.size();
-
-            send_message(message, dim);
-
-            unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
-            int ret = receive_message(getMasterFD(), response);
-            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                perror("Send Error");
-                throw runtime_error("Send failed");
-            }  else if (ret == 0) {
-                cout << "client connection closed" << endl;
-                free(response);
-                return;
-            } 
-
-            if(response[0] == 'y'){
-                cout << "request accepted, starting the chat" << endl;
-                cout << "---------------------------------------" << endl;
-                cout << "\n-------Chat-------" << endl;
-
-                start_chat(username, username_to_contact);
-
-                chat();
-
-                cout << "------------------" << endl;
-            } else {
-                cout << "we're sorry :(" << endl;
-            }
-
-            free(response);
-        }
-
-        void start_chat(string username, string username_to_contact) {
-
-            int dim = username.size() + username_to_contact.size() + sizeof(char) + sizeof(int) + sizeof(int);
-
-            unsigned char* buffer = (unsigned char*)malloc(dim);
-            int byte_index = 0;    
-
-            memcpy(&(buffer[byte_index]), &constants::START_CHAT, sizeof(char));
-            byte_index += sizeof(char);
-
-            int username_1_size = username.size();
-            memcpy(&(buffer[byte_index]), &username_1_size, sizeof(int));
-            byte_index += sizeof(int);
-
-            memcpy(&(buffer[byte_index]), username.c_str(), username.size());
-            byte_index += username.size();
-
-            int username_2_size = username_to_contact.size();
-            memcpy(&(buffer[byte_index]), &username_2_size, sizeof(int));
-            byte_index += sizeof(int);
-            
-            memcpy(&(buffer[byte_index]), username_to_contact.c_str(), username_to_contact.size());
-            byte_index += username_to_contact.size();
-
-            send_message(buffer,dim);
-        }
-        
-        void logout() {
-            cout << "--- LOGOUT ---" << endl;
-            int byte_index = 0;    
-
-            int dim = sizeof(char);
-            unsigned char* message = (unsigned char*)malloc(dim);  
-
-            memcpy(&(message[byte_index]), &constants::LOGOUT, sizeof(char));
-            byte_index += sizeof(char);
-            send_message(message, dim);
-        }
-
-        int getMasterFD(){
-            return master_fd;
-        }
-
-        ~clientConnection() {
-            // Chiude il socket
-            close(master_fd);
-            cout << "--- connection closed ---" << endl;
-        }
-
-        bool checkAck(char* buffer) {
-            if(strcmp(buffer,"ack") == 0){
-                return true;
-            } else 
-                return false;
-        }
-
-        void chat() {
-            fd_set fds;
-            string message;
-            unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-            unsigned char* to_send;
-            int maxfd;
-
-            int ret = receive_message(getMasterFD(), buffer);
-            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                perror("Send Error");
-                throw runtime_error("Send failed");
-            }  else if (ret == 0) {
-                cout << "client connection closed" << endl;
-                free(buffer);
-                return;
-            } 
-
-            int username_size = 0;
-            int byte_index = 0;
-
-            memcpy(&(username_size), &buffer[byte_index], sizeof(int));
-            byte_index += sizeof(int);
-
-            unsigned char* username_talking_to = (unsigned char*)malloc(username_size);
-            if(!username_talking_to) {
-                throw runtime_error("malloc failed");
-            }
-
-            memcpy(username_talking_to, &buffer[byte_index], username_size);
-            byte_index += username_size;
-
-            cout << "Talking to ";
-
-            for(int i = 0; i < username_size; i++) {
-                cout << username_talking_to[i];
-            }
-            cout << endl;
-
-            talking_to = username_talking_to;
-
-            buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-
-            while(1) {
-
-                memset(buffer,0,constants::MAX_MESSAGE_SIZE);
-
-                maxfd = (getMasterFD() > STDIN_FILENO) ? getMasterFD() : STDIN_FILENO;
-                FD_ZERO(&fds);
-                FD_SET(getMasterFD(), &fds); 
-                FD_SET(STDIN_FILENO, &fds); 
-                
-                select(maxfd+1, &fds, NULL, NULL, NULL); 
-
-                if(FD_ISSET(0, &fds)) {  
-                    getline(cin, message);
-
-                    if(message.compare(":q!") == 0) {
-                        break;
-                    }
-
-                    int byte_index = 0;
-                    int dim_send = sizeof(char) + sizeof(int) + message.size();
-                    to_send = (unsigned char*)malloc(dim_send);
-
-                    memcpy(&(to_send[byte_index]), &(constants::CHAT), sizeof(char));
-                    byte_index += sizeof(char);
-
-                    int message_size = message.size();
-                    memcpy(&(to_send[byte_index]), &message_size , sizeof(int));
-                    byte_index += sizeof(int);
-
-                    memcpy(&(to_send[byte_index]), message.c_str(), message_size);
-                    byte_index += message_size;
-
-                    send_message(to_send, dim_send);
-                }
-
-                if(FD_ISSET(getMasterFD(), &fds)) {
-                    ret = receive_message(getMasterFD(), buffer);
-                    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                        perror("Send Error");
-                        throw runtime_error("Send failed");
-                    }  else if (ret == 0) {
-                        cout << "client connection closed" << endl;
-                        free(buffer);
-                        return;
-                    } 
-
-                    int message_size = 0;
-                    int byte_index = sizeof(char);
-
-                    unsigned char* message;
-
-                    memcpy(&(message_size), &buffer[byte_index], sizeof(int));
-                    byte_index += sizeof(int);
-
-                    message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + message_size);
-                    
-                    memcpy(message, &buffer[byte_index], message_size);
-                    byte_index += message_size;
-
-                    for(int i = 0; i < username_size; i++) {
-                        cout << username_talking_to[i];
-                    }
-                    cout << ": ";
-        
-                    for(int i = 0; i < message_size; i++) {
-                        cout << message[i];
-                    }
-
-                    cout << endl;
-                }
-            }
-            
-        }
-
-};
-
 struct Client {
     EVP_PKEY *prvKeyClient;
     clientConnection *clientConn;
@@ -593,6 +143,7 @@ bool authentication(Client &clt, string username, string password) {
         return false;
     }
 
+    byte_index = 0;
     int signature_size = 0;
     char opcode;
     size_t size_cert = 0;
@@ -630,6 +181,7 @@ bool authentication(Client &clt, string username, string password) {
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
     }
+    
     cout << "Server certificate verified" << endl;  
 
     // print the successful verification to screen:
@@ -671,8 +223,6 @@ bool authentication(Client &clt, string username, string password) {
     } else {
         cout << "Nonce verified!!" << endl;
     }
-
-
 
     //SCAMBIO CHIAVE DI SESSIONE
 
@@ -798,3 +348,274 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     free(username);
     return true;
 }
+
+void start_chat(Client clt, string username, string username_to_contact) {
+
+    int dim = username.size() + username_to_contact.size() + sizeof(char) + sizeof(int) + sizeof(int);
+
+    unsigned char* buffer = (unsigned char*)malloc(dim);
+    int byte_index = 0;    
+
+    memcpy(&(buffer[byte_index]), &constants::START_CHAT, sizeof(char));
+    byte_index += sizeof(char);
+
+    int username_1_size = username.size();
+    memcpy(&(buffer[byte_index]), &username_1_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(buffer[byte_index]), username.c_str(), username.size());
+    byte_index += username.size();
+
+    int username_2_size = username_to_contact.size();
+    memcpy(&(buffer[byte_index]), &username_2_size, sizeof(int));
+    byte_index += sizeof(int);
+    
+    memcpy(&(buffer[byte_index]), username_to_contact.c_str(), username_to_contact.size());
+    byte_index += username_to_contact.size();
+
+    clt.clientConn->send_message(buffer,dim);
+}
+
+void chat(Client clt) {
+    fd_set fds;
+    string message;
+    unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    unsigned char* to_send;
+    int maxfd;
+
+    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Send Error");
+        throw runtime_error("Send failed");
+    }  else if (ret == 0) {
+        cout << "client connection closed" << endl;
+        free(buffer);
+        return;
+    } 
+
+    int username_size = 0;
+    int byte_index = 0;
+
+    memcpy(&(username_size), &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    unsigned char* username_talking_to = (unsigned char*)malloc(username_size);
+    if(!username_talking_to) {
+        throw runtime_error("malloc failed");
+    }
+
+    memcpy(username_talking_to, &buffer[byte_index], username_size);
+    byte_index += username_size;
+
+    cout << "Talking to ";
+
+    for(int i = 0; i < username_size; i++) {
+        cout << username_talking_to[i];
+    }
+    cout << endl;
+
+    clt.clientConn->setTalkingTo(username_talking_to);
+
+    buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+
+    while(1) {
+
+        memset(buffer,0,constants::MAX_MESSAGE_SIZE);
+
+        maxfd = (clt.clientConn->getMasterFD() > STDIN_FILENO) ? clt.clientConn->getMasterFD() : STDIN_FILENO;
+        FD_ZERO(&fds);
+        FD_SET(clt.clientConn->getMasterFD(), &fds); 
+        FD_SET(STDIN_FILENO, &fds); 
+        
+        select(maxfd+1, &fds, NULL, NULL, NULL); 
+
+        if(FD_ISSET(0, &fds)) {  
+            getline(cin, message);
+
+            if(message.compare(":q!") == 0) {
+                break;
+            }
+
+            int byte_index = 0;
+            int dim_send = sizeof(char) + sizeof(int) + message.size();
+            to_send = (unsigned char*)malloc(dim_send);
+
+            memcpy(&(to_send[byte_index]), &(constants::CHAT), sizeof(char));
+            byte_index += sizeof(char);
+
+            int message_size = message.size();
+            memcpy(&(to_send[byte_index]), &message_size , sizeof(int));
+            byte_index += sizeof(int);
+
+            memcpy(&(to_send[byte_index]), message.c_str(), message_size);
+            byte_index += message_size;
+
+            clt.clientConn->send_message(to_send, dim_send);
+        }
+
+        if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
+            ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                perror("Send Error");
+                throw runtime_error("Send failed");
+            }  else if (ret == 0) {
+                cout << "client connection closed" << endl;
+                free(buffer);
+                return;
+            } 
+
+            int message_size = 0;
+            int byte_index = sizeof(char);
+
+            unsigned char* message;
+
+            memcpy(&(message_size), &buffer[byte_index], sizeof(int));
+            byte_index += sizeof(int);
+
+            message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + message_size);
+            
+            memcpy(message, &buffer[byte_index], message_size);
+            byte_index += message_size;
+
+            for(int i = 0; i < username_size; i++) {
+                cout << username_talking_to[i];
+            }
+            cout << ": ";
+
+            for(int i = 0; i < message_size; i++) {
+                cout << message[i];
+            }
+
+            cout << endl;
+        }
+    }
+    
+}
+
+void sendRequestToTalk(Client clt, string username_to_contact, string username) {
+    int byte_index = 0;    
+
+    int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
+    unsigned char* message = (unsigned char*)malloc(dim);  
+
+    memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
+    byte_index += sizeof(char);
+
+    int username_to_contact_size = username_to_contact.size();
+    memcpy(&(message[byte_index]), &username_to_contact_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message[byte_index]), username_to_contact.c_str(), username_to_contact.size());
+    byte_index += username_to_contact.size();
+
+    int username_size = username.size();
+    memcpy(&(message[byte_index]), &username_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message[byte_index]), username.c_str(), username.size());
+    byte_index += username.size();
+
+    clt.clientConn->send_message(message, dim);
+
+    unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
+    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), response);
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Send Error");
+        throw runtime_error("Send failed");
+    }  else if (ret == 0) {
+        cout << "client connection closed" << endl;
+        free(response);
+        return;
+    } 
+
+    if(response[0] == 'y'){
+        cout << "request accepted, starting the chat" << endl;
+        cout << "---------------------------------------" << endl;
+        cout << "\n-------Chat-------" << endl;
+
+        start_chat(clt, username, username_to_contact);
+
+        chat(clt);
+
+        cout << "------------------" << endl;
+    } else {
+        cout << "we're sorry :(" << endl;
+    }
+
+    free(response);
+}
+
+
+void logout(Client clt) {
+    cout << "--- LOGOUT ---" << endl;
+    int byte_index = 0;    
+
+    int dim = sizeof(char);
+    unsigned char* message = (unsigned char*)malloc(dim);  
+
+    memcpy(&(message[byte_index]), &constants::LOGOUT, sizeof(char));
+    byte_index += sizeof(char);
+    clt.clientConn->send_message(message, dim);
+}
+
+void seeOnlineUsers(Client clt){
+
+    int byte_index = 0;    
+
+    int dim = sizeof(char);
+    unsigned char* message = (unsigned char*)malloc(dim);  
+
+    memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
+    byte_index += sizeof(char);
+
+    clt.clientConn->send_message(message, dim);
+
+    unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+
+    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Receive Error");
+        throw runtime_error("Receive failed");
+    } 
+
+    byte_index = 0;    
+
+    char opCode;
+    int list_size = 0; 
+
+    memcpy(&(opCode), &buffer[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(list_size), &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    if(list_size == 0) {
+        cout << "--- no user online ---" << endl;
+    } else {
+        cout << "--- online users ---" << endl;
+
+        for(int i = 0; i < list_size; i++) {
+            int username_size = 0;
+
+            memcpy(&(username_size), &buffer[byte_index], sizeof(int));
+            byte_index += sizeof(int);
+
+            unsigned char* username = (unsigned char*)malloc(username_size);
+            memcpy(username, &buffer[byte_index], username_size);
+            byte_index += username_size;
+
+            for(int j = 0; j < username_size; j++){
+                cout << username[j];
+            }
+
+            cout << " || ";
+            free(username);
+        }
+
+        cout << endl;
+    }
+
+    free(message);
+    free(buffer);
+}
+

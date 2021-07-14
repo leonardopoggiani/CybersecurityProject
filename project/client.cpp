@@ -91,7 +91,7 @@ int main(int argc, char* const argv[]) {
                     cout << "---------------------------------------" << endl;
                     cout << "\n-------Chat-------" << endl;
                     
-                    clt.clientConn->chat();
+                    chat(clt);
 
                     cout << "------------------" << endl;
                 }
@@ -101,7 +101,7 @@ int main(int argc, char* const argv[]) {
         switch(option){
             case 1: 
                 cout << "See online users to talk\n" << endl;
-                clt.clientConn->seeOnlineUsers();
+                seeOnlineUsers(clt);
                 break;
             case 2:
                 cout << "Send a request to talk\n" << endl;
@@ -112,11 +112,11 @@ int main(int argc, char* const argv[]) {
                     cerr << "No username inserted" << endl;
                     return 1;
                 }
-                clt.clientConn->sendRequestToTalk(username_to_contact, username);
+                sendRequestToTalk(clt, username_to_contact, username);
                 break;
             case 3:
                 cout << "Logout..\n" << endl;  
-                clt.clientConn->logout();
+                logout(clt);
                 return 0;
             default:
                 cout << "Command not recognized" << endl;

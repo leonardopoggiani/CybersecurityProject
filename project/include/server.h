@@ -16,243 +16,8 @@
 #include <time.h>      
 #include "constants.h"
 #include "client.h"
-#include "connection.h"
 
 using namespace std;
-
-struct users {
-    string username;
-    int sd;
-
-    users(string us, int s) {
-        username = us;
-        sd = s;
-    }
-};
-
-struct chat {
-    unsigned char* username_1;
-    int sd_1;
-    unsigned char* username_2;
-    int sd_2;
-
-    chat(unsigned char* us1, int s1, unsigned char* us2, int s2) {
-        username_1 = us1;
-        username_2 = us2;
-        sd_1 = s1;
-        sd_2 = s2;
-    }
-};
-
-vector<chat*> activeChat;
-
-class serverConnection : public clientConnection {
-
-    private:
-        int client_socket[constants::MAX_CLIENTS];
-        fd_set readfds;
-        int max_sd;
-        int sd;
-        int activity;
-        int addrlen;
-        int port;
-
-        vector<users> users_logged_in;
-
-    public:
-
-        serverConnection():clientConnection() {
-            port = 8888;
-            for (size_t i = 0; i < constants::MAX_CLIENTS; i++) {
-                client_socket[i] = 0;
-            }
-
-            address.sin_addr.s_addr = INADDR_ANY;
-
-            serverBind();
-            listenForConnections();
-        }
-
-        void serverBind() {
-            if (::bind(master_fd, (struct sockaddr *)&address, sizeof(address)) < 0) 
-                throw runtime_error("Error in binding");  
-            cout << "Listening on port: " <<  port << endl;  
-        }
-
-        void listenForConnections() {
-            if (listen(master_fd, 3) < 0)
-                throw runtime_error("Error in listening");
-        }
-
-        ~serverConnection() {
-            // Chiude il socket
-            close(master_fd);
-            cout << "--- connection closed ---" << endl;
-        }
-        
-        void initSet() {
-            FD_ZERO(&readfds);  
-            FD_SET(master_fd, &readfds);  
-            max_sd = master_fd;  
-            
-            for ( int i = 0 ; i < constants::MAX_CLIENTS; i++)  {  
-                sd = client_socket[i];  
-                if(sd > 0) FD_SET( sd , &readfds);  
-                if(sd > max_sd) max_sd = sd;  
-            }
-
-            addrlen = sizeof(address);
-        }
-
-        bool isFDSet(int fd) {
-            return FD_ISSET(fd, &readfds);
-        }
-
-        int getClient(unsigned int i) {
-            if (i > constants::MAX_CLIENTS - 1)
-                throw runtime_error("Max clients exceeds");
-            return client_socket[i];
-        }
-
-        void selectActivity() {
-            activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);  
-            if ((activity < 0) && (errno!=EINTR))
-                throw runtime_error("Error in the select function"); 
-        }
-
-        void accept_connection() {
-            int new_socket;
-            string message;
-
-            try {
-                if ((new_socket = accept(master_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0) {
-                    perror("accept");  
-                    throw runtime_error("Failure on accept");
-                }  
-
-                cout << "********************************" << endl;
-                cout << "New client online" << endl;
-                cout << "Socket fd is \t" << new_socket << endl;
-                cout << "IP: \t\t" <<  inet_ntoa(address.sin_addr) << endl;
-                cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
-                cout << "********************************" << endl << endl;
-
-                string buffer = "ack";
-
-                if(send(new_socket, buffer.c_str(), buffer.size(), 0) != (ssize_t) buffer.size())  
-                    throw runtime_error("Error sending the ack message"); 
-
-                for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++) {  
-                    if(client_socket[i] == 0)  {  
-                        client_socket[i] = new_socket;  
-                        break;  
-                    } 
-                }  
-            } catch(const exception& e) {
-                throw;
-            }
-        } 
-
-        void disconnect_host(int sd, unsigned int i) {
-            removeUser(sd);
-            getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen);
-
-            cout << "\n **** Client is leaving ****" << endl;
-            cout << "IP: \t\t" << inet_ntoa(address.sin_addr) << endl;
-            cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
-            cout << "**************************" << endl << endl;
-
-            close(sd);  
-            client_socket[i] = 0;
-        }
-        
-        void insertUser(string username, int sd){
-            if(users_logged_in.size() + 1 < constants::MAX_CLIENTS) {
-                users* new_user = new users(username,sd);
-                users_logged_in.push_back(*new_user);
-            } else  {
-                cerr << "Maximum number of online users reached" << endl;
-                return;
-            }
-        }
-
-        void removeUser(int sd) {
-            cout << " removing user " << endl;
-            for(int i = 0; i < (int) users_logged_in.size(); i++) {
-                if(users_logged_in[i].sd == sd){
-                    users_logged_in.erase(users_logged_in.begin() + i);
-                    cout << "removed user" << endl;
-
-                    return;
-                }
-            }
-
-            cout << "no user found" << endl;
-        }
-
-        void printOnlineUsers(){
-            if( users_logged_in.size() == 0 ){
-                cout << "no users online" << endl;
-                return;
-            }
-
-            for(auto user : users_logged_in){
-                cout << user.username << " | ";
-            }
-            cout << endl;
-        }
-
-        void send_message(vector<unsigned char> message, int sd) {
-            int ret;
-
-            if (message.size() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
-            }
-            
-            do {
-                ret = send(sd, &message[0], message.size(), 0);
-                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
-                }   
-            } while (ret != (int) message.size());
-
-            cout << "send riuscita: " << message.size() << endl;
-        }
-
-        void send_message(string message, int sd) {
-            int ret;
-
-            if (message.length() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
-            }
-
-            do {
-                ret = send(sd, message.c_str(), message.length(), 0);
-                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
-                }   
-            } while (ret != (int) message.length());
-        }
-
-        void send_message(unsigned char* message, int sd, int dim) {
-            int ret;
-            
-            do {
-                ret = send(sd, &message[0], dim, 0);
-                if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
-                }   
-            } while (ret != dim);
-
-        }
-
-        vector<users> getUsersList() {
-            return users_logged_in;
-        }
-};
 
 struct Server {
     serverConnection *serverConn;
@@ -362,7 +127,10 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     //retrieve server private key
 	
 	srv.crypto->readPrivateKey("srv", "cybersecurity", server_key);
-	if(!server_key) {cerr<<"establishSession: server_key Error";exit(1);}
+	if(!server_key) {
+        cerr << "establishSession: server_key Error";
+        exit(1);
+    }
 	fclose(file);
 
     srv.crypto->generateNonce(nonceServer.data());
@@ -476,7 +244,7 @@ bool seeOnlineUsers(Server &srv, int sd, unsigned char* buffer) {
 
     int byte_index = 0;    
     int dim = sizeof(char) + sizeof(int);
-    vector<users> users_logged_in = srv.serverConn->getUsersList();
+    vector<user> users_logged_in = srv.serverConn->getUsersList();
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
         cout << "utente " << users_logged_in[i].username << endl;
@@ -516,7 +284,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     char opCode;
     int username_to_talk_to_size = 0;
     int username_size = 0;
-    vector<users> users_logged_in = srv.serverConn->getUsersList();
+    vector<user> users_logged_in = srv.serverConn->getUsersList();
 
     memcpy(&opCode, &(buffer[byte_index]), sizeof(char));
     byte_index += sizeof(char);
@@ -547,9 +315,9 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     }
     cout << endl;
 
-    for(auto user : activeChat) {
-        if(memcmp(user->username_1, username, username_size) == 0 || 
-            memcmp(user->username_2, username, username_size) == 0) 
+    for(auto us : srv.serverConn->getActiveChats()) {
+        if(memcmp(us->username_1, username, username_size) == 0 || 
+            memcmp(us->username_2, username, username_size) == 0) 
             {
                 cout << "user already chatting.." << endl;
                 free(username_to_talk_to);
@@ -564,8 +332,8 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
                 return true;
             }
 
-        if(memcmp(user->username_1, username_to_talk_to, username_to_talk_to_size) == 0 || 
-            memcmp(user->username_2, username_to_talk_to, username_to_talk_to_size) == 0) 
+        if(memcmp(us->username_1, username_to_talk_to, username_to_talk_to_size) == 0 || 
+            memcmp(us->username_2, username_to_talk_to, username_to_talk_to_size) == 0) 
             {
                 cout << "user already chatting.." << endl;
                 free(username_to_talk_to);
@@ -650,7 +418,7 @@ bool start_chat(Server srv, int sd, unsigned char* buffer) {
     int sd_1 = 0;
     int sd_2 = 0;
 
-    vector<users> users_logged_in = srv.serverConn->getUsersList();
+    vector<user> users_logged_in = srv.serverConn->getUsersList();
     for(auto user : users_logged_in) {
         if(memcmp(user.username.c_str(), username_1, username_1_size) == 0) {
             sd_1 = user.sd;
@@ -661,8 +429,8 @@ bool start_chat(Server srv, int sd, unsigned char* buffer) {
         }
     }
 
-    chat *new_chat = new chat(username_1, sd_1, username_2, sd_2);
-    activeChat.push_back(new_chat);
+    userChat *new_chat = new userChat(username_1, sd_1, username_2, sd_2);
+    srv.serverConn->insertChat(new_chat);
 
     byte_index = 0;
 
@@ -701,14 +469,7 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     int sd_to_send = -1;
     char opCode;
 
-    for(chat* c : activeChat) {
-        if(c->sd_1 == sd) {
-            sd_to_send = c->sd_2;
-        } else if(c->sd_2 == sd) {
-            sd_to_send = c->sd_1;
-        } else 
-            sd_to_send = -1;
-    }
+    sd_to_send = srv.serverConn->findSd();
 
     if(sd_to_send == -1) {
         cout << "no chat found" << endl;

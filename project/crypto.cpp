@@ -12,11 +12,18 @@ void handleErrors(void){
 
 void CryptoOperation::generateNonce(unsigned char* nonce) {
     if(RAND_poll() != 1)
-        throw std::runtime_error("An error occurred in RAND_poll."); 
+        throw runtime_error("An error occurred in RAND_poll."); 
     if(RAND_bytes(nonce, constants::NONCE_SIZE) != 1)
-        throw std::runtime_error("An error occurred in RAND_bytes.");
+        throw runtime_error("An error occurred in RAND_bytes.");
         
     cout << "nonce generated" << endl;
+}
+
+void CryptoOperation::generateIV(unsigned char* iv) {
+    if(RAND_poll() != 1)
+        throw runtime_error("An error occurred in RAND_poll."); 
+    if(RAND_bytes(iv, constants::IV_LEN) != 1)
+        throw runtime_error("An error occurred in RAND_bytes.");
 }
 
 //CERTIFICATES
@@ -293,4 +300,208 @@ bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int sign
         throw;
     }
     return true;
+}
+
+unsigned int CryptoOperation::encryptMessage(unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
+    unsigned char *ciphertext;
+    unsigned char bufferCounter[sizeof(uint16_t)];
+    unsigned char tag[constants::TAG_LEN];
+    EVP_CIPHER_CTX *ctx = NULL;
+    unsigned int finalSize = 0;
+    unsigned int start = 0;
+    int len = 0;
+    int ciphr_len = 0;
+    int outlen = 0;
+
+    if( msg_len > (UINT_MAX - 2*constants::TAG_LEN + constants::IV_LEN + sizeof(uint16_t)) )
+        throw runtime_error("Message too big.");
+
+    finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(uint16_t);
+
+    if(finalSize > constants::MAX_MESSAGE_SIZE)
+        throw runtime_error("Message too big.");
+
+    ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        throw runtime_error("An error occurred while creating the context."); 
+    
+    ciphertext = new (nothrow) unsigned char[msg_len + constants::TAG_LEN];
+
+    if(!ciphertext){
+        throw runtime_error("An error occurred initilizing the buffer");
+    }
+
+    try {
+
+        if(EVP_EncryptInit(ctx, EVP_aes_128_gcm(), s->get_session_key(), s->get_iv()) != 1)
+            throw runtime_error("An error occurred while initializing the context.");
+            
+        if(EVP_EncryptUpdate(ctx, NULL, &len, s->get_iv(), constants::IV_LEN) != 1)
+            throw runtime_error("An error occurred while encrypting the message.");
+            
+        if(EVP_EncryptUpdate(ctx, ciphertext, &len, msg, msg_len) != 1)
+            throw runtime_error("An error occurred while encrypting the message.");
+        ciphr_len = len;
+
+        if(EVP_EncryptFinal(ctx, ciphertext + len, &len) != 1)
+            throw runtime_error("An error occurred while finalizing the ciphertext.");
+        ciphr_len += len;
+
+        //Get the tag
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, constants::TAG_LEN, tag) != 1)
+            throw runtime_error("An error occurred while getting the tag.");
+        
+        if(ciphr_len < 0)
+            throw runtime_error("An error occurred, negative ciphertext length.");
+        
+        if(ciphr_len > UINT_MAX - constants::IV_LEN - constants::TAG_LEN - sizeof(uint16_t))
+            throw runtime_error("An error occurred, ciphertext length too big.");
+        
+        memcpy(buffer+start, s->get_iv(), constants::IV_LEN);
+        start += constants::IV_LEN;
+        memcpy(buffer+start, bufferCounter, sizeof(uint16_t));
+        start += sizeof(uint16_t);
+        memcpy(buffer+start, ciphertext, ciphr_len);
+        start += ciphr_len;
+        memcpy(buffer+start, tag, constants::TAG_LEN);
+        start += constants::TAG_LEN;
+    } catch(const exception& e) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw;
+    }
+    
+    EVP_CIPHER_CTX_free(ctx);
+    return start;
+}
+
+unsigned int CryptoOperation::decryptMessage(unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
+    unsigned char recv_iv[constants::IV_LEN];
+    unsigned char recv_tag[constants::TAG_LEN];
+    unsigned char bufferCounter[sizeof(uint16_t)];
+    unsigned char *ciphr_msg;
+    unsigned char *tempBuffer;
+    EVP_CIPHER_CTX *ctx;
+    unsigned int ciphr_len = 0;
+    int ret = 0;
+    int len = 0;
+    int pl_len = 0;
+
+
+    if (msg_len < (constants::IV_LEN + constants::TAG_LEN))
+        throw runtime_error("Message length not valid.");
+    
+    if(msg_len > constants::MAX_MESSAGE_SIZE)
+        throw runtime_error("Message too big.");
+
+    ciphr_len = msg_len - constants::IV_LEN - constants::TAG_LEN - sizeof(uint16_t);
+    ciphr_msg = new (nothrow) unsigned char[ciphr_len];
+
+    if(!ciphr_msg)
+        throw runtime_error("An error occurred while allocating the array for the ciphertext.");
+
+    tempBuffer = new (nothrow) unsigned char[ciphr_len];
+    if(!tempBuffer)
+        throw runtime_error("An error occurred while allocating the temporary array for the ciphertext.");
+
+    ctx = EVP_CIPHER_CTX_new();
+    if(!ctx) {
+        delete[] ciphr_msg;
+        throw runtime_error("An error occurred while creating the context.");
+    } 
+
+    try {
+        memcpy(recv_iv, msg, constants::IV_LEN);
+        memcpy(bufferCounter, msg + constants::IV_LEN, sizeof(uint16_t));
+        memcpy(ciphr_msg, msg + constants::IV_LEN + sizeof(uint16_t), ciphr_len);
+        memcpy(recv_tag, msg + msg_len - constants::TAG_LEN, constants::IV_LEN);
+
+        if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), s->get_session_key(), recv_iv))
+            throw runtime_error("An error occurred while initializing the context.");
+        
+        if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN))
+            throw runtime_error("An error occurred while getting AAD header.");
+        
+        if(!EVP_DecryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t)))
+            throw runtime_error("An error occurred while getting AAD header.");
+            
+        if(!EVP_DecryptUpdate(ctx, tempBuffer, &len, ciphr_msg, ciphr_len))
+            throw runtime_error("An error occurred while decrypting the message");
+        pl_len = len;
+        
+        if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, constants::TAG_LEN, recv_tag))
+            throw runtime_error("An error occurred while setting the expected tag.");
+        
+        ret = EVP_DecryptFinal(ctx, tempBuffer + len, &len);
+
+        memcpy(buffer, tempBuffer, pl_len);
+    } catch(const exception& e) {
+        delete[] ciphr_msg;
+        delete[] tempBuffer;
+        EVP_CIPHER_CTX_free(ctx);
+        throw;
+    }
+
+    delete[] ciphr_msg;
+    delete[] tempBuffer;
+    EVP_CIPHER_CTX_free(ctx);
+    
+    if(ret > 0){
+        pl_len += len;
+    } else
+        throw runtime_error("An error occurred while decrypting the message.");
+    
+    if (pl_len < 0 || pl_len > UINT_MAX) 
+        throw runtime_error("An error occurred while decrypting the message.");
+
+    return pl_len;
+}
+
+static DH* get_dh2048(void)
+{
+    static unsigned char dhp_2048[] = {
+        0x86, 0x47, 0x19, 0x1B, 0xBE, 0xC9, 0xF5, 0x06, 0x09, 0x6E,
+        0x91, 0xAB, 0x6F, 0x09, 0x38, 0xBF, 0x29, 0x10, 0xAC, 0xB0,
+        0xE6, 0x9C, 0xD4, 0xE3, 0x48, 0x56, 0x03, 0x8A, 0xAD, 0x32,
+        0x64, 0x1F, 0x36, 0x25, 0xDE, 0xBE, 0xB7, 0x10, 0x99, 0xB5,
+        0x03, 0x0D, 0xD5, 0xC2, 0xD7, 0xEE, 0x90, 0x72, 0x3C, 0x9F,
+        0x1E, 0x94, 0x09, 0x92, 0x2E, 0x78, 0xD9, 0x78, 0xDA, 0xE8,
+        0x64, 0x49, 0xA4, 0xA9, 0x27, 0xD3, 0xD9, 0x20, 0x78, 0xA9,
+        0xAA, 0x33, 0x79, 0x80, 0xEA, 0x11, 0xC7, 0x11, 0x61, 0x64,
+        0xEC, 0x1E, 0xAE, 0x30, 0xB8, 0x9C, 0x31, 0xC6, 0x51, 0xE6,
+        0x7F, 0x75, 0x98, 0x36, 0x76, 0xD7, 0x79, 0x66, 0x87, 0x08,
+        0xC0, 0x39, 0x7F, 0x48, 0xCB, 0x64, 0xD2, 0xB9, 0xF1, 0x6B,
+        0xFA, 0xF4, 0x5F, 0x11, 0x49, 0x21, 0x19, 0xB8, 0xC0, 0x92,
+        0x53, 0x02, 0x34, 0xF0, 0xDD, 0xA2, 0xFB, 0xB4, 0x08, 0xFF,
+        0xA4, 0xFD, 0x54, 0x26, 0xAE, 0x6E, 0x37, 0x0B, 0x9A, 0x1E,
+        0xA6, 0x2A, 0x56, 0xD4, 0xCA, 0x90, 0xF3, 0xCC, 0x3B, 0x50,
+        0x4D, 0x1A, 0x6C, 0x9A, 0x00, 0x8D, 0x69, 0x93, 0x4D, 0xA2,
+        0xAF, 0x32, 0x91, 0xCD, 0xA7, 0xCA, 0xF5, 0x86, 0xBD, 0xB3,
+        0xF7, 0x68, 0x08, 0xDE, 0x8A, 0xD2, 0xA2, 0xC0, 0x47, 0xD2,
+        0x77, 0x04, 0x51, 0x96, 0xFB, 0x13, 0x63, 0x01, 0x77, 0xED,
+        0x54, 0xC3, 0x71, 0xF3, 0x00, 0xAE, 0x57, 0x71, 0x50, 0x38,
+        0x76, 0x22, 0xE1, 0xEE, 0x68, 0xE2, 0x3F, 0x96, 0x37, 0x28,
+        0x2F, 0xD8, 0x8A, 0x66, 0x87, 0xA8, 0x36, 0x59, 0x84, 0x12,
+        0xBD, 0xDC, 0x4D, 0xA8, 0x39, 0x91, 0xED, 0x70, 0x1A, 0x5E,
+        0x33, 0x43, 0x7C, 0x05, 0x1D, 0xD3, 0xFC, 0xC1, 0x84, 0x2D,
+        0xAC, 0xCF, 0x45, 0x2A, 0x82, 0x1B, 0x56, 0x54, 0xF2, 0x67,
+        0xCE, 0x11, 0xC4, 0x68, 0x1B, 0x8B
+    };
+    static unsigned char dhg_2048[] = {
+        0x02
+    };
+    DH *dh = DH_new();
+    BIGNUM *p, *g;
+
+    if (dh == NULL)
+        return NULL;
+    p = BN_bin2bn(dhp_2048, sizeof(dhp_2048), NULL);
+    g = BN_bin2bn(dhg_2048, sizeof(dhg_2048), NULL);
+    if (p == NULL || g == NULL
+            || !DH_set0_pqg(dh, p, NULL, g)) {
+        DH_free(dh);
+        BN_free(p);
+        BN_free(g);
+        return NULL;
+    }
+    return dh;
 }
