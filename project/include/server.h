@@ -273,6 +273,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     unsigned int pubKeyDHBufferLen;
     EVP_PKEY *prvKeyDHServer = NULL;
     EVP_PKEY *pubKeyDHClient = NULL;
+    unsigned char* nonceServer_t = (unsigned char*)malloc(constants::NONCE_SIZE);
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
     unsigned int sgnt_size=*(unsigned int*)buffer;
 	sgnt_size+=sizeof(unsigned int);
@@ -365,6 +366,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 	fclose(file);
 
     srv.crypto->generateNonce(nonceServer.data());
+    nonceServer_t = nonceServer.data();
 
     srv.crypto->loadCertificate(cert, "server_cert");
 
@@ -406,7 +408,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     //Spostare nel prossimo messaggio
 
-   /* memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+   /*memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
     byte_index += sizeof(int);
 
     memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
@@ -415,11 +417,58 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     //Aggiungere la firma
 
-    srv.serverConn->send_message(message,sd,dim);
+    srv.serverConn->send_message(message_signed,sd,signed_size);
+
+    free(message);
+
+    //Recive message
+
+    unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
+    int ret = srv.serverConn->receive_message(sd, message_received);
+    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+        perror("Receive Error");
+        throw runtime_error("Receive failed");
+    }   
+
+    byte_index = 0;    
+    signature_size = 0;
+
+    
+    memcpy(&(opCode), &message_received[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    //Nonce client da riutilizzare
+
+    memcpy(nonceClient, &message_received[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+    //Nonce server da verificare
+
+    memcpy(nonceServer_rec, &message_received[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+    memcpy(&(pubKeyDHBufferLen), &message_received[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+
+    memcpy(pubKeyDHBuffer.data(), &message_received[byte_index], pubKeyDHBufferLen);
+    byte_index += pubKeyDHBufferLen;
+
+    //Va deserializzata la chiave pubblica
+
+    memcpy(&(signature_size), &message_received[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    signature = (unsigned char*)malloc(signature_size);
+    memcpy(signature, &message_received[byte_index], signature_size);
+    byte_index += signature_size;
+
+    //Verificare firma con chieve pubblica del client
+    /*unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey);
+    if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}*/
 
     free(nonceClient);
     free(username);
-    free(message);
     return true;   
 }
 
