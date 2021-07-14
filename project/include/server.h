@@ -498,6 +498,40 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     }
     cout << endl;
 
+    for(auto user : activeChat) {
+        if(memcmp(user->username_1, username, username_size) == 0 || 
+            memcmp(user->username_2, username, username_size) == 0) 
+            {
+                cout << "user already chatting.." << endl;
+                free(username_to_talk_to);
+                free(username);
+
+                unsigned char* already_chatting = (unsigned char*)malloc(sizeof(char));
+                already_chatting[0] = 'n';
+
+                srv.serverConn->send_message(already_chatting, sd, sizeof(char));
+
+                free(already_chatting);
+                return true;
+            }
+
+        if(memcmp(user->username_1, username_to_talk_to, username_to_talk_to_size) == 0 || 
+            memcmp(user->username_2, username_to_talk_to, username_to_talk_to_size) == 0) 
+            {
+                cout << "user already chatting.." << endl;
+                free(username_to_talk_to);
+                free(username);
+
+                unsigned char* already_chatting = (unsigned char*)malloc(sizeof(char));
+                already_chatting[0] = 'n';
+
+                srv.serverConn->send_message(already_chatting, sd, sizeof(char));
+
+                free(already_chatting);
+                return true;
+            }
+    }
+
     byte_index = 0;    
     int dim = sizeof(char) + sizeof(int) + username_size;
     unsigned char* message = (unsigned char*)malloc(dim);  
@@ -525,12 +559,16 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
         perror("Send Error");
         throw runtime_error("Send failed");
-    }   
+    } else if(ret == 0) {
+        cout << "client disconnected" << endl;
+        return false;
+    }
 
     srv.serverConn->send_message(response, sd, dim);
 
     free(username_to_talk_to);
     free(username);
+    free(response);
     return true;       
 }
 

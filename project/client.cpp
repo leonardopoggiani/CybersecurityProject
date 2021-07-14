@@ -40,7 +40,9 @@ int main(int argc, char* const argv[]) {
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
         perror("Send Error");
         throw runtime_error("Send failed");
-    }   
+    } else if(ret == 0) {
+        cout << "client disconnected" << endl;
+    }
 
     if( clt.clientConn->checkAck(buffer) ) {
         cout << "ack received" << endl;
@@ -75,7 +77,13 @@ int main(int argc, char* const argv[]) {
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
-            clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+            ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                perror("Send Error");
+                throw runtime_error("Send failed");
+            } else if(ret == 0) {
+                cout << "client disconnected" << endl;
+            }
             
             if(buffer[0] == constants::FORWARD) {
                 cout << "\n-------Received request to talk-------" << endl;

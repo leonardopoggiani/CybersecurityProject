@@ -268,7 +268,15 @@ class clientConnection {
             send_message(message, dim);
 
             unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
-            receive_message(getMasterFD(), response);
+            int ret = receive_message(getMasterFD(), response);
+            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                perror("Send Error");
+                throw runtime_error("Send failed");
+            }  else if (ret == 0) {
+                cout << "client connection closed" << endl;
+                free(response);
+                return;
+            } 
 
             if(response[0] == 'y'){
                 cout << "request accepted, starting the chat" << endl;
@@ -354,7 +362,11 @@ class clientConnection {
             if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                 perror("Send Error");
                 throw runtime_error("Send failed");
-            }   
+            }  else if (ret == 0) {
+                cout << "client connection closed" << endl;
+                free(buffer);
+                return;
+            } 
 
             int username_size = 0;
             int byte_index = 0;
@@ -395,7 +407,7 @@ class clientConnection {
                 if(FD_ISSET(0, &fds)) {  
                     getline(cin, message);
 
-                    if(message.compare(":q!")) {
+                    if(message.compare(":q!") == 0) {
                         break;
                     }
 
@@ -417,7 +429,15 @@ class clientConnection {
                 }
 
                 if(FD_ISSET(getMasterFD(), &fds)) {
-                    receive_message(getMasterFD(), buffer);
+                    ret = receive_message(getMasterFD(), buffer);
+                    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+                        perror("Send Error");
+                        throw runtime_error("Send failed");
+                    }  else if (ret == 0) {
+                        cout << "client connection closed" << endl;
+                        free(buffer);
+                        return;
+                    } 
 
                     int message_size = 0;
                     int byte_index = sizeof(char);
@@ -501,8 +521,6 @@ bool authentication(Client &clt, string username, string password) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
     EVP_PKEY* user_key;
-    vector<unsigned char> buffer;
-    vector<unsigned char> packet;
     unsigned char* nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_rec = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
@@ -524,6 +542,7 @@ bool authentication(Client &clt, string username, string password) {
         cerr << "user_key Error" << endl; 
         exit(1);
     }
+
 	fclose(file);
     
     clt.crypto->generateNonce(nonceClient.data());
@@ -531,11 +550,9 @@ bool authentication(Client &clt, string username, string password) {
     nonceClient_t = nonceClient.data();
 
     unsigned int byte_index = 0;   
-    unsigned int byte_index_sign = 0;  
     int username_size = username.size();
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
-    int dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
 
     unsigned char* message_sent = (unsigned char*)malloc(dim);      
 
@@ -563,7 +580,11 @@ bool authentication(Client &clt, string username, string password) {
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
         perror("Send Error");
         throw runtime_error("Send failed");
-    }   
+    } else if(ret == 0) {
+        cout << "client connection closed" << endl;
+        free(message_received);
+        return false;
+    }
 
     byte_index = 0;    
     int size_cert = 0;
@@ -596,7 +617,7 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(signature, &message_received[byte_index], signature_size);
     byte_index += signature_size;
 
-    //Verify certificate
+    // Verify certificate
 
     cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
 
@@ -614,7 +635,7 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
-    //Verificare firma
+    // Verificare firma
 
     //byte_index = 0;
     dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
@@ -640,9 +661,7 @@ bool authentication(Client &clt, string username, string password) {
     if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE) != 0){
         cerr<<"Nonce received is not valid!";
         exit(1);
-    }
-    else
-    {
+    } else {
         cout << "Nonce verified!!" << endl;
     }
 
@@ -663,7 +682,7 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
 
     int byte_index = 0;
     unsigned char* username;
-    int username_size;
+    unsigned int username_size = 0;
     unsigned char response = 'n';
 
     byte_index += sizeof(char);
@@ -688,8 +707,9 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
         return false;
     }
 
+   
     cout << "Do you want to talk with ";
-    for(int i = 0; i < username_size; i++) {
+    for(unsigned int i = 0; i < username_size; i++) {
         cout << username[i];
     }
 
@@ -706,11 +726,12 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
 
     int dim = sizeof(char);
     byte_index = 0;
+
     unsigned char* response_to_request = (unsigned char*)malloc(dim);  
     if(response_to_request == NULL) {
         throw runtime_error("Malloc error");
-    }
-
+    }  
+    
     memcpy(response_to_request, &response, sizeof(char));
     byte_index += sizeof(char);
 
