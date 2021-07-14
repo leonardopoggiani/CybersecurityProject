@@ -586,15 +586,16 @@ bool authentication(Client &clt, string username, string password) {
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message_received);
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
         perror("Send Error");
-        throw runtime_error("Send failed");
+        throw runtime_error("Send failed");  
+    } else if(ret == 0) {
         cout << "client connection closed" << endl;
         free(message_received);
         return false;
     }
-        perror("Receive Error");
-        throw runtime_error("Receive failed");
+
     int signature_size = 0;
     char opcode;
+    size_t size_cert = 0;
 
     memcpy(&(opcode), &message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
