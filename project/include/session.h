@@ -22,7 +22,7 @@ class Session{
 	public:
 
 	Session() {
-		session_key = (unsigned char*)malloc(18);
+		session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
 		iv = (unsigned char*)malloc(constants::IV_LEN);
 	}
 

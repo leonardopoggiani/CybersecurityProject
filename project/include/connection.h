@@ -119,7 +119,10 @@ class clientConnection {
                 if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Receive Error");
                     throw runtime_error("Receive failed");
-                }  
+                } else if (message_len == 0) {
+                    cout << "client connection closed" << endl;
+                    return 0;
+                } 
             } while (message_len < 0);
 
             buffer[message_len] = '\0';
@@ -135,7 +138,10 @@ class clientConnection {
                 if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Receive Error");
                     throw runtime_error("Receive failed");
-                }  
+                } else if (message_len == 0) {
+                    cout << "client connection closed" << endl;
+                    return 0;
+                } 
             } while (message_len < 0);
 
             return message_len;
@@ -153,7 +159,10 @@ class clientConnection {
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Send Error");
                     throw runtime_error("Send failed");
-                }   
+                } else if (ret == 0) {
+                    cout << "client connection closed" << endl;
+                    return;
+                } 
             } while (ret != (int) message.length());
         }
 
@@ -169,7 +178,10 @@ class clientConnection {
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Send Error");
                     throw runtime_error("Send failed");
-                }   
+                } else if (ret == 0) {
+                    cout << "client connection closed" << endl;
+                    return;
+                } 
             } while (ret != (int) message.size());
         }
 
@@ -181,7 +193,10 @@ class clientConnection {
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Send Error");
                     throw runtime_error("Send failed");
-                }   
+                } else if (ret == 0) {
+                    cout << "client connection closed" << endl;
+                    return;
+                } 
             } while (ret != dim);
 
         }
@@ -358,24 +373,23 @@ class serverConnection : public clientConnection {
         void removeUser(int sd) {
             cout << " removing user " << endl;
             for(int i = 0; i < (int) users_logged_in.size(); i++) {
-                if(users_logged_in[i].sd == sd){
+                if(users_logged_in[i].sd == sd) {
                     users_logged_in.erase(users_logged_in.begin() + i);
                     cout << "removed user" << endl;
 
                     return;
                 }
             }
-
             cout << "no user found" << endl;
         }
 
         void printOnlineUsers(){
-            if( users_logged_in.size() == 0 ){
+            if( users_logged_in.size() == 0 ) {
                 cout << "no users online" << endl;
                 return;
             }
 
-            for(auto user : users_logged_in){
+            for(auto user : users_logged_in) {
                 cout << user.username << " | ";
             }
             cout << endl;
@@ -393,7 +407,10 @@ class serverConnection : public clientConnection {
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Send Error");
                     throw runtime_error("Send failed");
-                }   
+                } else if (ret == 0) {
+                    cout << "client connection closed" << endl;
+                    return;
+                }  
             } while (ret != (int) message.size());
 
             cout << "send riuscita: " << message.size() << endl;
@@ -411,7 +428,10 @@ class serverConnection : public clientConnection {
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Send Error");
                     throw runtime_error("Send failed");
-                }   
+                } else if (ret == 0) {
+                    cout << "client connection closed" << endl;
+                    return;
+                } 
             } while (ret != (int) message.length());
         }
 
@@ -423,7 +443,10 @@ class serverConnection : public clientConnection {
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
                     perror("Send Error");
                     throw runtime_error("Send failed");
-                }   
+                }  else if (ret == 0) {
+                    cout << "client connection closed" << endl;
+                    return;
+                } 
             } while (ret != dim);
 
         }

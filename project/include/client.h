@@ -37,7 +37,7 @@ struct Client {
 };
 
 string readMessage() {
-    std::string message;
+    string message;
     getline(cin, message);
     if (message.length() > constants::MAX_MESSAGE_SIZE) {
         cerr << "Error: the message must be loger than " << endl;
@@ -134,10 +134,7 @@ bool authentication(Client &clt, string username, string password) {
     //ricevere certificato
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message_received);
-    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-        perror("Send Error");
-        throw runtime_error("Send failed");  
-    } else if(ret == 0) {
+    if(ret == 0) {
         cout << "client connection closed" << endl;
         free(message_received);
         return false;
@@ -209,11 +206,14 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* sign = (unsigned char*)malloc(sign_size);
     memcpy(sign, &message_received[byte_index], sign_size);
     byte_index += sign_size;
- 
     
     unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
-    if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
-    else { cout << "Valid Signature!" << endl;}
+    if(verify < 0){
+        cerr<<"establishSession: invalid signature!"; 
+        return false;
+    } else { 
+        cout << "Valid Signature!" << endl;
+    }
 
     //Verificare nonce
 
@@ -270,7 +270,6 @@ bool authentication(Client &clt, string username, string password) {
     clt.clientConn->send_message(message_signed, signed_size);
     //clt.clientConn->send_message(message_sent, dim);
     free(message_sent);
-    
 
     free(message_received);
     free(nonceServer);
@@ -384,10 +383,7 @@ void chat(Client clt) {
     int maxfd;
 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-        perror("Send Error");
-        throw runtime_error("Send failed");
-    }  else if (ret == 0) {
+    if (ret == 0) {
         cout << "client connection closed" << endl;
         free(buffer);
         return;
@@ -455,10 +451,7 @@ void chat(Client clt) {
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                perror("Send Error");
-                throw runtime_error("Send failed");
-            }  else if (ret == 0) {
+            if (ret == 0) {
                 cout << "client connection closed" << endl;
                 free(buffer);
                 return;
@@ -519,16 +512,13 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), response);
-    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-        perror("Send Error");
-        throw runtime_error("Send failed");
-    }  else if (ret == 0) {
+    if (ret == 0) {
         cout << "client connection closed" << endl;
         free(response);
         return;
     } 
 
-    if(response[0] == 'y'){
+    if(response[0] == 'y') {
         cout << "request accepted, starting the chat" << endl;
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
@@ -573,9 +563,10 @@ void seeOnlineUsers(Client clt){
     unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-        perror("Receive Error");
-        throw runtime_error("Receive failed");
+    if (ret == 0) {
+        cout << "client connection closed" << endl;
+        free(buffer);
+        return;
     } 
 
     byte_index = 0;    
@@ -608,7 +599,7 @@ void seeOnlineUsers(Client clt){
                 cout << username[j];
             }
 
-            cout << " || ";
+            cout << " - ";
             free(username);
         }
 

@@ -218,11 +218,11 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(pubKeyDHBufferLen), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-
     memcpy(pubKeyDHBuffer.data(), &message_received[byte_index], pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
 
     //Va deserializzata la chiave pubblica
+    // srv.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHClient);
 
     memcpy(&(signature_size), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
@@ -373,10 +373,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
 
     int ret = srv.serverConn->receive_message(user_to_talk_to_sd, response);
-    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-        perror("Send Error");
-        throw runtime_error("Send failed");
-    } else if(ret == 0) {
+    if(ret == 0) {
         cout << "client disconnected" << endl;
         return false;
     }
