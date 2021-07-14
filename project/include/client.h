@@ -521,6 +521,12 @@ bool authentication(Client &clt, string username, string password) {
     X509 *cert;
     EVP_PKEY *pubKeyServer = NULL;
     EVP_PKEY* user_key;
+    EVP_PKEY *pubKeyDHServer = NULL;
+    EVP_PKEY *prvKeyDHClient = NULL;
+    array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
+    unsigned int pubKeyDHBufferLen;
+    vector<unsigned char> buffer;
+    vector<unsigned char> packet;
     unsigned char* nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_rec = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
@@ -573,6 +579,7 @@ bool authentication(Client &clt, string username, string password) {
    
     clt.clientConn->send_message(message_signed, signed_size);
     free(message_sent);
+    free(message_signed);
 
     //ricevere certificato
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
@@ -580,14 +587,12 @@ bool authentication(Client &clt, string username, string password) {
     if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
         perror("Send Error");
         throw runtime_error("Send failed");
-    } else if(ret == 0) {
         cout << "client connection closed" << endl;
         free(message_received);
         return false;
     }
-
-    byte_index = 0;    
-    int size_cert = 0;
+        perror("Receive Error");
+        throw runtime_error("Receive failed");
     int signature_size = 0;
     char opcode;
 
@@ -655,6 +660,7 @@ bool authentication(Client &clt, string username, string password) {
     
     unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}
+    else { cout << "Valid Signature!" << endl;}
 
     //Verificare nonce
 
@@ -664,6 +670,56 @@ bool authentication(Client &clt, string username, string password) {
     } else {
         cout << "Nonce verified!!" << endl;
     }
+
+
+
+    //SCAMBIO CHIAVE DI SESSIONE
+
+    clt.crypto->generateNonce(nonceClient.data());
+
+    clt.crypto->keyGeneration(prvKeyDHClient);
+    pubKeyDHBufferLen = clt.crypto->serializePublicKey(prvKeyDHClient, pubKeyDHBuffer.data());
+
+    nonceClient_t = nonceClient.data();
+
+    byte_index = 0;   
+
+    //OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
+
+    dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+    //dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
+
+    message_sent = (unsigned char*)malloc(dim);
+
+    memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(message_sent[byte_index]), nonceClient.data(), nonceClient.size());
+    byte_index += nonceClient.size();
+
+    //Aggiungere nonce server per verifica
+
+    memcpy(&(message_sent[byte_index]), nonceServer, constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+    //Aggiungere DH public key
+
+    memcpy(&(message_sent[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message_sent[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
+    byte_index += pubKeyDHBufferLen;
+
+    //Aggiungere firma
+
+    message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    signed_size = 0;
+    signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
+
+    clt.clientConn->send_message(message_signed, signed_size);
+    //clt.clientConn->send_message(message_sent, dim);
+    free(message_sent);
+    
 
     free(message_received);
     free(nonceServer);
