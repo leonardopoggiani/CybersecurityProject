@@ -15,6 +15,7 @@
 #include "constants.h"
 #include "connection.h"
 #include "crypto.h"
+#include "color.h"
 
 using namespace std;
 using namespace constants;
@@ -125,8 +126,10 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += nonceClient.size();
 
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-    unsigned int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
-   
+    int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
+
+    cout << MAGENTA << "[DEBUG]" << "sign_size: " << signed_size << RESET << endl;
+
     clt.clientConn->send_message(message_signed, signed_size);
     free(message_sent);
     free(message_signed);
@@ -135,13 +138,13 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message_received);
     if(ret == 0) {
-        cout << "client connection closed" << endl;
+        cout << RED << "** client connection closed **" << RESET << endl;
         free(message_received);
         return false;
     }
 
     byte_index = 0;
-    int signature_size = 0;
+    signed_size = 0;
     char opcode;
     size_t size_cert = 0;
 
@@ -164,12 +167,14 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(nonceClient_rec, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    memcpy(&(signature_size), &message_received[byte_index], sizeof(int));
+    memcpy(&(signed_size), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    signature = (unsigned char*)malloc(signature_size);
-    memcpy(signature, &message_received[byte_index], signature_size);
-    byte_index += signature_size;
+    signature = (unsigned char*)malloc(signed_size);
+    memcpy(signature, &message_received[byte_index], signed_size);
+    byte_index += signed_size;
+
+    cout << MAGENTA << "[DEBUG]" << " size_cert: " << size_cert << ", sign_size: " << signed_size << RESET << endl;
 
     // Verify certificate
 
@@ -179,12 +184,12 @@ bool authentication(Client &clt, string username, string password) {
         throw runtime_error("Certificate not valid.");
     }
     
-    cout << "Server certificate verified" << endl;  
+    cout << GREEN << "Server certificate verified" << RESET << endl;  
 
     // print the successful verification to screen:
     char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
     char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-    std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
+    cout << CYAN << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n" << RESET << endl;
     free(tmp);
     free(tmp2);
 
@@ -209,19 +214,19 @@ bool authentication(Client &clt, string username, string password) {
     
     unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify < 0){
-        cerr<<"establishSession: invalid signature!"; 
+        cerr << "establishSession: invalid signature!"; 
         return false;
     } else { 
-        cout << "Valid Signature!" << endl;
+        cout << GREEN << "** Valid Signature **" << RESET << endl;
     }
 
     //Verificare nonce
 
     if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE) != 0){
-        cerr<<"Nonce received is not valid!";
+        cerr << "Nonce received is not valid!";
         exit(1);
     } else {
-        cout << "Nonce verified!!" << endl;
+        cout << GREEN << "** Nonce verified **" << RESET << endl;
     }
 
     //SCAMBIO CHIAVE DI SESSIONE
@@ -309,7 +314,7 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     byte_index += username_size;
 
     if(memcpy((void*)clt.username.c_str(), username, username_size) == 0) {
-        cout << "You're trying to speak with yourself, insert a valid username" << endl;
+        cout << RED << "You're trying to speak with yourself, insert a valid username" << RESET << endl;
         return false;
     }
 
@@ -325,9 +330,9 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     cin.ignore();
 
     if(response == 'y') {
-        cout << "ok so i'll start the chat" << endl;
+        cout << GREEN << "ok so i'll start the chat" << RESET << endl;
     } else {
-        cout << ":(" << endl;
+        cout << RED << ":(" << RESET << endl;
     }
 
     int dim = sizeof(char);
@@ -384,7 +389,7 @@ void chat(Client clt) {
 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
     if (ret == 0) {
-        cout << "client connection closed" << endl;
+        cout << RED << "**client connection closed**" << RESET << endl;
         free(buffer);
         return;
     } 
@@ -426,7 +431,9 @@ void chat(Client clt) {
         select(maxfd+1, &fds, NULL, NULL, NULL); 
 
         if(FD_ISSET(0, &fds)) {  
+            cout << "> ";
             getline(cin, message);
+            cout << endl;
 
             if(message.compare(":q!") == 0) {
                 break;
@@ -452,7 +459,7 @@ void chat(Client clt) {
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
             if (ret == 0) {
-                cout << "client connection closed" << endl;
+                cout << RED << "**client connection closed**" << RESET << endl;
                 free(buffer);
                 return;
             } 
@@ -513,13 +520,13 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), response);
     if (ret == 0) {
-        cout << "client connection closed" << endl;
+        cout << RED << "client connection closed" << RESET << endl;
         free(response);
         return;
     } 
 
     if(response[0] == 'y') {
-        cout << "request accepted, starting the chat" << endl;
+        cout << GREEN << "request accepted, starting the chat" << RESET << endl;
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
 
@@ -529,7 +536,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         cout << "------------------" << endl;
     } else {
-        cout << "we're sorry :(" << endl;
+        cout << RED << "we're sorry :(" << RESET << endl;
     }
 
     free(response);
@@ -537,7 +544,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
 
 void logout(Client clt) {
-    cout << "--- LOGOUT ---" << endl;
+    cout << RED << "--- LOGOUT ---" << RESET << endl;
     int byte_index = 0;    
 
     int dim = sizeof(char);
@@ -564,7 +571,7 @@ void seeOnlineUsers(Client clt){
 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
     if (ret == 0) {
-        cout << "client connection closed" << endl;
+        cout << GREEN << "client connection closed" << RESET << endl;
         free(buffer);
         return;
     } 
@@ -581,7 +588,7 @@ void seeOnlineUsers(Client clt){
     byte_index += sizeof(int);
 
     if(list_size == 0) {
-        cout << "--- no user online ---" << endl;
+        cout << RED << "--- no user online ---" <<  endl;
     } else {
         cout << "--- online users ---" << endl;
 

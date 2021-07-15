@@ -24,7 +24,7 @@ int main(int argc, char* const argv[]) {
   
     while(1) {
 
-        cout << "--- waiting for connections ---" << endl;
+        cout << GREEN << "--- waiting for connections ---" << RESET << endl;
 
         srv.serverConn->initSet();
         srv.serverConn->selectActivity();
@@ -53,43 +53,43 @@ int main(int argc, char* const argv[]) {
                     }
 
                     if(buffer[0] == constants::AUTH) {
-                        cout << "\n**** AUTHENTICATION ****" << endl;
+                        cout << GREEN << "\n**** AUTHENTICATION ****" << RESET << endl;
                       
                         if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::ONLINE) {
-                        cout << "\n**** ONLINE USERS REQUEST ****" << endl;
+                        cout << GREEN << "\n**** ONLINE USERS REQUEST ****" << RESET << endl;
 
                         if (!seeOnlineUsers(srv, sd, buffer)) throw runtime_error("Online Users request failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     }else if(buffer[0] == constants::REQUEST) {
-                        cout << "\n**** REQUEST TO TALK****" << endl;
+                        cout << GREEN << "\n**** REQUEST TO TALK****" << RESET << endl;
 
                         if (!requestToTalk(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     }else if(buffer[0] == constants::START_CHAT) {
-                        cout << "\n**** START CHAT ****" << endl;
+                        cout << GREEN << "\n**** START CHAT ****" << RESET << endl;
 
                         if (!start_chat(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
-                        cout << "Chat started! " << endl;
+                        cout << BOLDGREEN << "Chat started! " << RESET << endl;
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::CHAT) {
-                        cout << "\n**** CHAT ****" << endl;
+                        cout << GREEN << "\n**** CHAT ****" << RESET << endl;
 
                         if (!chatting(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::LOGOUT) {
-                        cout << "\n**** LOGOUT ****" << endl;
+                        cout << YELLOW << "\n**** LOGOUT ****" << RESET << endl;
                         srv.serverConn->disconnect_host(sd, i);
                         srv.serverConn->printOnlineUsers();
                         continue;
                     } else {
-                        cout << "Invalid command, please retry" << endl;
+                        cout << RED << "**Invalid command, please retry**" << RESET << endl;
                         continue;
                     }
                 }  

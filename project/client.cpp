@@ -37,25 +37,23 @@ int main(int argc, char* const argv[]) {
 
     // messaggio di saluto
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-        perror("Send Error");
-        throw runtime_error("Send failed");
-    } else if(ret == 0) {
-        cout << "client disconnected" << endl;
+    if(ret == 0) {
+        cout << RED << "**client disconnected**" << RESET << endl;
     }
 
     if( clt.clientConn->checkAck(buffer) ) {
-        cout << "ack received" << endl;
+        cout << GREEN << "ack received" << RESET << endl;
     }
 
-    cout << "Welcome! \nPlease type your username -> ";
+    cout << GREEN << "Welcome! \n\n" << RESET << endl;
+    cout << "Please type your username -> ";
     cin >> username;
     cout << endl;
 
     cout << "Fine! Now insert you password to chat with others" << endl;
     password = readPassword();
 
-    cout << "\n**** AUTHENTICATION ****" << endl;
+    cout << GREEN << "\n**** AUTHENTICATION ****" << RESET << endl;
 
     if (!authentication(clt,username,password)) throw runtime_error("Authentication Failed");
         cout << "-----------------------------" << endl << endl;
@@ -78,15 +76,12 @@ int main(int argc, char* const argv[]) {
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-            if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                perror("Send Error");
-                throw runtime_error("Send failed");
-            } else if(ret == 0) {
-                cout << "client disconnected" << endl;
+            if(ret == 0) {
+                cout << RED << "**client disconnected**" << RESET << endl;
             }
             
             if(buffer[0] == constants::FORWARD) {
-                cout << "\n-------Received request to talk-------" << endl;
+                cout << GREEN << "\n**Received request to talk**" << RESET << endl;
                 if(receiveRequestToTalk(clt, buffer)){
                     cout << "---------------------------------------" << endl;
                     cout << "\n-------Chat-------" << endl;
@@ -100,11 +95,11 @@ int main(int argc, char* const argv[]) {
 
         switch(option){
             case 1: 
-                cout << "See online users to talk\n" << endl;
+                cout << CYAN << "See online users to talk\n" << RESET << endl;
                 seeOnlineUsers(clt);
                 break;
             case 2:
-                cout << "Send a request to talk\n" << endl;
+                cout << CYAN << "Send a request to talk\n" << RESET << endl;
                 cout << "Type the username -> " ;
                 username_to_contact = readMessage();
 
@@ -115,11 +110,11 @@ int main(int argc, char* const argv[]) {
                 sendRequestToTalk(clt, username_to_contact, username);
                 break;
             case 3:
-                cout << "Logout..\n" << endl;  
+                cout << RED << "Logout..\n" << RESET << endl;  
                 logout(clt);
                 return 0;
             default:
-                cout << "Command not recognized" << endl;
+                cout << RED << "**Command not recognized**" << RESET << endl;
                 return 1;
         }
     }

@@ -469,9 +469,10 @@ class serverConnection : public clientConnection {
                     return c->sd_2;
                 } else if(c->sd_2 == sd) {
                     return c->sd_1;
-                } else 
-                    return -1;
+                }
             }
+
+            return -1;
         }
 };
 

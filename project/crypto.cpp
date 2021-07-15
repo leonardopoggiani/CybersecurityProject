@@ -30,8 +30,8 @@ void CryptoOperation::generateIV(unsigned char* iv) {
 
 void CryptoOperation::loadCertificate(X509*& cert, string path){
     
-    string path_str = "certificates/" + path + ".pem";
-    FILE *file = fopen(path_str.c_str(),"r");
+    string path_str = "./certificates/" + path + ".pem";
+    FILE *file = fopen(path_str.c_str(), "r");
     if(!file)
         throw runtime_error("An error occurred while opening the file.");
     cert = PEM_read_X509(file, NULL, NULL, NULL);
@@ -59,8 +59,8 @@ void CryptoOperation::deserializeCertificate(int cert_len,unsigned char* cert_bu
         throw runtime_error("An error occurred during the reading of the certificate.");
 }
 
-void CryptoOperation::loadCRL(X509_CRL*& crl, string path){
-    FILE* file = fopen("certificates/FoundationOfCybersecurity_crl.pem", "r");
+void CryptoOperation::loadCRL(X509_CRL*& crl){
+    FILE* file = fopen("certificates/FoundationsOfCybersecurity_crl.pem", "r");
 
     if(!file)
         throw runtime_error("An error occurred opening crl.pem.");
@@ -81,8 +81,8 @@ bool CryptoOperation::verifyCertificate(X509* cert_to_verify) {
     X509_STORE* store;
     X509_CRL* crl;
 
-    loadCertificate(ca_cert, constants::CA_CERT_PATH);
-    loadCRL(crl, constants::CRL_PATH);
+    loadCertificate(ca_cert, "ca_cert");
+    loadCRL(crl);
 
     store = X509_STORE_new();
     if(!store)
@@ -106,6 +106,8 @@ bool CryptoOperation::verifyCertificate(X509* cert_to_verify) {
     }
 
     if(X509_verify_cert(ctx) != 1) { 
+        int ret =  X509_STORE_CTX_get_error(ctx);
+        cout << X509_verify_cert_error_string(ret) << endl;   
         X509_STORE_free(store);
         X509_STORE_CTX_free(ctx);
         return false;
