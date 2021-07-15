@@ -141,12 +141,11 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     srv.crypto->loadCertificate(cert, "server_cert");
 
     int cert_size = i2d_X509(cert, &cert_buf);        
-    if(cert_size< 0) { 
+    if(cert_size < 0) { 
         throw runtime_error("An error occurred during the reading of the certificate."); 
     }
 
     byte_index = 0;    
-    //dim = sizeof(char) + sizeof(int) + cert_size + 2*constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
     dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + constants::NONCE_SIZE;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
@@ -156,23 +155,20 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), &cert_size, sizeof(int));
     byte_index += sizeof(int);
 
-    memcpy(&(message[byte_index]), &cert_buf[0], cert_size);
+    memcpy(&(message[byte_index]), cert_buf, cert_size);
     byte_index += cert_size;
+
 
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
-
+    
     memcpy(&(message[byte_index]), nonceClient, constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
-
-    //Aggiungere la firma su tutto
-
+    
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     unsigned int signed_size = srv.crypto->digsign_sign(message, dim, message_signed, server_key);
 
-    cout << MAGENTA << "[DEBUG]" << " size_cert: " << cert_size << ", sign_size: " << signed_size << RESET << endl;
-
-    srv.serverConn->send_message(message_signed, sd, signed_size);
+    srv.serverConn->send_message(message, sd, dim);
 
     free(message);
 

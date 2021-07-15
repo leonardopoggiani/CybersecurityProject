@@ -151,12 +151,19 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(opcode), &message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
+    cout << MAGENTA << "[DEBUG]" << "opCode: " << opcode << RESET << endl;
+
     memcpy(&(size_cert), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    unsigned char* certificato = (unsigned char*)malloc(size_cert);
+    cout << MAGENTA << "[DEBUG]" << "size_cert: " << size_cert << "byte_index: " << byte_index <<  RESET << endl;
 
-    memcpy(certificato, &message_received[byte_index], size_cert);
+    unsigned char* cert_buf = (unsigned char*)malloc(size_cert);
+    if(!cert_buf) {
+        throw runtime_error("Malloc error");
+    }
+
+    memcpy(cert_buf, &message_received[byte_index], size_cert);
     byte_index += size_cert;
 
     nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
@@ -164,21 +171,18 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(nonceServer, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
+    
     memcpy(nonceClient_rec, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
-
+    
     memcpy(&(signed_size), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
-
+    
     signature = (unsigned char*)malloc(signed_size);
     memcpy(signature, &message_received[byte_index], signed_size);
     byte_index += signed_size;
 
-    cout << MAGENTA << "[DEBUG]" << " size_cert: " << size_cert << ", sign_size: " << signed_size << RESET << endl;
-
-    // Verify certificate
-
-    cert = d2i_X509(NULL, (const unsigned char**)&certificato, size_cert);
+    cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, size_cert);
 
     if(!clt.crypto->verifyCertificate(cert)) {
         throw runtime_error("Certificate not valid.");
@@ -389,7 +393,7 @@ void chat(Client clt) {
 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
     if (ret == 0) {
-        cout << RED << "**client connection closed**" << RESET << endl;
+        cout << RED << "** client connection closed **" << RESET << endl;
         free(buffer);
         return;
     } 
@@ -431,7 +435,7 @@ void chat(Client clt) {
         select(maxfd+1, &fds, NULL, NULL, NULL); 
 
         if(FD_ISSET(0, &fds)) {  
-            cout << "> ";
+            cout << "\n ";
             getline(cin, message);
             cout << endl;
 
