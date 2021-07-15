@@ -30,11 +30,6 @@ struct Client {
         clientConn = new clientConnection();
         crypto = new CryptoOperation();
     }
-
-    ~Client() {
-        delete clientConn;
-        delete crypto;
-    }
 };
 
 string readMessage() {
@@ -128,8 +123,6 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
 
-    cout << MAGENTA << "[DEBUG]" << "sign_size: " << signed_size << RESET << endl;
-
     clt.clientConn->send_message(message_signed, signed_size);
     free(message_sent);
     free(message_signed);
@@ -151,12 +144,8 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(opcode), &message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
-    cout << MAGENTA << "[DEBUG]" << "opCode: " << opcode << RESET << endl;
-
     memcpy(&(size_cert), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
-
-    cout << MAGENTA << "[DEBUG]" << "size_cert: " << size_cert << "byte_index: " << byte_index <<  RESET << endl;
 
     unsigned char* cert_buf = (unsigned char*)malloc(size_cert);
     if(!cert_buf) {
@@ -167,11 +156,13 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += size_cert;
 
     nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
+    if(!nonceServer) {
+        throw runtime_error("Malloc error");
+    }
 
     memcpy(nonceServer, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    
     memcpy(nonceClient_rec, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
     
@@ -199,9 +190,7 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
-    // Verificare firma
-
-    //byte_index = 0;
+    byte_index = 0;
     dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
     unsigned char* clear_buf = (unsigned char*)malloc(dim);
 
@@ -240,6 +229,8 @@ bool authentication(Client &clt, string username, string password) {
     clt.crypto->keyGeneration(prvKeyDHClient);
     pubKeyDHBufferLen = clt.crypto->serializePublicKey(prvKeyDHClient, pubKeyDHBuffer.data());
 
+    cout << "***********************************" << endl;
+
     nonceClient_t = nonceClient.data();
 
     byte_index = 0;   
@@ -247,22 +238,20 @@ bool authentication(Client &clt, string username, string password) {
     //OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
 
     dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
-    //dim_to_sign = sizeof(char) + username.size() + nonceClient.size();
 
     message_sent = (unsigned char*)malloc(dim);
+    if(!message_sent) {
+        throw runtime_error("Malloc error");
+    }
 
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
     memcpy(&(message_sent[byte_index]), nonceClient.data(), nonceClient.size());
-    byte_index += nonceClient.size();
-
-    //Aggiungere nonce server per verifica
+    byte_index += constants::NONCE_SIZE;
 
     memcpy(&(message_sent[byte_index]), nonceServer, constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
-
-    //Aggiungere DH public key
 
     memcpy(&(message_sent[byte_index]), &pubKeyDHBufferLen, sizeof(int));
     byte_index += sizeof(int);
@@ -277,11 +266,11 @@ bool authentication(Client &clt, string username, string password) {
     signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
 
     clt.clientConn->send_message(message_signed, signed_size);
-    //clt.clientConn->send_message(message_sent, dim);
-    free(message_sent);
 
+    free(message_sent);
     free(message_received);
     free(nonceServer);
+
     return true;
 }
 

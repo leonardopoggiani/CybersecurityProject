@@ -1,4 +1,5 @@
 #include "include/crypto.h"
+#include "include/color.h"
 
 using namespace std;
 
@@ -198,6 +199,27 @@ unsigned int CryptoOperation::serializePublicKey(EVP_PKEY *pub_key, unsigned cha
     return pubkey_size;
 }
 
+void CryptoOperation::deserializePublicKey(unsigned char* pubkey_buf, unsigned int pubkey_size, EVP_PKEY *&pubkey){
+    BIO *mbio;
+
+    mbio = BIO_new(BIO_s_mem());
+
+    if(!mbio)
+        throw runtime_error("An error occurred during the creation of the bio.");
+
+    if(BIO_write(mbio,pubkey_buf,pubkey_size) <= 0)
+        throw runtime_error("An error occurred during the writing of the bio.");
+
+    pubkey = PEM_read_bio_PUBKEY(mbio, NULL, NULL, NULL);
+
+    if(!pubkey){
+        BIO_free(mbio);
+        throw runtime_error("An error occurred during the reading of the public key from the bio.");
+    }
+
+    BIO_free(mbio);
+}
+
 
 // DH parameters
 
@@ -276,7 +298,7 @@ unsigned int CryptoOperation::digsign_sign(unsigned char *message, unsigned int 
         throw;
     }
 
-    return signLen;
+    return signLen + messageLen;
 }
 
 bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int signLen, unsigned char *message, unsigned int messageLen, EVP_PKEY *pubKey) {

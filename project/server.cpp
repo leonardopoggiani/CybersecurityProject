@@ -84,10 +84,13 @@ int main(int argc, char* const argv[]) {
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::LOGOUT) {
+
                         cout << YELLOW << "\n**** LOGOUT ****" << RESET << endl;
+
                         srv.serverConn->disconnect_host(sd, i);
                         srv.serverConn->printOnlineUsers();
                         continue;
+                        
                     } else {
                         cout << RED << "**Invalid command, please retry**" << RESET << endl;
                         continue;

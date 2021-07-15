@@ -33,7 +33,7 @@ struct Server {
 bool authentication(Server &srv, int sd, unsigned char* buffer) {
     array<unsigned char, NONCE_SIZE> nonceServer;
     unsigned char* nonceServer_rec= (unsigned char*)malloc(constants::NONCE_SIZE);
-    unsigned char* cert_buf= NULL;
+    unsigned char* cert_buf = NULL;
     X509 *cert;
     EVP_PKEY* server_key;
     unsigned int pubKeyDHBufferLen;
@@ -41,8 +41,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     EVP_PKEY *pubKeyDHClient = NULL;
     unsigned char* nonceServer_t = (unsigned char*)malloc(constants::NONCE_SIZE);
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
-    unsigned int sgnt_size=*(unsigned int*)buffer;
-	sgnt_size+=sizeof(unsigned int);
+    unsigned int sgnt_size =* (unsigned int*)buffer;
+	sgnt_size += sizeof(unsigned int);
     int byte_index = 0;    
     char opCode;
    
@@ -158,7 +158,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), cert_buf, cert_size);
     byte_index += cert_size;
 
-
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
     
@@ -182,20 +181,22 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     byte_index = 0;    
     signature_size = 0;
-
     
     memcpy(&(opCode), &message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
-    //Nonce client da riutilizzare
-
     memcpy(nonceClient, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    //Nonce server da verificare
-
     memcpy(nonceServer_rec, &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
+
+    if(memcmp(nonceServer_t, nonceServer_rec, constants::NONCE_SIZE) != 0){
+        cerr << "Nonce received is not valid!";
+        exit(1);
+    } else {
+        cout << GREEN << "** Nonce verified **" << RESET << endl;
+    }
 
     memcpy(&(pubKeyDHBufferLen), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
@@ -203,8 +204,20 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(pubKeyDHBuffer.data(), &message_received[byte_index], pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
 
-    //Va deserializzata la chiave pubblica
-    // srv.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHClient);
+    dim = byte_index;
+
+    srv.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHClient);
+
+    free(clear_buf);
+    free(signature);
+    
+
+    clear_buf = (unsigned char*)malloc(dim);
+    byte_index = 0;
+    signature = 0;
+
+    memcpy(clear_buf, &message_received[byte_index], dim);
+    byte_index += dim;
 
     memcpy(&(signature_size), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
@@ -213,22 +226,14 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(signature, &message_received[byte_index], signature_size);
     byte_index += signature_size;
 
-    //Spostare nel prossimo messaggio
-
-    /* memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
-    byte_index += pubKeyDHBufferLen;*/
-
-    // srv.crypto->keyGeneration(prvKeyDHServer);
-    // pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
-
-    // Aggiungere la firma
-
-    //Verificare firma con chieve pubblica del client
-    /*unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey);
-    if(verify<0){cerr<<"establishSession: invalid signature!"; return false;}*/
+    // verificare firma con chieve pubblica del client
+    verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey);
+    if(verify < 0){
+        cerr<<"establishSession: invalid signature!"; 
+        return false;
+    } else {
+        cout << GREEN << "** Valid Signature **" << RESET << endl;
+    }
 
     free(nonceClient);
     free(username);
@@ -461,7 +466,7 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     int sd_to_send = -1;
     char opCode;
 
-    sd_to_send = srv.serverConn->findSd();
+    sd_to_send = srv.serverConn->findSd(sd);
 
     if(sd_to_send == -1) {
         cout << RED << "**no chat found**" << RESET << endl;
