@@ -267,6 +267,14 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.clientConn->send_message(message_signed, signed_size);
 
+    cout << GREEN << "*** Generating session key ***" << RESET << endl;
+
+    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+    clt.crypto->secretDerivation(prvKeyDHClient, pubKeyServer, tempBuffer.data());
+    clt.clientConn->addSessionKey(tempBuffer.data(), tempBuffer.size());
+
+    cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
+
     free(message_sent);
     free(message_received);
     free(nonceServer);

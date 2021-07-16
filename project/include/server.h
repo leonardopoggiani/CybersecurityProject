@@ -207,6 +207,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     dim = byte_index;
 
     srv.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHClient);
+    srv.crypto->keyGeneration(prvKeyDHServer);
 
     free(clear_buf);
     free(signature);
@@ -229,11 +230,27 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     // verificare firma con chieve pubblica del client
     verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey);
     if(verify < 0){
-        cerr<<"establishSession: invalid signature!"; 
+        cerr << "establishSession: invalid signature!"; 
         return false;
     } else {
         cout << GREEN << "** Valid Signature **" << RESET << endl;
     }
+
+    // Generate secret
+    cout << GREEN << "*** Generating session key ***" << RESET << endl;
+
+    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+    srv.crypto->secretDerivation(prvKeyDHServer, pubKeyDHClient, tempBuffer.data());
+
+    vector<user> userList = srv.serverConn->getUsersList();
+    for( auto us : userList) {
+        if(us.sd == sd) {
+            us.session_key = (unsigned char*)malloc(tempBuffer.size());
+            us.session_key = tempBuffer.data();
+        }
+    }
+    
+    cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
 
     free(nonceClient);
     free(username);

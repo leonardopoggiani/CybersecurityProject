@@ -517,7 +517,7 @@ void CryptoOperation::secretDerivation(EVP_PKEY *my_prvkey, EVP_PKEY *peer_pubke
     if(!ctx_drv)
         throw runtime_error("An error occurred during the creation of the context.");
 
-    if(EVP_PKEY_derive_init(ctx_drv) < 1){
+    if(EVP_PKEY_derive_init(ctx_drv) < 1) {
         EVP_PKEY_CTX_free(ctx_drv);
         throw runtime_error("An error occurred during the intialization of the context.");
     } 

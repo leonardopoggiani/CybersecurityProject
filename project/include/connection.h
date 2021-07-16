@@ -22,6 +22,7 @@ class clientConnection {
         int master_fd;
         int port;
         unsigned char* talking_to;
+        unsigned char* session_key;
 
     public:
 
@@ -212,12 +213,19 @@ class clientConnection {
             talking_to = talking_to;
         }
 
+        void addSessionKey(unsigned char* sessionKey, int size) {
+            session_key = (unsigned char*)malloc(size);
+            session_key = sessionKey;
+
+            printf("Session key [%s]", session_key);
+        }
 };
 
 // #########################  SERVER ######################### //
 struct user {
     string username;
     int sd;
+    unsigned char* session_key;
 
     user(string us, int s) {
         username = us;
