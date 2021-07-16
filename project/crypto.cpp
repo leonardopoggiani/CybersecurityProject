@@ -224,20 +224,22 @@ void CryptoOperation::deserializePublicKey(unsigned char* pubkey_buf, unsigned i
 // DH parameters
 
 void CryptoOperation::buildParameters(EVP_PKEY *&dh_params) {
-    DH *temp;
-    dh_params = EVP_PKEY_new();
+    EVP_PKEY_CTX* pctx;
+    
+    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+    if(!pctx)
+        throw runtime_error("An error occurred during the creation of the context");
 
-    if(!dh_params)
-        throw runtime_error("An error occurred during the allocation of parameters.");
+    if( EVP_PKEY_paramgen_init(pctx) < 1 )
+        throw runtime_error("An error occurred during the initialization of the parameters");
 
-    temp = DH_get_2048_224();
+    EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx,NID_X9_62_prime256v1);
 
-    if(EVP_PKEY_set1_DH(dh_params,temp) == 0){
-        DH_free(temp);
-        throw runtime_error("An error occurred during the generation of parameters.");
+    if( EVP_PKEY_paramgen(pctx, &dh_params) < 1 ) {
+        throw runtime_error("An error occurred during the generation of the parameters");
     }
 
-    DH_free(temp);
+    EVP_PKEY_CTX_free(pctx);
 }
 
 void CryptoOperation::keyGeneration(EVP_PKEY *&my_prvkey){
@@ -257,6 +259,7 @@ void CryptoOperation::keyGeneration(EVP_PKEY *&my_prvkey){
 
         if(EVP_PKEY_keygen(ctx, &my_prvkey) < 1)
             throw runtime_error("An error occurred during the intialization of the context");
+
     } catch(const exception& e) {
         EVP_PKEY_CTX_free(ctx);
         throw;

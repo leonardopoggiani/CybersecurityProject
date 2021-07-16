@@ -33,28 +33,24 @@ struct Server {
 bool authentication(Server &srv, int sd, unsigned char* buffer) {
     array<unsigned char, NONCE_SIZE> nonceServer;
     unsigned char* nonceServer_rec= (unsigned char*)malloc(constants::NONCE_SIZE);
+    unsigned char* nonceServer_t = (unsigned char*)malloc(constants::NONCE_SIZE);
+    unsigned char* nonceClient = (unsigned char*)malloc(constants::NONCE_SIZE);
+
     unsigned char* cert_buf = NULL;
     X509 *cert;
-    EVP_PKEY* server_key;
+    EVP_PKEY* prvkey_server;
     unsigned int pubKeyDHBufferLen;
     EVP_PKEY *prvKeyDHServer = NULL;
     EVP_PKEY *pubKeyDHClient = NULL;
-    unsigned char* nonceServer_t = (unsigned char*)malloc(constants::NONCE_SIZE);
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
-    unsigned int sgnt_size =* (unsigned int*)buffer;
-	sgnt_size += sizeof(unsigned int);
+
     int byte_index = 0;    
     char opCode;
-   
     unsigned char* username;
     unsigned char* signature;
-    unsigned char* nonceClient = (unsigned char*)malloc(constants::NONCE_SIZE);
-
     int username_size = 0;
     int signature_size = 0;
-    
-    byte_index = 0;
-    
+        
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
@@ -96,8 +92,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
 
-    EVP_PKEY *pubkey = PEM_read_PUBKEY(file, NULL, NULL, NULL);
-    if(!pubkey){
+    EVP_PKEY *pubkey_server = PEM_read_PUBKEY(file, NULL, NULL, NULL);
+    if(!pubkey_server){
         fclose(file);
         throw runtime_error("An error occurred while reading the public key.");
     }
@@ -117,7 +113,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(sign, &buffer[byte_index], sign_size);
     byte_index += sign_size;
     
-    unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey);
+    unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey_server);
     if(verify < 0) {
         cerr << "establishSession: invalid signature!";
         return false;
@@ -128,8 +124,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     srv.serverConn->insertUser(username_string.str(), sd);
     srv.serverConn->printOnlineUsers();
 	
-	srv.crypto->readPrivateKey("srv", "cybersecurity", server_key);
-	if(!server_key) {
+	srv.crypto->readPrivateKey("srv", "cybersecurity", prvkey_server);
+	if(!prvkey_server) {
         cerr << "establishSession: server_key Error";
         exit(1);
     }
@@ -165,11 +161,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     byte_index += constants::NONCE_SIZE;
     
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-    unsigned int signed_size = srv.crypto->digsign_sign(message, dim, message_signed, server_key);
+    unsigned int signed_size = srv.crypto->digsign_sign(message, dim, message_signed, prvkey_server);
 
     srv.serverConn->send_message(message, sd, dim);
-
-    free(message);
 
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     int ret = srv.serverConn->receive_message(sd, message_received);
@@ -212,7 +206,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     free(clear_buf);
     free(signature);
     
-
     clear_buf = (unsigned char*)malloc(dim);
     byte_index = 0;
     signature = 0;
@@ -228,13 +221,49 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     byte_index += signature_size;
 
     // verificare firma con chieve pubblica del client
-    verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey);
+    verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_server);
     if(verify < 0){
         cerr << "establishSession: invalid signature!"; 
         return false;
     } else {
         cout << GREEN << "** Valid Signature **" << RESET << endl;
     }
+
+    // ultimo messaggio di autenticazione: 
+    // OPCODE | nonceClient | nonceServer | pubkeyDHServer_len | pubkeyDHServer | DIGSIGN
+
+    pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
+    
+    srv.crypto->generateNonce(nonceServer.data());
+    nonceServer_t = nonceServer.data();
+
+    byte_index = 0;    
+    dim = sizeof(char) + 2*constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+    unsigned char* last_message = (unsigned char*)malloc(dim);  
+
+    memcpy(&(last_message[byte_index]), &constants::AUTH, sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(&(last_message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+    
+    memcpy(&(last_message[byte_index]), nonceClient, constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+    memcpy(&(last_message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(last_message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
+    byte_index += pubKeyDHBufferLen;
+    
+    unsigned char* last_message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    signed_size = srv.crypto->digsign_sign(last_message, dim, last_message_signed, prvkey_server);
+
+    cout << MAGENTA << "dim: " << dim << RESET << endl;
+
+    cout << MAGENTA << "signed_size: " << signed_size << RESET << endl;
+
+    srv.serverConn->send_message(last_message_signed, sd, signed_size);
 
     // Generate secret
     cout << GREEN << "*** Generating session key ***" << RESET << endl;

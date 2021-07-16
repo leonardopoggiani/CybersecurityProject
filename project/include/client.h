@@ -76,6 +76,7 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_rec = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
+    
     unsigned char* signature = NULL;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
@@ -267,10 +268,76 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.clientConn->send_message(message_signed, signed_size);
 
+    unsigned char* last_message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
+    ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), last_message_received);
+    if( ret == 0) {
+        cout << RED  << "** server disconnected **" << RESET << endl;
+        free(last_message_received);
+        return true;
+    }  
+
+    char opCode;
+    byte_index = 0;    
+    int signature_size = 0;
+    
+    memcpy(&(opCode), &last_message_received[byte_index], sizeof(char));
+    byte_index += sizeof(char);
+
+    memcpy(nonceClient.data(), &last_message_received[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+    memcpy(nonceServer, &last_message_received[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+    if(memcmp(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE) != 0){
+        cerr << "Nonce received is not valid!";
+        exit(1);
+    } else {
+        cout << GREEN << "** Nonce verified **" << RESET << endl;
+    }
+
+    memcpy(&(pubKeyDHBufferLen), &last_message_received[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(pubKeyDHBuffer.data(), &last_message_received[byte_index], pubKeyDHBufferLen);
+    byte_index += pubKeyDHBufferLen;
+
+    cout << MAGENTA << "dim: " << dim << RESET << endl;
+
+    dim = byte_index;
+    byte_index = 0;
+
+    clt.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHServer);
+
+    free(clear_buf);
+    free(signature);
+    
+    clear_buf = (unsigned char*)malloc(dim);
+    memcpy(clear_buf, &last_message_received[byte_index], dim);
+    byte_index += dim;
+
+    sign_size = 0;
+    memcpy(&sign_size, &last_message_received[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    cout << MAGENTA << "sign_size: " << sign_size << RESET << endl;
+
+    signature = (unsigned char*)malloc(sign_size);
+    memcpy(signature, &last_message_received[byte_index], sign_size);
+    byte_index += sign_size;
+    
+    verify = clt.crypto->digsign_verify(signature, sign_size, clear_buf, sizeof(int), pubKeyServer);
+    if(verify < 0) {
+        cerr << "establishSession: invalid signature!";
+        return false;
+    } else {
+        cout << GREEN << "** valid signature **" << RESET << endl;
+    }
+
     cout << GREEN << "*** Generating session key ***" << RESET << endl;
 
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
-    clt.crypto->secretDerivation(prvKeyDHClient, pubKeyServer, tempBuffer.data());
+    clt.crypto->secretDerivation(prvKeyDHClient, pubKeyDHServer, tempBuffer.data());
     clt.clientConn->addSessionKey(tempBuffer.data(), tempBuffer.size());
 
     cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;

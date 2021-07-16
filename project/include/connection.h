@@ -216,8 +216,6 @@ class clientConnection {
         void addSessionKey(unsigned char* sessionKey, int size) {
             session_key = (unsigned char*)malloc(size);
             session_key = sessionKey;
-
-            printf("Session key [%s]", session_key);
         }
 };
 
