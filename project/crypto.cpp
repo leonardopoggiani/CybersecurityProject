@@ -220,9 +220,7 @@ void CryptoOperation::deserializePublicKey(unsigned char* pubkey_buf, unsigned i
     BIO_free(mbio);
 }
 
-
 // DH parameters
-
 void CryptoOperation::buildParameters(EVP_PKEY *&dh_params) {
     EVP_PKEY_CTX* pctx;
     
@@ -264,20 +262,24 @@ void CryptoOperation::keyGeneration(EVP_PKEY *&my_prvkey){
         EVP_PKEY_CTX_free(ctx);
         throw;
     }
+
     EVP_PKEY_CTX_free(ctx);
 }
 
 unsigned int CryptoOperation::digsign_sign(unsigned char *message, unsigned int messageLen, unsigned char *buffer, EVP_PKEY *prvKey) {
     unsigned char *signature; 
     unsigned int signLen;
+
     signature = new(nothrow) unsigned char[EVP_PKEY_size(prvKey)];
     if(!signature) {
         throw runtime_error("Buffer not allocated correctly");
     }
+
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     if (!ctx) {
         throw runtime_error("Context not initialized");
     }
+
     try {
         if(EVP_SignInit(ctx, EVP_sha256()) != 1) {
             throw runtime_error("Error inizializing the sign");
@@ -305,11 +307,13 @@ unsigned int CryptoOperation::digsign_sign(unsigned char *message, unsigned int 
 }
 
 bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int signLen, unsigned char *message, unsigned int messageLen, EVP_PKEY *pubKey) {
-    int ret;
+    int ret = 0;
+
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     if (!ctx) {
         throw runtime_error("Context not initialized");
     }
+
     try {
         if(EVP_VerifyInit(ctx, EVP_sha256()) != 1){
             throw runtime_error("Error initializing the signature verification");
@@ -329,7 +333,8 @@ bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int sign
     return true;
 }
 
-unsigned int CryptoOperation::encryptMessage(unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
+/*
+unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
     unsigned char *ciphertext;
     unsigned char bufferCounter[sizeof(uint16_t)];
     unsigned char tag[constants::TAG_LEN];
@@ -338,15 +343,8 @@ unsigned int CryptoOperation::encryptMessage(unsigned char *msg, unsigned int ms
     unsigned int start = 0;
     int len = 0;
     int ciphr_len = 0;
-    int outlen = 0;
-
-    if( msg_len > (UINT_MAX - 2*constants::TAG_LEN + constants::IV_LEN + sizeof(uint16_t)) )
-        throw runtime_error("Message too big.");
 
     finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(uint16_t);
-
-    if(finalSize > constants::MAX_MESSAGE_SIZE)
-        throw runtime_error("Message too big.");
 
     ctx = EVP_CIPHER_CTX_new();
     if(!ctx)
@@ -359,11 +357,18 @@ unsigned int CryptoOperation::encryptMessage(unsigned char *msg, unsigned int ms
     }
 
     try {
+        session& s = sessions.at(currentSession);
+        s.generateIV();
 
-        if(EVP_EncryptInit(ctx, EVP_aes_128_gcm(), s->get_session_key(), s->get_iv()) != 1)
+        if(EVP_EncryptInit(ctx, AUTH_ENCR, s.session_key, s.iv) != 1)
             throw runtime_error("An error occurred while initializing the context.");
             
-        if(EVP_EncryptUpdate(ctx, NULL, &len, s->get_iv(), constants::IV_LEN) != 1)
+        // AAD: Insert the counter
+        if(EVP_EncryptUpdate(ctx, NULL, &len, s.iv, IV_SIZE) != 1)
+            throw runtime_error("An error occurred while encrypting the message.");
+
+        s.getCounter(bufferCounter);
+        if(EVP_EncryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t)) != 1)
             throw runtime_error("An error occurred while encrypting the message.");
             
         if(EVP_EncryptUpdate(ctx, ciphertext, &len, msg, msg_len) != 1)
@@ -375,23 +380,23 @@ unsigned int CryptoOperation::encryptMessage(unsigned char *msg, unsigned int ms
         ciphr_len += len;
 
         //Get the tag
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, constants::TAG_LEN, tag) != 1)
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, TAG_SIZE, tag) != 1)
             throw runtime_error("An error occurred while getting the tag.");
         
         if(ciphr_len < 0)
             throw runtime_error("An error occurred, negative ciphertext length.");
         
-        if(ciphr_len > UINT_MAX - constants::IV_LEN - constants::TAG_LEN - sizeof(uint16_t))
+        if(ciphr_len > UINT_MAX - IV_SIZE - TAG_SIZE - sizeof(uint16_t))
             throw runtime_error("An error occurred, ciphertext length too big.");
         
-        memcpy(buffer+start, s->get_iv(), constants::IV_LEN);
-        start += constants::IV_LEN;
+        memcpy(buffer+start, s.iv, IV_SIZE);
+        start += IV_SIZE;
         memcpy(buffer+start, bufferCounter, sizeof(uint16_t));
         start += sizeof(uint16_t);
         memcpy(buffer+start, ciphertext, ciphr_len);
         start += ciphr_len;
-        memcpy(buffer+start, tag, constants::TAG_LEN);
-        start += constants::TAG_LEN;
+        memcpy(buffer+start, tag, TAG_SIZE);
+        start += TAG_SIZE;
     } catch(const exception& e) {
         EVP_CIPHER_CTX_free(ctx);
         throw;
@@ -401,9 +406,9 @@ unsigned int CryptoOperation::encryptMessage(unsigned char *msg, unsigned int ms
     return start;
 }
 
-unsigned int CryptoOperation::decryptMessage(unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
-    unsigned char recv_iv[constants::IV_LEN];
-    unsigned char recv_tag[constants::TAG_LEN];
+unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
+    unsigned char recv_iv[IV_SIZE];
+    unsigned char recv_tag[TAG_SIZE];
     unsigned char bufferCounter[sizeof(uint16_t)];
     unsigned char *ciphr_msg;
     unsigned char *tempBuffer;
@@ -414,13 +419,13 @@ unsigned int CryptoOperation::decryptMessage(unsigned char *msg, unsigned int ms
     int pl_len = 0;
 
 
-    if (msg_len < (constants::IV_LEN + constants::TAG_LEN))
+    if (msg_len < (IV_SIZE + TAG_SIZE))
         throw runtime_error("Message length not valid.");
     
-    if(msg_len > constants::MAX_MESSAGE_SIZE)
+    if(msg_len > MAX_MESSAGE_SIZE)
         throw runtime_error("Message too big.");
 
-    ciphr_len = msg_len - constants::IV_LEN - constants::TAG_LEN - sizeof(uint16_t);
+    ciphr_len = msg_len - IV_SIZE - TAG_SIZE - sizeof(uint16_t);
     ciphr_msg = new (nothrow) unsigned char[ciphr_len];
 
     if(!ciphr_msg)
@@ -437,15 +442,20 @@ unsigned int CryptoOperation::decryptMessage(unsigned char *msg, unsigned int ms
     } 
 
     try {
-        memcpy(recv_iv, msg, constants::IV_LEN);
-        memcpy(bufferCounter, msg + constants::IV_LEN, sizeof(uint16_t));
-        memcpy(ciphr_msg, msg + constants::IV_LEN + sizeof(uint16_t), ciphr_len);
-        memcpy(recv_tag, msg + msg_len - constants::TAG_LEN, constants::IV_LEN);
+        memcpy(recv_iv, msg, IV_SIZE);
+        memcpy(bufferCounter, msg + IV_SIZE, sizeof(uint16_t));
+        memcpy(ciphr_msg, msg + IV_SIZE + sizeof(uint16_t), ciphr_len);
+        memcpy(recv_tag, msg + msg_len - TAG_SIZE, TAG_SIZE);
+        session& s = sessions.at(currentSession);
 
-        if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), s->get_session_key(), recv_iv))
+        if(!s.verifyFreshness(bufferCounter)){
+            throw runtime_error("Freshness not confirmed.");
+        }
+
+        if(!EVP_DecryptInit(ctx, AUTH_ENCR, s.session_key, recv_iv))
             throw runtime_error("An error occurred while initializing the context.");
         
-        if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN))
+        if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, IV_SIZE))
             throw runtime_error("An error occurred while getting AAD header.");
         
         if(!EVP_DecryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t)))
@@ -455,7 +465,7 @@ unsigned int CryptoOperation::decryptMessage(unsigned char *msg, unsigned int ms
             throw runtime_error("An error occurred while decrypting the message");
         pl_len = len;
         
-        if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, constants::TAG_LEN, recv_tag))
+        if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, TAG_SIZE, recv_tag))
             throw runtime_error("An error occurred while setting the expected tag.");
         
         ret = EVP_DecryptFinal(ctx, tempBuffer + len, &len);
@@ -482,6 +492,8 @@ unsigned int CryptoOperation::decryptMessage(unsigned char *msg, unsigned int ms
 
     return pl_len;
 }
+
+*/
 
 void CryptoOperation::computeHash(unsigned char *msg, unsigned int msg_size, unsigned char *digest) {
     unsigned int len;

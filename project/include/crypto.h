@@ -43,8 +43,8 @@ class CryptoOperation {
         unsigned int digsign_sign(unsigned char* clear_buf, unsigned int clear_size, unsigned char* output_buffer, EVP_PKEY* prvkey);
 
         // encryption and decryption
-        unsigned int encryptMessage(unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
-        unsigned int decryptMessage(unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
+        unsigned int encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
+        unsigned int decryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
 
         void buildParameters(EVP_PKEY *&dh_params);
         void keyGeneration(EVP_PKEY *&my_prvkey);
