@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <termios.h>
 #include "constants.h"
-#include "connection.h"
 #include "crypto.h"
 #include "color.h"
 
@@ -24,11 +23,13 @@ struct Client {
     EVP_PKEY *prvKeyClient;
     clientConnection *clientConn;
     CryptoOperation *crypto;  
+    connection* conn;
     string username;  
 
     Client() {
         clientConn = new clientConnection();
         crypto = new CryptoOperation();
+        conn = new connection();
     }
 };
 
@@ -521,7 +522,10 @@ void chat(Client clt) {
             memcpy(&(to_send[byte_index]), message.c_str(), message_size);
             byte_index += message_size;
 
-            clt.clientConn->send_message(to_send, dim_send);
+            unsigned char* message_encrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+            int encrypted_size = clt.crypto->encryptMessage(clt.conn, to_send, dim_send, message_encrypted);
+
+            clt.clientConn->send_message(message_encrypted, encrypted_size);
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
@@ -531,6 +535,9 @@ void chat(Client clt) {
                 free(buffer);
                 return;
             } 
+
+            unsigned char* message_decrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+            int decrypted_size = clt.crypto->decryptMessage(clt.conn, buffer, ret, message_decrypted);
 
             int message_size = 0;
             int byte_index = sizeof(char);

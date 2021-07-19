@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <array>
+#include <openssl/rand.h>
 #include <vector>
 #include <netinet/in.h>
 #include <unistd.h>   //close 
@@ -14,6 +15,46 @@
 #include "constants.h"
 
 using namespace std;
+
+struct connection {
+    unsigned char* session_key;
+    unsigned char* iv;
+    uint32_t counter;
+
+    connection() {
+        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+        iv = (unsigned char*)malloc(constants::IV_LEN);
+        counter = 0;
+    }
+
+    unsigned char* getSessionKey() {
+        return session_key;
+    }
+
+    unsigned char* getIV() {
+        return iv;
+    }
+
+    void getCounter(uint32_t *count) {
+        count = &counter;
+    }
+
+    void generateIV() {
+        if(RAND_poll() != 1)
+            throw runtime_error("An error occurred in RAND_poll."); 
+        if(RAND_bytes(iv, constants::IV_LEN) != 1)
+            throw runtime_error("An error occurred in RAND_bytes.");
+        increment(counter);
+    }
+
+     void increment(uint32_t &value){
+        if(value == UINT16_MAX){
+            value = 0;
+        } else {
+            value++;
+        }
+    }
+};
 
 class clientConnection {
 

@@ -1,6 +1,7 @@
 #include "include/crypto.h"
 #include "include/color.h"
 
+
 using namespace std;
 
 //Message Digest for digital signature and hash
@@ -18,13 +19,6 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
         throw runtime_error("An error occurred in RAND_bytes.");
         
     cout << "nonce generated" << endl;
-}
-
-void CryptoOperation::generateIV(unsigned char* iv) {
-    if(RAND_poll() != 1)
-        throw runtime_error("An error occurred in RAND_poll."); 
-    if(RAND_bytes(iv, constants::IV_LEN) != 1)
-        throw runtime_error("An error occurred in RAND_bytes.");
 }
 
 //CERTIFICATES
@@ -333,70 +327,92 @@ bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int sign
     return true;
 }
 
-/*
-unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
+
+unsigned int CryptoOperation::encryptMessage(connection* conn, unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
     unsigned char *ciphertext;
-    unsigned char bufferCounter[sizeof(uint16_t)];
+    uint32_t counter = 0;
     unsigned char tag[constants::TAG_LEN];
+    unsigned char* iv = (unsigned char*)malloc(constants::IV_LEN);
     EVP_CIPHER_CTX *ctx = NULL;
     unsigned int finalSize = 0;
     unsigned int start = 0;
     int len = 0;
     int ciphr_len = 0;
+    int ret = 0;
 
-    finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(uint16_t);
+    finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(uint32_t);
 
     ctx = EVP_CIPHER_CTX_new();
     if(!ctx)
         throw runtime_error("An error occurred while creating the context."); 
     
-    ciphertext = new (nothrow) unsigned char[msg_len + constants::TAG_LEN];
+    ciphertext = new (nothrow) unsigned char[constants::MAX_MESSAGE_SIZE];
 
     if(!ciphertext){
         throw runtime_error("An error occurred initilizing the buffer");
     }
-
     try {
-        session& s = sessions.at(currentSession);
-        s.generateIV();
+        conn->generateIV();
 
-        if(EVP_EncryptInit(ctx, AUTH_ENCR, s.session_key, s.iv) != 1)
+        if(EVP_EncryptInit(ctx, EVP_aes_128_gcm(), conn->getSessionKey(), conn->getIV()) != 1)
             throw runtime_error("An error occurred while initializing the context.");
             
         // AAD: Insert the counter
-        if(EVP_EncryptUpdate(ctx, NULL, &len, s.iv, IV_SIZE) != 1)
-            throw runtime_error("An error occurred while encrypting the message.");
+        // if(EVP_EncryptUpdate(ctx, NULL, &len, conn->getIV(), constants::IV_LEN) != 1)
+        //    throw runtime_error("An error occurred while encrypting the message.");
 
-        s.getCounter(bufferCounter);
-        if(EVP_EncryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t)) != 1)
-            throw runtime_error("An error occurred while encrypting the message.");
+        // cout << MAGENTA << "[DEBUG] cifrato iv in modo corretto " << RESET << endl;
+
+        // conn->getCounter(&counter);
+        // if(EVP_EncryptUpdate(ctx, NULL, &len, (const unsigned char*) counter, sizeof(uint16_t)) != 1)
+        //    throw runtime_error("An error occurred while encrypting the message.");
+
+        // cout << MAGENTA << "[DEBUG] cifrato counter in modo corretto " << RESET << endl;
             
-        if(EVP_EncryptUpdate(ctx, ciphertext, &len, msg, msg_len) != 1)
+        unsigned char* mex = (unsigned char*)malloc(16);
+        for(int i = 0; i < 16; i++) {
+            mex[i] = 'a';
+        }
+
+        ret = EVP_EncryptUpdate(ctx, NULL, &len, mex, 16);
+        if(ret != 1) {
+            cout << MAGENTA << "[DEBUG] len: " << len << RESET << endl;
+            cout << MAGENTA << "[DEBUG] msg_len: " << msg_len << RESET << endl;
+
+            cout << MAGENTA << "[DEBUG] ret: " << ret << RESET << endl;
+
             throw runtime_error("An error occurred while encrypting the message.");
+        }
         ciphr_len = len;
+
+        cout << MAGENTA << "[DEBUG] cifrato messaggio in modo corretto " << RESET << endl;
 
         if(EVP_EncryptFinal(ctx, ciphertext + len, &len) != 1)
             throw runtime_error("An error occurred while finalizing the ciphertext.");
         ciphr_len += len;
 
         //Get the tag
-        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, TAG_SIZE, tag) != 1)
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, constants::TAG_LEN, tag) != 1)
             throw runtime_error("An error occurred while getting the tag.");
         
         if(ciphr_len < 0)
             throw runtime_error("An error occurred, negative ciphertext length.");
         
-        if(ciphr_len > UINT_MAX - IV_SIZE - TAG_SIZE - sizeof(uint16_t))
-            throw runtime_error("An error occurred, ciphertext length too big.");
+        // if(ciphr_len > UINT_MAX - IV_SIZE - TAG_SIZE - sizeof(uint16_t))
+        //    throw runtime_error("An error occurred, ciphertext length too big.");
         
-        memcpy(buffer+start, s.iv, IV_SIZE);
-        start += IV_SIZE;
-        memcpy(buffer+start, bufferCounter, sizeof(uint16_t));
-        start += sizeof(uint16_t);
-        memcpy(buffer+start, ciphertext, ciphr_len);
+        memcpy(buffer+start, &(constants::CHAT), sizeof(char));
+        start += sizeof(char);
+        memcpy(buffer+start, &msg_len, sizeof(int));
+        start += sizeof(int);
+        memcpy(buffer+start, conn->getIV(), constants::IV_LEN);
+        start += constants::IV_LEN;
+        memcpy(buffer+start, &counter, sizeof(uint32_t));
+        start += sizeof(uint32_t);
+        memcpy(buffer+ start, ciphertext, ciphr_len);
         start += ciphr_len;
-        memcpy(buffer+start, tag, TAG_SIZE);
-        start += TAG_SIZE;
+        memcpy(buffer+start, tag, constants::TAG_LEN);
+        start += constants::TAG_LEN;
     } catch(const exception& e) {
         EVP_CIPHER_CTX_free(ctx);
         throw;
@@ -406,32 +422,28 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
     return start;
 }
 
-unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
-    unsigned char recv_iv[IV_SIZE];
-    unsigned char recv_tag[TAG_SIZE];
-    unsigned char bufferCounter[sizeof(uint16_t)];
+unsigned int CryptoOperation::decryptMessage(connection* conn, unsigned char *msg, unsigned int msg_len, unsigned char *buffer) {
+    unsigned char recv_iv[constants::IV_LEN];
+    unsigned char recv_tag[constants::TAG_LEN];
+    const unsigned char* counter = (unsigned char*)malloc(sizeof(uint32_t));
     unsigned char *ciphr_msg;
     unsigned char *tempBuffer;
     EVP_CIPHER_CTX *ctx;
-    unsigned int ciphr_len = 0;
     int ret = 0;
     int len = 0;
     int pl_len = 0;
-
-
-    if (msg_len < (IV_SIZE + TAG_SIZE))
-        throw runtime_error("Message length not valid.");
+    char opCode;
+    int ciphr_len = 0;
     
-    if(msg_len > MAX_MESSAGE_SIZE)
+    if(msg_len > constants::MAX_MESSAGE_SIZE)
         throw runtime_error("Message too big.");
 
-    ciphr_len = msg_len - IV_SIZE - TAG_SIZE - sizeof(uint16_t);
-    ciphr_msg = new (nothrow) unsigned char[ciphr_len];
+    ciphr_msg = new (nothrow) unsigned char[constants::MAX_MESSAGE_SIZE];
 
     if(!ciphr_msg)
         throw runtime_error("An error occurred while allocating the array for the ciphertext.");
 
-    tempBuffer = new (nothrow) unsigned char[ciphr_len];
+    tempBuffer = new (nothrow) unsigned char[constants::MAX_MESSAGE_SIZE];
     if(!tempBuffer)
         throw runtime_error("An error occurred while allocating the temporary array for the ciphertext.");
 
@@ -442,30 +454,34 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     } 
 
     try {
-        memcpy(recv_iv, msg, IV_SIZE);
-        memcpy(bufferCounter, msg + IV_SIZE, sizeof(uint16_t));
-        memcpy(ciphr_msg, msg + IV_SIZE + sizeof(uint16_t), ciphr_len);
-        memcpy(recv_tag, msg + msg_len - TAG_SIZE, TAG_SIZE);
-        session& s = sessions.at(currentSession);
+        memcpy(&opCode, msg, sizeof(char));
+        memcpy(&ciphr_len, msg + sizeof(char), sizeof(int));
+        memcpy(recv_iv, msg + sizeof(char) + sizeof(int), constants::IV_LEN);
+        memcpy(&counter, msg + sizeof(char) + sizeof(int) + constants::IV_LEN, sizeof(uint32_t));
+        memcpy(ciphr_msg, msg  + sizeof(char) + sizeof(int) + constants::IV_LEN + sizeof(uint32_t), ciphr_len);
+        memcpy(recv_tag, msg  + sizeof(char) + sizeof(int) + constants::IV_LEN + sizeof(uint32_t) + ciphr_len, constants::TAG_LEN);
 
-        if(!s.verifyFreshness(bufferCounter)){
-            throw runtime_error("Freshness not confirmed.");
-        }
+        // if(!s.verifyFreshness(bufferCounter)){
+        //    throw runtime_error("Freshness not confirmed.");
+        // }
 
-        if(!EVP_DecryptInit(ctx, AUTH_ENCR, s.session_key, recv_iv))
+        if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), conn->getSessionKey(), recv_iv))
             throw runtime_error("An error occurred while initializing the context.");
         
-        if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, IV_SIZE))
+        if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN))
+            throw runtime_error("An error occurred while getting AAD header.");
+
+        cout << MAGENTA << "primo" << endl;
+
+        if(!EVP_DecryptUpdate(ctx, NULL, &len, counter, sizeof(uint32_t)))
             throw runtime_error("An error occurred while getting AAD header.");
         
-        if(!EVP_DecryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t)))
-            throw runtime_error("An error occurred while getting AAD header.");
-            
+        cout << MAGENTA << "secondo" << RESET << endl;
         if(!EVP_DecryptUpdate(ctx, tempBuffer, &len, ciphr_msg, ciphr_len))
             throw runtime_error("An error occurred while decrypting the message");
         pl_len = len;
         
-        if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, TAG_SIZE, recv_tag))
+        if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, constants::TAG_LEN, recv_tag))
             throw runtime_error("An error occurred while setting the expected tag.");
         
         ret = EVP_DecryptFinal(ctx, tempBuffer + len, &len);
@@ -493,7 +509,7 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     return pl_len;
 }
 
-*/
+
 
 void CryptoOperation::computeHash(unsigned char *msg, unsigned int msg_size, unsigned char *digest) {
     unsigned int len;

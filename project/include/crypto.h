@@ -9,17 +9,15 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include "constants.h"
-#include "session.h"
+#include "connection.h"
 
 using namespace std;
 
 class CryptoOperation {
 
     public:
-        Session* s = new Session();
 
         void generateNonce(unsigned char* nonce);
-        void generateIV(unsigned char* iv);
 
         //CERTIFICATES
         void loadCRL(X509_CRL*& crl);
@@ -43,8 +41,8 @@ class CryptoOperation {
         unsigned int digsign_sign(unsigned char* clear_buf, unsigned int clear_size, unsigned char* output_buffer, EVP_PKEY* prvkey);
 
         // encryption and decryption
-        unsigned int encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
-        unsigned int decryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
+        unsigned int encryptMessage(connection* conn, unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
+        unsigned int decryptMessage(connection* conn, unsigned char *msg, unsigned int msg_len, unsigned char *buffer);
 
         void buildParameters(EVP_PKEY *&dh_params);
         void keyGeneration(EVP_PKEY *&my_prvkey);

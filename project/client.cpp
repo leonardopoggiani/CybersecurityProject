@@ -13,7 +13,6 @@
 #include <openssl/rsa.h>
 #include <termios.h>
 #include "include/client.h"
-#include "include/utils.h"
 
 using namespace std;
 

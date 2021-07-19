@@ -23,10 +23,12 @@ using namespace std;
 struct Server {
     serverConnection *serverConn;
     CryptoOperation *crypto;
+    connection* conn;
 
     Server() {
         serverConn = new serverConnection();
         crypto = new CryptoOperation();
+        conn = new connection();
     }
 };
 
