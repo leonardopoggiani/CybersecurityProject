@@ -634,6 +634,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
 
+        //Chiamata a scambio chiave di sessione tra clients
+
         start_chat(clt, username, username_to_contact);
 
         chat(clt);
