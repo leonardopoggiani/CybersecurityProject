@@ -509,6 +509,8 @@ bool start_chat(Server srv, int sd, unsigned char* buffer) {
 bool chatting(Server srv, int sd, unsigned char* buffer) {
 
     unsigned char* message_received;
+    unsigned char recv_iv[constants::IV_LEN];
+    unsigned char recv_tag[constants::TAG_LEN];
     int message_size = 0;
     int byte_index = 0;
     int sd_to_send = -1;
@@ -530,6 +532,11 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     message_received = (unsigned char*)malloc(message_size);
     memcpy(message_received, &buffer[byte_index], message_size);
     byte_index += message_size;
+
+    memcpy(recv_iv, &buffer[byte_index], constants::IV_LEN);
+    byte_index += constants::IV_LEN;
+    memcpy(recv_tag, &buffer[byte_index], constants::TAG_LEN);
+    byte_index += constants::TAG_LEN;
 
     srv.serverConn->send_message(buffer, sd_to_send, byte_index);
 

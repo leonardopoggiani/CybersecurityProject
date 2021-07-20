@@ -525,16 +525,7 @@ void chat(Client clt) {
             unsigned char* message_encrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
             int encrypted_size = clt.crypto->encryptMessage(clt.conn, to_send, dim_send, message_encrypted);
 
-            cout << "encrypted_size: " << encrypted_size << endl;
-
-            cout << "message_encrypted: " << endl;
-            for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
-                cout << message_encrypted[i];
-            }
-
-            cout << endl;
-
-            clt.clientConn->send_message(message_encrypted, encrypted_size);
+            int ritorno = clt.clientConn->send_message(message_encrypted, encrypted_size);
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
@@ -544,14 +535,6 @@ void chat(Client clt) {
                 free(buffer);
                 return;
             } 
-
-            cout << "size: " << ret << endl;
-            cout << "message: " << endl;
-            for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
-                cout << buffer[i];
-            }
-
-            cout << endl;
 
             unsigned char* message_decrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
             int decrypted_size = clt.crypto->decryptMessage(clt.conn, buffer, ret, message_decrypted);

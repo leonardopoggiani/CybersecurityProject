@@ -340,7 +340,7 @@ unsigned int CryptoOperation::encryptMessage(connection* conn, unsigned char *ms
     int ciphr_len = 0;
     int ret = 0;
 
-    finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(uint32_t);
+    finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN;
 
     ctx = EVP_CIPHER_CTX_new();
     if(!ctx)
@@ -380,16 +380,12 @@ unsigned int CryptoOperation::encryptMessage(connection* conn, unsigned char *ms
         }
         ciphr_len = len;
 
-        cout << MAGENTA << "[DEBUG] len: " << len << RESET << endl;
-
         cout << MAGENTA << "[DEBUG] cifrato messaggio in modo corretto " << RESET << endl;
 
         if(EVP_EncryptFinal(ctx, ciphertext + len, &len) != 1)
             throw runtime_error("An error occurred while finalizing the ciphertext.");
         ciphr_len += len;
 
-        cout << MAGENTA << "[DEBUG] len: " << len << RESET << endl;
-        cout << MAGENTA << "[DEBUG] ciphr_len: " << ciphr_len << RESET << endl;
         //Get the tag
         if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, constants::TAG_LEN, tag) != 1)
             throw runtime_error("An error occurred while getting the tag.");
@@ -402,30 +398,30 @@ unsigned int CryptoOperation::encryptMessage(connection* conn, unsigned char *ms
         
         memcpy(buffer+start, &(constants::CHAT), sizeof(char));
         start += sizeof(char);
+
+        // memcpy(buffer+start, &msg_len, sizeof(int));
+        msg_len = 16;
         memcpy(buffer+start, &msg_len, sizeof(int));
         start += sizeof(int);
-        memcpy(buffer+start, conn->getIV(), constants::IV_LEN);
-        start += constants::IV_LEN;
-        memcpy(buffer+start, &counter, sizeof(uint32_t));
-        start += sizeof(uint32_t);
+
+        int prova = 0;
+        memcpy(&prova, buffer + sizeof(char), sizeof(int));
+
+        // memcpy(buffer+start, &counter, sizeof(uint32_t));
+        // start += sizeof(uint32_t);
         memcpy(buffer+start, ciphertext, ciphr_len);
         start += ciphr_len;
+        memcpy(buffer+start, conn->getIV(), constants::IV_LEN);
+        start += constants::IV_LEN;
         memcpy(buffer+start, tag, constants::TAG_LEN);
         start += constants::TAG_LEN;
 
-        cout << "Buffer: " << endl;
-        for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
-            cout << buffer[i];
-        }
-
-        cout << endl;
     } catch(const exception& e) {
         EVP_CIPHER_CTX_free(ctx);
         throw;
     }
     
     EVP_CIPHER_CTX_free(ctx);
-    cout << MAGENTA << "start: " << start << RESET << endl;
     return start;
 }
 
@@ -463,10 +459,11 @@ unsigned int CryptoOperation::decryptMessage(connection* conn, unsigned char *ms
     try {
         memcpy(&opCode, msg, sizeof(char));
         memcpy(&ciphr_len, msg + sizeof(char), sizeof(int));
-        memcpy(recv_iv, msg + sizeof(char) + sizeof(int), constants::IV_LEN);
-        memcpy(&counter, msg + sizeof(char) + sizeof(int) + constants::IV_LEN, sizeof(uint32_t));
-        memcpy(ciphr_msg, msg  + sizeof(char) + sizeof(int) + constants::IV_LEN + sizeof(uint32_t), ciphr_len);
-        memcpy(recv_tag, msg  + sizeof(char) + sizeof(int) + constants::IV_LEN + sizeof(uint32_t) + ciphr_len, constants::TAG_LEN);
+        memcpy(ciphr_msg, msg  + sizeof(char) + sizeof(int), ciphr_len);
+
+        memcpy(recv_iv, msg + sizeof(char) + sizeof(int) + ciphr_len, constants::IV_LEN);
+        // memcpy(&counter, msg + sizeof(char) + sizeof(int) + constants::IV_LEN, sizeof(uint32_t));
+        memcpy(recv_tag, msg  + sizeof(char) + sizeof(int) + ciphr_len + constants::IV_LEN, constants::TAG_LEN);
 
         // if(!s.verifyFreshness(bufferCounter)){
         //    throw runtime_error("Freshness not confirmed.");
@@ -484,17 +481,17 @@ unsigned int CryptoOperation::decryptMessage(connection* conn, unsigned char *ms
         if(!EVP_DecryptUpdate(ctx, tempBuffer, &len, ciphr_msg, ciphr_len))
             throw runtime_error("An error occurred while decrypting the message");
         pl_len = len;
-        
+
+        cout << "ciphr_len: " << ciphr_len << endl;
+        for(int i = 0; i < ciphr_len; i++) {
+            cout << ciphr_msg[i];
+        }
+        cout << endl;
+
         if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, constants::TAG_LEN, recv_tag))
             throw runtime_error("An error occurred while setting the expected tag.");
         
-        ret = EVP_DecryptFinal(ctx, tempBuffer + len, &len);
-
-        cout << MAGENTA << "ret: " << ret << RESET << endl;
-        cout << MAGENTA << "len: " << len << RESET << endl;
-        cout << MAGENTA << "ciphr_len: " << ciphr_len << RESET << endl;
-
-
+        ret = EVP_DecryptFinal(ctx, tempBuffer + pl_len, &len);
 
         memcpy(buffer, tempBuffer, pl_len);
     } catch(const exception& e) {

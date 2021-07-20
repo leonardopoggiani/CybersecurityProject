@@ -13,6 +13,7 @@
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
 #include <errno.h>
 #include "constants.h"
+#include "color.h"
 
 using namespace std;
 
@@ -189,7 +190,7 @@ class clientConnection {
             return message_len;
         }
 
-        void send_message(string message) {
+        int send_message(string message) {
             int ret;
 
             if (message.length() > constants::MAX_MESSAGE_SIZE) {
@@ -203,12 +204,13 @@ class clientConnection {
                     throw runtime_error("Send failed");
                 } else if (ret == 0) {
                     cout << "client connection closed" << endl;
-                    return;
+                    return -1;
                 } 
             } while (ret != (int) message.length());
+            return ret;
         }
 
-        void send_message(vector<unsigned char> message) {
+        int send_message(vector<unsigned char> message) {
             int ret;
 
             if (message.size() > constants::MAX_MESSAGE_SIZE) {
@@ -222,12 +224,14 @@ class clientConnection {
                     throw runtime_error("Send failed");
                 } else if (ret == 0) {
                     cout << "client connection closed" << endl;
-                    return;
+                    return -1;
                 } 
             } while (ret != (int) message.size());
+
+            return ret;
         }
 
-        void send_message(unsigned char* message, int dim) {
+        int send_message(unsigned char* message, int dim) {
             int ret = 0;
             
             do {
@@ -237,9 +241,11 @@ class clientConnection {
                     throw runtime_error("Send failed");
                 } else if (ret == 0) {
                     cout << "client connection closed" << endl;
-                    return;
+                    return -1;
                 } 
             } while (ret != dim);
+
+            return ret;
 
         }
 
@@ -442,7 +448,7 @@ class serverConnection : public clientConnection {
             cout << endl;
         }
 
-        void send_message(vector<unsigned char> message, int sd) {
+        int send_message(vector<unsigned char> message, int sd) {
             int ret;
 
             if (message.size() > constants::MAX_MESSAGE_SIZE) {
@@ -456,14 +462,14 @@ class serverConnection : public clientConnection {
                     throw runtime_error("Send failed");
                 } else if (ret == 0) {
                     cout << "client connection closed" << endl;
-                    return;
+                    return -1;
                 }  
             } while (ret != (int) message.size());
 
-            cout << "send riuscita: " << message.size() << endl;
+            return ret;
         }
 
-        void send_message(string message, int sd) {
+        int send_message(string message, int sd) {
             int ret;
 
             if (message.length() > constants::MAX_MESSAGE_SIZE) {
@@ -477,12 +483,14 @@ class serverConnection : public clientConnection {
                     throw runtime_error("Send failed");
                 } else if (ret == 0) {
                     cout << "client connection closed" << endl;
-                    return;
+                    return -1;
                 } 
             } while (ret != (int) message.length());
+
+            return ret;
         }
 
-        void send_message(unsigned char* message, int sd, int dim) {
+        int send_message(unsigned char* message, int sd, int dim) {
             int ret;
             
             do {
@@ -492,9 +500,11 @@ class serverConnection : public clientConnection {
                     throw runtime_error("Send failed");
                 }  else if (ret == 0) {
                     cout << "client connection closed" << endl;
-                    return;
+                    return -1;
                 } 
             } while (ret != dim);
+
+            return ret;
 
         }
 
