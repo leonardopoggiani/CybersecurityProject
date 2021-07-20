@@ -525,6 +525,15 @@ void chat(Client clt) {
             unsigned char* message_encrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
             int encrypted_size = clt.crypto->encryptMessage(clt.conn, to_send, dim_send, message_encrypted);
 
+            cout << "encrypted_size: " << encrypted_size << endl;
+
+            cout << "message_encrypted: " << endl;
+            for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
+                cout << message_encrypted[i];
+            }
+
+            cout << endl;
+
             clt.clientConn->send_message(message_encrypted, encrypted_size);
         }
 
@@ -536,8 +545,25 @@ void chat(Client clt) {
                 return;
             } 
 
+            cout << "size: " << ret << endl;
+            cout << "message: " << endl;
+            for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
+                cout << buffer[i];
+            }
+
+            cout << endl;
+
             unsigned char* message_decrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
             int decrypted_size = clt.crypto->decryptMessage(clt.conn, buffer, ret, message_decrypted);
+
+            cout << "decrypted_size: " << decrypted_size << endl;
+
+            cout << "message_decrypted: " << endl;
+            for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
+                cout << message_decrypted[i];
+            }
+
+            cout << endl;
 
             int message_size = 0;
             int byte_index = sizeof(char);
@@ -593,6 +619,9 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     clt.clientConn->send_message(message, dim);
 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
+
+    cout << "** waiting for response ** " << endl;
+
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), response);
     if (ret == 0) {
         cout << RED << "client connection closed" << RESET << endl;
@@ -611,7 +640,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         cout << "------------------" << endl;
     } else {
-        cout << RED << "we're sorry :(" << RESET << endl;
+        cout << RED << "we're sorry, your request was rejected :'(" << RESET << endl;
     }
 
     free(response);

@@ -376,14 +376,11 @@ unsigned int CryptoOperation::encryptMessage(connection* conn, unsigned char *ms
 
         ret = EVP_EncryptUpdate(ctx, NULL, &len, mex, 16);
         if(ret != 1) {
-            cout << MAGENTA << "[DEBUG] len: " << len << RESET << endl;
-            cout << MAGENTA << "[DEBUG] msg_len: " << msg_len << RESET << endl;
-
-            cout << MAGENTA << "[DEBUG] ret: " << ret << RESET << endl;
-
             throw runtime_error("An error occurred while encrypting the message.");
         }
         ciphr_len = len;
+
+        cout << MAGENTA << "[DEBUG] len: " << len << RESET << endl;
 
         cout << MAGENTA << "[DEBUG] cifrato messaggio in modo corretto " << RESET << endl;
 
@@ -391,6 +388,8 @@ unsigned int CryptoOperation::encryptMessage(connection* conn, unsigned char *ms
             throw runtime_error("An error occurred while finalizing the ciphertext.");
         ciphr_len += len;
 
+        cout << MAGENTA << "[DEBUG] len: " << len << RESET << endl;
+        cout << MAGENTA << "[DEBUG] ciphr_len: " << ciphr_len << RESET << endl;
         //Get the tag
         if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, constants::TAG_LEN, tag) != 1)
             throw runtime_error("An error occurred while getting the tag.");
@@ -409,16 +408,24 @@ unsigned int CryptoOperation::encryptMessage(connection* conn, unsigned char *ms
         start += constants::IV_LEN;
         memcpy(buffer+start, &counter, sizeof(uint32_t));
         start += sizeof(uint32_t);
-        memcpy(buffer+ start, ciphertext, ciphr_len);
+        memcpy(buffer+start, ciphertext, ciphr_len);
         start += ciphr_len;
         memcpy(buffer+start, tag, constants::TAG_LEN);
         start += constants::TAG_LEN;
+
+        cout << "Buffer: " << endl;
+        for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
+            cout << buffer[i];
+        }
+
+        cout << endl;
     } catch(const exception& e) {
         EVP_CIPHER_CTX_free(ctx);
         throw;
     }
     
     EVP_CIPHER_CTX_free(ctx);
+    cout << MAGENTA << "start: " << start << RESET << endl;
     return start;
 }
 
@@ -468,15 +475,12 @@ unsigned int CryptoOperation::decryptMessage(connection* conn, unsigned char *ms
         if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), conn->getSessionKey(), recv_iv))
             throw runtime_error("An error occurred while initializing the context.");
         
-        if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN))
-            throw runtime_error("An error occurred while getting AAD header.");
+        // if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN))
+        //     throw runtime_error("An error occurred while getting AAD header.");
 
-        cout << MAGENTA << "primo" << endl;
-
-        if(!EVP_DecryptUpdate(ctx, NULL, &len, counter, sizeof(uint32_t)))
-            throw runtime_error("An error occurred while getting AAD header.");
+        // if(!EVP_DecryptUpdate(ctx, NULL, &len, counter, sizeof(uint32_t)))
+        //     throw runtime_error("An error occurred while getting AAD header.");
         
-        cout << MAGENTA << "secondo" << RESET << endl;
         if(!EVP_DecryptUpdate(ctx, tempBuffer, &len, ciphr_msg, ciphr_len))
             throw runtime_error("An error occurred while decrypting the message");
         pl_len = len;
@@ -485,6 +489,12 @@ unsigned int CryptoOperation::decryptMessage(connection* conn, unsigned char *ms
             throw runtime_error("An error occurred while setting the expected tag.");
         
         ret = EVP_DecryptFinal(ctx, tempBuffer + len, &len);
+
+        cout << MAGENTA << "ret: " << ret << RESET << endl;
+        cout << MAGENTA << "len: " << len << RESET << endl;
+        cout << MAGENTA << "ciphr_len: " << ciphr_len << RESET << endl;
+
+
 
         memcpy(buffer, tempBuffer, pl_len);
     } catch(const exception& e) {
@@ -503,8 +513,8 @@ unsigned int CryptoOperation::decryptMessage(connection* conn, unsigned char *ms
     } else
         throw runtime_error("An error occurred while decrypting the message.");
     
-    if (pl_len < 0 || pl_len > UINT_MAX) 
-        throw runtime_error("An error occurred while decrypting the message.");
+    // if (pl_len < 0 || pl_len > UINT_MAX) 
+    //    throw runtime_error("An error occurred while decrypting the message.");
 
     return pl_len;
 }
