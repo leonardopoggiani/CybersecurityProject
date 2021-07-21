@@ -531,6 +531,16 @@ class serverConnection : public clientConnection {
 
             return -1;
         }
+
+        string findUserFromSd(int sd_to_search) {
+            for(user c : users_logged_in) {
+                if(c.sd == sd_to_search) {
+                    return c.username;
+                }
+            }
+
+            return NULL;
+        }
 };
 
 
