@@ -79,7 +79,7 @@ int main(int argc, char* const argv[]) {
                 cout << RED << "**client disconnected**" << RESET << endl;
             }
             
-            if(buffer[0] == constants::FORWARD) {
+            if(buffer[0] == constants::REQUEST) {
                 cout << GREEN << "\n**Received request to talk**" << RESET << endl;
                 if(receiveRequestToTalk(clt, buffer)){
                     cout << "---------------------------------------" << endl;
