@@ -405,6 +405,8 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     // Messaggio con chiave pubblica DH
     if(response == 'y') {
         cout << GREEN << "ok so i'll start the chat" << RESET << endl;
+
+
         clt.crypto->keyGeneration(keyDH);
         keyBufferDHLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer.data());
         dim = sizeof(char) + sizeof(int) + keyBufferDHLen;
@@ -603,7 +605,17 @@ void chat(Client clt) {
 }
 
 void sendRequestToTalk(Client clt, string username_to_contact, string username) {
-    int byte_index = 0;    
+    int byte_index = 0;  
+    int peerPubKeyLen = 0;
+    int peerKeyDHLen = 0;
+    unsigned char* peerKeyDHBuffer;
+    unsigned char* peerPubKeyBuffer;  
+    EVP_PKEY *peerKeyDH = NULL;
+    EVP_PKEY *peerPubKey = NULL;
+     EVP_PKEY *sessionDHKey = NULL;
+    EVP_PKEY *keyDH = NULL;
+    unsigned char* keyDHBuffer;
+    int keyDHBufferLen = 0;
 
     int dim = sizeof(char) + sizeof(int) + username_to_contact.size();
     //int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
@@ -646,8 +658,85 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
 
-        //Chiamata a scambio chiave di sessione tra clients
+        
 
+
+        //clt.clientConn->chat->peer_username = (unsigned char*)username_to_contact.c_str();
+
+        byte_index = 0;
+
+        byte_index+= sizeof(char);
+
+        memcpy(&(peerKeyDHLen), &response[byte_index], sizeof(int));
+        byte_index += sizeof(int);
+
+        peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
+        if(!peerKeyDHBuffer) {
+            throw runtime_error("malloc failed");
+        }
+
+        memcpy(peerKeyDHBuffer, &response[byte_index], peerKeyDHLen);
+        byte_index += peerKeyDHLen;
+
+        clt.crypto->deserializePublicKey(peerKeyDHBuffer, peerKeyDHLen, peerKeyDH);
+
+        memcpy(&(peerPubKeyLen), &response[byte_index], sizeof(int));
+        byte_index += sizeof(int);
+
+        peerPubKeyBuffer = (unsigned char*)malloc(peerPubKeyLen);
+        if(!peerPubKeyBuffer) {
+            throw runtime_error("malloc failed");
+        }
+
+        memcpy(peerPubKeyBuffer, &response[byte_index], peerPubKeyLen);
+        byte_index += peerPubKeyLen;
+
+        clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->chat->peerPubKey);
+
+
+        //Costruire chiave di sessione prvDH
+
+        cout << GREEN << "*** Generating session key ***" << RESET << endl;
+
+        array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+        clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
+        //Perchè così serializzata?!
+        clt.clientConn->chat->session_key = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
+        if(!clt.clientConn->chat->session_key) {
+            throw runtime_error("malloc failed");
+        }
+        memcpy(clt.clientConn->chat->session_key, tempBuffer.data(), tempBuffer.size());
+
+        cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
+
+        //Costruire e inviare mia chiave DH
+
+        //opcode | keyDHlen | keyDH
+
+        clt.crypto->keyGeneration(keyDH);
+        keyDHBufferLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer);
+        dim = sizeof(char) + sizeof(int) + keyDHBufferLen;
+        free(message);
+        
+        message = (unsigned char*)malloc(dim); 
+        if(message == NULL) {
+            throw runtime_error("Malloc error");
+        }
+        byte_index = 0;
+        memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
+        byte_index += sizeof(char);
+
+        memcpy(&(message[byte_index]), &keyDHBufferLen, sizeof(int));
+        byte_index += sizeof(int);
+
+        memcpy(&(message[byte_index]), keyDHBuffer, keyDHBufferLen);
+        byte_index += keyDHBufferLen;
+
+
+        //Inviare messaggio
+
+
+        //Quando abbiamo finito togliere start_chat, per ora lo lascio per le prove
         start_chat(clt, username, username_to_contact);
 
         chat(clt);

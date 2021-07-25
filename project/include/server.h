@@ -441,7 +441,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     if(opCode == constants::ACCEPTED)
     {   
 
-    //Controllo sull'opcode se quello giusto o errore
+  
     //Recuperare chiave pubblica utente della risposta
 
     std::stringstream filename_stream;
@@ -481,7 +481,13 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     byte_index+= keyDHBufferLen;
 
     dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
-    //free(response);
+    
+    free(message);
+
+    byte_index = 0;
+    message = (unsigned char*)malloc(dim);
+
+    //RICOSTRUIRE IL MESSAGGIO PERCHE' da segmentation fault
 
 
 
