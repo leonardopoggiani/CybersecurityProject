@@ -357,6 +357,8 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     EVP_PKEY *keyDH = NULL;
     EVP_PKEY *peerKeyDH = NULL;
     EVP_PKEY *peerPubKey = NULL;
+    array<unsigned char, MAX_MESSAGE_SIZE> keyDHBuffer;
+
     string input;
     bool verify = false;
 
@@ -364,6 +366,8 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     unsigned char* username;
     unsigned int username_size = 0;
     unsigned char response = 'n';
+    int dim = 0;
+    unsigned char* response_to_request;
 
     byte_index += sizeof(char);
 
@@ -398,24 +402,44 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     cin >> response;
     cin.ignore();
 
+    // Messaggio con chiave pubblica DH
     if(response == 'y') {
         cout << GREEN << "ok so i'll start the chat" << RESET << endl;
-        // Messaggio con chiave pubblica DH
-    } else {
+        clt.crypto->keyGeneration(keyDH);
+        keyBufferDHLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer.data());
+        dim = sizeof(char) + sizeof(int) + keyBufferDHLen;
+        response_to_request = (unsigned char*)malloc(dim); 
+        if(response_to_request == NULL) {
+            throw runtime_error("Malloc error");
+        }
+        byte_index = 0;
+        memcpy(&(response_to_request[byte_index]), &constants::ACCEPTED, sizeof(char));
+        byte_index += sizeof(char);
+
+        memcpy(&(response_to_request[byte_index]), &keyBufferDHLen, sizeof(int));
+        byte_index += sizeof(int);
+
+        memcpy(&(response_to_request[byte_index]), keyDHBuffer.data(), keyBufferDHLen);
+        byte_index += keyBufferDHLen;
+
+    cout << "***********************************" << endl;
+        
+    } 
+    else {
         cout << RED << ":(" << RESET << endl;
-        //Messaggio con errore
-    }
-
-    int dim = sizeof(char);
-    byte_index = 0;
-
-    unsigned char* response_to_request = (unsigned char*)malloc(dim);  
-    if(response_to_request == NULL) {
-        throw runtime_error("Malloc error");
+        dim = sizeof(char);
+        response_to_request = (unsigned char*)malloc(dim); 
+        if(response_to_request == NULL) {
+            throw runtime_error("Malloc error");
+        }
+        byte_index = 0;
+        memcpy(&(response_to_request[byte_index]), &constants::REFUSED, sizeof(char));
+        byte_index += sizeof(char);
     }  
-    
-    memcpy(response_to_request, &response, sizeof(char));
-    byte_index += sizeof(char);
+        //Messaggio con errore
+        
+    /*memcpy(response_to_request, &response, sizeof(char));
+    byte_index += sizeof(char);*/
 
     clt.clientConn->send_message(response_to_request, dim);
 
@@ -617,7 +641,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
     //Cambiare controllo con l'opcode corretto
     
-    if(response[0] == 'y') {
+    if(response[0] == constants::ACCEPTED) {
         cout << GREEN << "request accepted, starting the chat" << RESET << endl;
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;

@@ -46,6 +46,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     EVP_PKEY *pubKeyDHClient = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
 
+
     int byte_index = 0;    
     char opCode;
     unsigned char* username;
@@ -332,6 +333,10 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     char opCode;
     int username_to_talk_to_size = 0;
     int username_size = 0;
+    array<unsigned char, MAX_MESSAGE_SIZE> pubKeyClientBuffer;
+    array<unsigned char, MAX_MESSAGE_SIZE> keyClientDHBuffer;
+    int pubKeyBufferLen = 0;
+    int keyDHBufferLen = 0;
     vector<user> users_logged_in = srv.serverConn->getUsersList();
 
     memcpy(&opCode, &(buffer[byte_index]), sizeof(char));
@@ -404,7 +409,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     int dim = sizeof(char) + sizeof(int) + username_size;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
-    memcpy(&(message[byte_index]), &constants::FORWARD, sizeof(char));
+    memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
     byte_index += sizeof(char);
 
     memcpy(&(message[byte_index]), &username_size, sizeof(int));
@@ -428,6 +433,13 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
         cout << RED <<"**client disconnected**" << RESET << endl;
         return false;
     }
+
+    byte_index = 0;
+    memcpy(&opCode, &(response[byte_index]), sizeof(char));
+    byte_index += sizeof(char);
+
+    if(opCode == constants::ACCEPTED)
+    {   
 
     //Controllo sull'opcode se quello giusto o errore
     //Recuperare chiave pubblica utente della risposta
@@ -459,7 +471,31 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
         throw runtime_error("An error occurred while reading the public key.");
     }
 
-    //Accodare chiave pubblica client B al messaggio
+    //Serializzare chiave pubblica
+    pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
+    //Cambiare dim
+    memcpy(&keyDHBufferLen, &(response[byte_index]), sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&keyClientDHBuffer, &(response[byte_index]), keyDHBufferLen);
+    byte_index+= keyDHBufferLen;
+
+    dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
+    //free(response);
+
+
+
+    memcpy(&(response[byte_index]), &pubKeyBufferLen, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(response[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
+    byte_index += pubKeyBufferLen;
+
+
+
+    }
+
+  
 
     srv.serverConn->send_message(response, sd, dim);
 
