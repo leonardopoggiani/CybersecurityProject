@@ -400,8 +400,10 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
 
     if(response == 'y') {
         cout << GREEN << "ok so i'll start the chat" << RESET << endl;
+        // Messaggio con chiave pubblica DH
     } else {
         cout << RED << ":(" << RESET << endl;
+        //Messaggio con errore
     }
 
     int dim = sizeof(char);
@@ -579,7 +581,8 @@ void chat(Client clt) {
 void sendRequestToTalk(Client clt, string username_to_contact, string username) {
     int byte_index = 0;    
 
-    int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
+    int dim = sizeof(char) + sizeof(int) + username_to_contact.size();
+    //int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
     unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
@@ -592,12 +595,12 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     memcpy(&(message[byte_index]), username_to_contact.c_str(), username_to_contact.size());
     byte_index += username_to_contact.size();
 
-    int username_size = username.size();
+    /*int username_size = username.size();
     memcpy(&(message[byte_index]), &username_size, sizeof(int));
     byte_index += sizeof(int);
 
     memcpy(&(message[byte_index]), username.c_str(), username.size());
-    byte_index += username.size();
+    byte_index += username.size();*/
 
     clt.clientConn->send_message(message, dim);
 
@@ -612,6 +615,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         return;
     } 
 
+    //Cambiare controllo con l'opcode corretto
+    
     if(response[0] == 'y') {
         cout << GREEN << "request accepted, starting the chat" << RESET << endl;
         cout << "---------------------------------------" << endl;
