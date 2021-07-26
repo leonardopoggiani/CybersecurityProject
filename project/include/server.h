@@ -274,7 +274,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     srv.crypto->secretDerivation(prvKeyDHServer, pubKeyDHClient, tempBuffer.data());
 
     vector<user> userList = srv.serverConn->getUsersList();
-    for( auto us : userList) {
+    for(auto us : userList) {
         if(us.sd == sd) {
             us.session_key = (unsigned char*)malloc(tempBuffer.size());
             us.session_key = tempBuffer.data();
