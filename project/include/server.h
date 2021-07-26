@@ -46,6 +46,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     EVP_PKEY *pubKeyDHClient = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
 
+
     int byte_index = 0;    
     char opCode;
     unsigned char* username;
@@ -94,8 +95,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     if(!file)
         throw runtime_error("An error occurred, the file doesn't exist.");
 
-    EVP_PKEY *pubkey_server = PEM_read_PUBKEY(file, NULL, NULL, NULL);
-    if(!pubkey_server){
+    EVP_PKEY *pubkey_client = PEM_read_PUBKEY(file, NULL, NULL, NULL);
+    if(!pubkey_client){
         fclose(file);
         throw runtime_error("An error occurred while reading the public key.");
     }
@@ -115,7 +116,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(sign, &buffer[byte_index], sign_size);
     byte_index += sign_size;
     
-    unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey_server);
+    unsigned int verify = srv.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubkey_client);
     if(verify < 0) {
         cerr << "establishSession: invalid signature!";
         return false;
@@ -223,7 +224,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     byte_index += signature_size;
 
     // verificare firma con chieve pubblica del client
-    verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_server);
+    verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_client);
     if(verify < 0){
         cerr << "establishSession: invalid signature!"; 
         return false;
@@ -332,6 +333,10 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     char opCode;
     int username_to_talk_to_size = 0;
     int username_size = 0;
+    array<unsigned char, MAX_MESSAGE_SIZE> pubKeyClientBuffer;
+    array<unsigned char, MAX_MESSAGE_SIZE> keyClientDHBuffer;
+    int pubKeyBufferLen = 0;
+    int keyDHBufferLen = 0;
     vector<user> users_logged_in = srv.serverConn->getUsersList();
 
     memcpy(&opCode, &(buffer[byte_index]), sizeof(char));
@@ -345,14 +350,17 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     memcpy(username_to_talk_to, &(buffer[byte_index]), username_to_talk_to_size);
     byte_index += username_to_talk_to_size;
 
-    memcpy(&username_size, &(buffer[byte_index]), sizeof(int));
+    /*memcpy(&username_size, &(buffer[byte_index]), sizeof(int));
     byte_index += sizeof(int);
 
     unsigned char* username = (unsigned char*)malloc(username_size);
 
     memcpy(username, &(buffer[byte_index]), username_size);
-    byte_index += username_size;
-
+    byte_index += username_size;*/
+    string usernameS = srv.serverConn->findUserFromSd(sd);
+    username_size = usernameS.size();
+    unsigned char* username = (unsigned char*)malloc(username_size);
+    memcpy(username, (unsigned char*)usernameS.c_str(), username_size);
     cout << CYAN << "so ";
     for(int i = 0; i < username_size; i++){
         cout << username[i];
@@ -401,7 +409,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     int dim = sizeof(char) + sizeof(int) + username_size;
     unsigned char* message = (unsigned char*)malloc(dim);  
 
-    memcpy(&(message[byte_index]), &constants::FORWARD, sizeof(char));
+    memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
     byte_index += sizeof(char);
 
     memcpy(&(message[byte_index]), &username_size, sizeof(int));
@@ -425,6 +433,75 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
         cout << RED <<"**client disconnected**" << RESET << endl;
         return false;
     }
+
+    byte_index = 0;
+    memcpy(&opCode, &(response[byte_index]), sizeof(char));
+    byte_index += sizeof(char);
+
+    if(opCode == constants::ACCEPTED)
+    {   
+
+  
+    //Recuperare chiave pubblica utente della risposta
+
+    std::stringstream filename_stream;
+    std::stringstream username_string;
+
+    for(int i = 0; i < username_to_talk_to_size; i++) {
+        filename_stream << username_to_talk_to[i];
+        username_string << username_to_talk_to[i];
+    }
+
+    cout << endl;
+
+    filename_stream << "_pubkey.pem";
+
+    string filename = filename_stream.str();
+
+    string filename_dir = "keys/public/" + filename;
+        
+    FILE* file;
+    file = fopen(filename_dir.c_str(), "r");
+    if(!file)
+        throw runtime_error("An error occurred, the file doesn't exist.");
+
+    EVP_PKEY *pubkey_client_B = PEM_read_PUBKEY(file, NULL, NULL, NULL);
+    if(!pubkey_client_B){
+        fclose(file);
+        throw runtime_error("An error occurred while reading the public key.");
+    }
+
+    //Serializzare chiave pubblica
+    pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
+    //Cambiare dim
+    memcpy(&keyDHBufferLen, &(response[byte_index]), sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&keyClientDHBuffer, &(response[byte_index]), keyDHBufferLen);
+    byte_index+= keyDHBufferLen;
+
+    dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
+    
+    free(message);
+
+    byte_index = 0;
+    message = (unsigned char*)malloc(dim);
+
+    //RICOSTRUIRE IL MESSAGGIO PERCHE' da segmentation fault
+
+
+
+    memcpy(&(response[byte_index]), &pubKeyBufferLen, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(response[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
+    byte_index += pubKeyBufferLen;
+
+
+
+    }
+
+  
 
     srv.serverConn->send_message(response, sd, dim);
 

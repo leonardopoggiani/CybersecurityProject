@@ -18,8 +18,9 @@ namespace constants
     constexpr char REQUEST = '3';
     constexpr char CHAT = '4';
     constexpr char LOGOUT = '5';
-    constexpr char FORWARD = '6';
+    constexpr char ACCEPTED = '6';
     constexpr char START_CHAT = '7';
+    constexpr char REFUSED = '9';
 
 }
 #endif

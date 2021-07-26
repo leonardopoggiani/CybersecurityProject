@@ -57,6 +57,21 @@ struct connection {
     }
 };
 
+struct userChatClient {
+    unsigned char* peer_username;
+    int peer_sd;
+    unsigned char* session_key;
+    EVP_PKEY *peerPubKey;
+    
+
+    userChatClient(unsigned char* us2, int s2) {
+        peer_username = us2;
+        peer_sd = s2;
+        session_key = NULL;
+        peerPubKey = NULL;
+    }
+};
+
 class clientConnection {
 
     protected:
@@ -65,8 +80,11 @@ class clientConnection {
         int port;
         unsigned char* talking_to;
         unsigned char* session_key;
+        
 
     public:
+
+        userChatClient* chat;
 
         clientConnection(){
             port = 8080;
@@ -291,6 +309,8 @@ struct userChat {
         sd_2 = s2;
     }
 };
+
+
 
 class serverConnection : public clientConnection {
 
@@ -530,6 +550,16 @@ class serverConnection : public clientConnection {
             }
 
             return -1;
+        }
+
+        string findUserFromSd(int sd_to_search) {
+            for(user c : users_logged_in) {
+                if(c.sd == sd_to_search) {
+                    return c.username;
+                }
+            }
+
+            return NULL;
         }
 };
 
