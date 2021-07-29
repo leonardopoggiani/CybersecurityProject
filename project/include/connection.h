@@ -25,6 +25,7 @@ class clientConnection {
         unsigned char* talking_to;
         unsigned char* iv;
         unsigned char* session_key;
+        
 
 
     public:
@@ -277,6 +278,8 @@ struct userChat {
         sd_2 = s2;
     }
 };
+
+
 
 class serverConnection : public clientConnection {
 
@@ -566,6 +569,16 @@ class serverConnection : public clientConnection {
                     BIO_dump_fp(stdout, (const char*)user.session_key, EVP_MD_size(EVP_sha256()));
                 }
             }
+        }
+
+        string findUserFromSd(int sd_to_search) {
+            for(user c : users_logged_in) {
+                if(c.sd == sd_to_search) {
+                    return c.username;
+                }
+            }
+
+            return NULL;
         }
 };
 
