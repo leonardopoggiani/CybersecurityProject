@@ -21,16 +21,9 @@ using namespace constants;
 
 struct Client {
     EVP_PKEY *prvKeyClient;
-    clientConnection *clientConn;
-    CryptoOperation *crypto;  
-    connection* conn;
+    clientConnection *clientConn = new clientConnection();
+    CryptoOperation *crypto = new CryptoOperation();
     string username;  
-
-    Client() {
-        clientConn = new clientConnection();
-        crypto = new CryptoOperation();
-        conn = new connection();
-    }
 };
 
 string readMessage() {
@@ -386,7 +379,6 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
         cout << RED << "You're trying to speak with yourself, insert a valid username" << RESET << endl;
         return false;
     }
-
    
     cout << "Do you want to talk with ";
     for(unsigned int i = 0; i < username_size; i++) {
@@ -427,7 +419,7 @@ void start_chat(Client clt, string username, string username_to_contact) {
     int dim = username.size() + username_to_contact.size() + sizeof(char) + sizeof(int) + sizeof(int);
 
     unsigned char* buffer = (unsigned char*)malloc(dim);
-    int byte_index = 0;    
+    int byte_index = 0;   
 
     memcpy(&(buffer[byte_index]), &constants::START_CHAT, sizeof(char));
     byte_index += sizeof(char);
@@ -522,10 +514,8 @@ void chat(Client clt) {
             memcpy(&(to_send[byte_index]), message.c_str(), message_size);
             byte_index += message_size;
 
-            unsigned char* message_encrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-            int encrypted_size = clt.crypto->encryptMessage(clt.conn, to_send, dim_send, message_encrypted);
+            clt.clientConn->send_message(to_send, message_size);
 
-            int ritorno = clt.clientConn->send_message(message_encrypted, encrypted_size);
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
@@ -536,10 +526,17 @@ void chat(Client clt) {
                 return;
             } 
 
-            unsigned char* message_decrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-            int decrypted_size = clt.crypto->decryptMessage(clt.conn, buffer, ret, message_decrypted);
+            cout << "message_size: " << ret << endl;
 
-            cout << "decrypted_size: " << decrypted_size << endl;
+            int size_received = 0;
+            memcpy(&size_received, buffer + sizeof(char), sizeof(int));
+
+            cout << "encrypted_size: " << size_received << endl;
+
+            unsigned char* message_decrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+            //int decrypted_size = clt.crypto->decryptMessage2(clt.conn, buffer, size_received, message_decrypted);
+
+            //cout << "decrypted_size: " << decrypted_size << endl;
 
             cout << "message_decrypted: " << endl;
             for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
@@ -629,7 +626,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     free(response);
 }
 
-
 void logout(Client clt) {
     cout << RED << "--- LOGOUT ---" << RESET << endl;
     int byte_index = 0;    
@@ -642,7 +638,69 @@ void logout(Client clt) {
     clt.clientConn->send_message(message, dim);
 }
 
-void seeOnlineUsers(Client clt){
+int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
+    int ret = 0;
+
+    printf("sending encrypted is:\n");
+    BIO_dump_fp(stdout, (const char*)message, dim);
+
+    printf("key is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getSessionKey(), 16);
+
+    clt.clientConn->generateIV();
+
+    printf("iv is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getIV(), constants::IV_LEN);
+
+    int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, dim, encrypted);
+
+    printf("encrypted send is:\n");
+    BIO_dump_fp(stdout, (const char*)encrypted.data(), encrypted_size);
+
+    do {
+        ret = send(masterFD, encrypted.data(), encrypted_size, 0);
+        if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+            perror("Send Error");
+            throw runtime_error("Send failed");
+        } else if (ret == 0) {
+            cout << "client connection closed" << endl;
+            return -1;
+        } 
+    } while (ret != encrypted_size);
+
+    return ret;
+}
+
+int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted) {
+    int message_len;
+
+    do {
+        message_len = recv(clt.clientConn->getMasterFD(), message, constants::MAX_MESSAGE_SIZE-1, 0);
+        
+        if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+            perror("Receive Error");
+            throw runtime_error("Receive failed");
+        } else if (message_len == 0) {
+            cout << "client connection closed" << endl;
+            return 0;
+        } 
+    } while (message_len < 0);
+
+    printf("ciphertext is:\n");
+    BIO_dump_fp(stdout, (const char*)message, message_len);
+
+    printf("1) session key is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getSessionKey(), 16);
+
+    printf("iv is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getIV(), constants::IV_LEN);
+
+    int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, message_len, decrypted);
+
+    return decrypted_size;
+}
+
+void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 
     int byte_index = 0;    
 
@@ -651,25 +709,35 @@ void seeOnlineUsers(Client clt){
 
     memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
     byte_index += sizeof(char);
-
+    
     clt.clientConn->send_message(message, dim);
 
-    unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    free(message);
+    buffer.clear();
+    unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
 
-    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+    clt.clientConn->generateIV();
+    int ret = receive_message_enc(clt, message_received, buffer);
+
     if (ret == 0) {
-        cout << GREEN << "client connection closed" << RESET << endl;
-        free(buffer);
+        cout << RED << "client connection closed" << RESET << endl;
+        buffer.clear();
         return;
-    } 
+    } else {
+        cout << GREEN << "list received" << RESET << endl;
+    }
 
     byte_index = 0;    
 
     char opCode;
     int list_size = 0; 
+    int dim_message = 0;
 
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
+
+    memcpy(&(dim_message), &buffer[byte_index], sizeof(int));
+    byte_index += sizeof(int);
 
     memcpy(&(list_size), &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
@@ -678,6 +746,8 @@ void seeOnlineUsers(Client clt){
         cout << RED << "--- no user online ---" <<  endl;
     } else {
         cout << "--- online users ---" << endl;
+
+        cout << GREEN << " | ";
 
         for(int i = 0; i < list_size; i++) {
             int username_size = 0;
@@ -689,18 +759,22 @@ void seeOnlineUsers(Client clt){
             memcpy(username, &buffer[byte_index], username_size);
             byte_index += username_size;
 
-            for(int j = 0; j < username_size; j++){
+
+            for(int j = 0; j < username_size; j++) {
                 cout << username[j];
             }
 
-            cout << " - ";
+            if( i + 1 == list_size )
+                cout << " | ";
+            else
+                cout << " - ";
+
             free(username);
         }
 
-        cout << endl;
+        cout << RESET << endl;
     }
 
-    free(message);
-    free(buffer);
+    buffer.clear();
 }
 

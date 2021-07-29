@@ -16,10 +16,12 @@
 
 using namespace std;
 
+array<unsigned char, constants::MAX_MESSAGE_SIZE> buffer;
+vector<unsigned char> received;
+
 int main(int argc, char* const argv[]) {
 
     int ret = 0;
-    unsigned char* buffer = new unsigned char[constants::MAX_MESSAGE_SIZE];
     Server srv;
   
     while(1) {
@@ -37,14 +39,14 @@ int main(int argc, char* const argv[]) {
 
                 int sd = srv.serverConn->getClient(i);
 
-                if (recv(sd, buffer, sizeof(buffer), MSG_PEEK | MSG_DONTWAIT) == 0) {
+                if (recv(sd, buffer.data(), sizeof(buffer), MSG_PEEK | MSG_DONTWAIT) == 0) {
                     srv.serverConn->disconnect_host(sd, i);
                     srv.serverConn->printOnlineUsers();
                     continue;
                 }
 
                 if (srv.serverConn->isFDSet(sd)) {              
-                    ret = srv.serverConn->receive_message(sd, buffer);
+                    ret = srv.serverConn->receive_message(sd, buffer.data());
 
                     if(ret == 0) {
                         srv.serverConn->disconnect_host(sd, i);  
@@ -55,32 +57,32 @@ int main(int argc, char* const argv[]) {
                     if(buffer[0] == constants::AUTH) {
                         cout << GREEN << "\n**** AUTHENTICATION ****" << RESET << endl;
                       
-                        if (!authentication(srv, sd, buffer)) throw runtime_error("Authentication failed on Server");
+                        if (!authentication(srv, sd, buffer.data())) throw runtime_error("Authentication failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::ONLINE) {
                         cout << GREEN << "\n**** ONLINE USERS REQUEST ****" << RESET << endl;
 
-                        if (!seeOnlineUsers(srv, sd, buffer)) throw runtime_error("Online Users request failed on Server");
+                        if (!seeOnlineUsers(srv, sd, received)) throw runtime_error("Online Users request failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     }else if(buffer[0] == constants::REQUEST) {
                         cout << GREEN << "\n**** REQUEST TO TALK****" << RESET << endl;
 
-                        if (!requestToTalk(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
+                        if (!requestToTalk(srv, sd, buffer.data())) throw runtime_error("Request to talk failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     }else if(buffer[0] == constants::START_CHAT) {
                         cout << GREEN << "\n**** START CHAT ****" << RESET << endl;
 
-                        if (!start_chat(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
+                        if (!start_chat(srv, sd, buffer.data())) throw runtime_error("Request to talk failed on Server");
                         cout << BOLDGREEN << "Chat started! " << RESET << endl;
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::CHAT) {
                         cout << GREEN << "\n**** CHAT ****" << RESET << endl;
 
-                        if (!chatting(srv, sd, buffer)) throw runtime_error("Request to talk failed on Server");
+                        if (!chatting(srv, sd, buffer.data())) throw runtime_error("Request to talk failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::LOGOUT) {
@@ -92,16 +94,13 @@ int main(int argc, char* const argv[]) {
                         continue;
                         
                     } else {
-                        cout << RED << "**Invalid command, please retry**" << RESET << endl;
+                        cout << RED << "**Invalid command { " << buffer[0] << " } , please retry**" << RESET << endl;
                         continue;
                     }
                 }  
             }
         }
     }
-
-    if(buffer != NULL)
-        delete [] buffer;
 
     return 0;
 

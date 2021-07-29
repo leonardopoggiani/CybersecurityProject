@@ -16,47 +16,6 @@
 #include "color.h"
 
 using namespace std;
-
-struct connection {
-    unsigned char* session_key;
-    unsigned char* iv;
-    uint32_t counter;
-
-    connection() {
-        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
-        iv = (unsigned char*)malloc(constants::IV_LEN);
-        counter = 0;
-    }
-
-    unsigned char* getSessionKey() {
-        return session_key;
-    }
-
-    unsigned char* getIV() {
-        return iv;
-    }
-
-    void getCounter(uint32_t *count) {
-        count = &counter;
-    }
-
-    void generateIV() {
-        if(RAND_poll() != 1)
-            throw runtime_error("An error occurred in RAND_poll."); 
-        if(RAND_bytes(iv, constants::IV_LEN) != 1)
-            throw runtime_error("An error occurred in RAND_bytes.");
-        increment(counter);
-    }
-
-     void increment(uint32_t &value){
-        if(value == UINT16_MAX){
-            value = 0;
-        } else {
-            value++;
-        }
-    }
-};
-
 class clientConnection {
 
     protected:
@@ -64,9 +23,31 @@ class clientConnection {
         int master_fd;
         int port;
         unsigned char* talking_to;
+        unsigned char* iv;
         unsigned char* session_key;
 
+
     public:
+
+        unsigned char* getSessionKey() {
+            printf("2) session key is:\n");
+            BIO_dump_fp(stdout, (const char*)session_key, sizeof(session_key));
+
+            return session_key;
+        }
+
+        unsigned char* getIV() {
+            return iv;
+        }
+
+        void generateIV() {
+            iv = (unsigned char*)malloc(constants::IV_LEN);
+
+            if(RAND_poll() != 1)
+                throw runtime_error("An error occurred in RAND_poll."); 
+            if(RAND_bytes(iv, constants::IV_LEN) != 1)
+                throw runtime_error("An error occurred in RAND_bytes.");
+        }
 
         clientConnection(){
             port = 8080;
@@ -246,7 +227,6 @@ class clientConnection {
             } while (ret != dim);
 
             return ret;
-
         }
 
         bool checkAck(char* buffer) {
@@ -261,8 +241,13 @@ class clientConnection {
         }
 
         void addSessionKey(unsigned char* sessionKey, int size) {
-            session_key = (unsigned char*)malloc(size);
-            session_key = sessionKey;
+            session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+            memcpy(session_key, sessionKey, EVP_MD_size(EVP_sha256()));
+
+            printf("session key sent is:\n");
+            BIO_dump_fp(stdout, (const char*)sessionKey, EVP_MD_size(EVP_sha256()));
+            printf("session key new is:\n");
+            BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
         }
 };
 
@@ -275,6 +260,7 @@ struct user {
     user(string us, int s) {
         username = us;
         sd = s;
+        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
     }
 };
 
@@ -306,7 +292,21 @@ class serverConnection : public clientConnection {
         vector<user> users_logged_in;
         vector<userChat*> activeChat;
 
+        unsigned char* iv;
+
     public:
+
+        unsigned char* getIV() {
+            return iv;
+        }
+
+        void generateIV() {
+            iv = (unsigned char*)malloc(constants::IV_LEN);
+            if(RAND_poll() != 1)
+                throw runtime_error("An error occurred in RAND_poll."); 
+            if(RAND_bytes(iv, constants::IV_LEN) != 1)
+                throw runtime_error("An error occurred in RAND_bytes.");
+        }
 
         serverConnection():clientConnection() {
             port = 8888;
@@ -530,6 +530,42 @@ class serverConnection : public clientConnection {
             }
 
             return -1;
+        }
+
+        unsigned char* getSessionKey(int sd) {
+
+            cout << "sd: " << sd << endl;
+
+            for(auto user : users_logged_in) {
+                if(user.sd == sd) {
+                    cout << "user: " << user.username << endl;
+
+                    printf("2) session key is:\n");
+                    BIO_dump_fp(stdout, (const char*)user.session_key, EVP_MD_size(EVP_sha256()));
+
+                    return user.session_key;
+                }
+            }
+            
+            return NULL;
+        }
+
+        void addSessionKey(int sd, unsigned char* sessionKey) {
+
+            printf("1) session key is:\n");
+            BIO_dump_fp(stdout, (const char*)sessionKey, EVP_MD_size(EVP_sha256()));
+
+            for(auto user : users_logged_in) {
+                if(user.sd == sd) {
+
+                    cout << "user: " << user.username << endl;
+
+                    memcpy(user.session_key, sessionKey, EVP_MD_size(EVP_sha256()));
+
+                    printf("2) session key is:\n");
+                    BIO_dump_fp(stdout, (const char*)user.session_key, EVP_MD_size(EVP_sha256()));
+                }
+            }
         }
 };
 

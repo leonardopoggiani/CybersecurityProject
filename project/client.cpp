@@ -95,7 +95,7 @@ int main(int argc, char* const argv[]) {
         switch(option){
             case 1: 
                 cout << CYAN << "See online users to talk\n" << RESET << endl;
-                seeOnlineUsers(clt);
+                seeOnlineUsers(clt, packet);
                 break;
             case 2:
                 cout << CYAN << "Send a request to talk\n" << RESET << endl;

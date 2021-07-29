@@ -23,12 +23,10 @@ using namespace std;
 struct Server {
     serverConnection *serverConn;
     CryptoOperation *crypto;
-    connection* conn;
 
     Server() {
         serverConn = new serverConnection();
         crypto = new CryptoOperation();
-        conn = new connection();
     }
 };
 
@@ -270,29 +268,69 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     // Generate secret
     cout << GREEN << "*** Generating session key ***" << RESET << endl;
 
-    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
-    srv.crypto->secretDerivation(prvKeyDHServer, pubKeyDHClient, tempBuffer.data());
+    unsigned char* temp_session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+    srv.crypto->secretDerivation(prvKeyDHServer, pubKeyDHClient, temp_session_key);
 
-    vector<user> userList = srv.serverConn->getUsersList();
-    for( auto us : userList) {
-        if(us.sd == sd) {
-            us.session_key = (unsigned char*)malloc(tempBuffer.size());
-            us.session_key = tempBuffer.data();
-        }
-    }
+    srv.serverConn->addSessionKey(sd, temp_session_key);
     
     cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
 
+    free(temp_session_key);
     free(nonceClient);
     free(username);
     return true;   
 }
 
-bool seeOnlineUsers(Server &srv, int sd, unsigned char* buffer) {
+int decrypt_message(Server srv, int sd, unsigned char* message, int dim, vector<unsigned char> &decrypted) {
+
+    cout << MAGENTA << "[DEBUG] " << "decrypting" << RESET << endl;
+
+    unsigned char* message_decrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, dim, decrypted);
+
+    cout << MAGENTA << "[DEBUG] " << "decrypted" << RESET << endl;
+
+    return decrypted_size;
+}
+
+int send_message_enc_srv(CryptoOperation* crypto, int fd, unsigned char* key, unsigned char* iv, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
+    int ret = 0;
+
+    printf("plaintext is:\n");
+    BIO_dump_fp(stdout, (const char*)message, dim);
+
+    printf("key is:\n");
+    BIO_dump_fp(stdout, (const char*)key, sizeof(key));
+
+    printf("iv is:\n");
+    BIO_dump_fp(stdout, (const char*)iv, constants::IV_LEN);
+
+    int encrypted_size = crypto->encryptMessage(key, iv, message, dim, encrypted);
+
+    printf("ciphertext to send is:\n");
+    BIO_dump_fp(stdout, (const char*)encrypted.data(), encrypted_size);
+
+    do {
+        ret = send(fd, encrypted.data(), encrypted_size, 0);
+        if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+            perror("Send Error");
+            throw runtime_error("Send failed");
+        } else if (ret == 0) {
+            cout << "client connection closed" << endl;
+            return -1;
+        } 
+    } while (ret != encrypted_size);
+
+    return ret;
+}
+
+bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
 
     int byte_index = 0;    
-    int dim = sizeof(char) + sizeof(int);
+    int dim = sizeof(char) + sizeof(int) + sizeof(int);
     vector<user> users_logged_in = srv.serverConn->getUsersList();
+    unsigned char* message;
+    buffer.clear();
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
         cout << CYAN << "user " << users_logged_in[i].username << RESET << endl;
@@ -300,15 +338,26 @@ bool seeOnlineUsers(Server &srv, int sd, unsigned char* buffer) {
         dim += sizeof(int);
     }
 
-    unsigned char* message = (unsigned char*)malloc(dim);  
+    message = (unsigned char*)malloc(dim);
 
     memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
     byte_index += sizeof(char);
 
-    int list_size = users_logged_in.size();
-    memcpy(&(message[byte_index]), &list_size, sizeof(int));
+    int dim_message = 0;
+
+    for(size_t i = 0; i < users_logged_in.size(); i++) {
+        dim_message += sizeof(int);
+        dim_message += users_logged_in[i].username.size();
+    }   
+
+    cout << "dim_message" << dim_message << endl;
+    memcpy(&(message[byte_index]), &dim_message, sizeof(int));
     byte_index += sizeof(int);
 
+    int list_size = users_logged_in.size();
+    cout << "list_size: " << list_size << endl;
+    memcpy(&(message[byte_index]), &list_size, sizeof(int));
+    byte_index += sizeof(int);
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
 
@@ -321,7 +370,11 @@ bool seeOnlineUsers(Server &srv, int sd, unsigned char* buffer) {
         byte_index += users_logged_in[i].username.size();
     }   
 
-    srv.serverConn->send_message(message,sd,dim);
+    printf("sending encrypted is:\n");
+    BIO_dump_fp(stdout, (const char*)message, dim);
+
+    srv.serverConn->generateIV();
+    send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, buffer);
 
     return true;   
 }
@@ -526,17 +579,23 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
+    cout << MAGENTA << "[DEBUG] " << "opcode: " << opCode << RESET << endl; 
+
     memcpy(&(message_size), &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
+
+    cout << MAGENTA << "[DEBUG] " << "message_size: " << message_size << RESET << endl; 
 
     message_received = (unsigned char*)malloc(message_size);
     memcpy(message_received, &buffer[byte_index], message_size);
     byte_index += message_size;
 
+    /*
     memcpy(recv_iv, &buffer[byte_index], constants::IV_LEN);
     byte_index += constants::IV_LEN;
     memcpy(recv_tag, &buffer[byte_index], constants::TAG_LEN);
     byte_index += constants::TAG_LEN;
+    */
 
     srv.serverConn->send_message(buffer, sd_to_send, byte_index);
 
