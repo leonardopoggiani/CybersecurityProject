@@ -59,18 +59,16 @@ string readPassword() {
 
 bool authentication(Client &clt, string username, string password) {
     X509 *cert;
+    EVP_PKEY* user_key = NULL;
     EVP_PKEY *pubKeyServer = NULL;
-    EVP_PKEY* user_key;
     EVP_PKEY *pubKeyDHServer = NULL;
     EVP_PKEY *prvKeyDHClient = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
     unsigned int pubKeyDHBufferLen;
     vector<unsigned char> buffer;
-    vector<unsigned char> packet;
     unsigned char* nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_rec = (unsigned char*)malloc(constants::NONCE_SIZE);
     unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
-    
     unsigned char* signature = NULL;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
@@ -86,18 +84,18 @@ bool authentication(Client &clt, string username, string password) {
 
 	user_key = PEM_read_PrivateKey(file, NULL, NULL, (void*)password.c_str());
 	if(!user_key) {
-        cerr << "user_key Error" << endl; 
-        exit(1);
+        cerr << "User does not valid, retry..." << endl; 
+        return false;
     }
 
 	fclose(file);
     
     clt.crypto->generateNonce(nonceClient.data());
 
-    nonceClient_t = nonceClient.data();
+    // conservo il nonce per verificarlo al passo successivo
+    memcpy(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE);
 
-    unsigned int byte_index = 0;   
-    int username_size = username.size();
+    int byte_index = 0;   
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
 
@@ -106,6 +104,7 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
+    int username_size = username.size();
     memcpy(&(message_sent[byte_index]), &username_size, sizeof(int));
     byte_index += sizeof(int);
 
@@ -119,10 +118,11 @@ bool authentication(Client &clt, string username, string password) {
     int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
 
     clt.clientConn->send_message(message_signed, signed_size);
+
     free(message_sent);
     free(message_signed);
 
-    //ricevere certificato
+    // ricevere certificato
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message_received);
     if(ret == 0) {
@@ -144,7 +144,8 @@ bool authentication(Client &clt, string username, string password) {
 
     unsigned char* cert_buf = (unsigned char*)malloc(size_cert);
     if(!cert_buf) {
-        throw runtime_error("Malloc error");
+        cerr << "Malloc error on certification buffer" << endl; 
+        exit(1);
     }
 
     memcpy(cert_buf, &message_received[byte_index], size_cert);
@@ -152,7 +153,8 @@ bool authentication(Client &clt, string username, string password) {
 
     nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
     if(!nonceServer) {
-        throw runtime_error("Malloc error");
+        cerr << "Malloc error on nonce server" << endl; 
+        exit(1);
     }
 
     memcpy(nonceServer, &message_received[byte_index], constants::NONCE_SIZE);
@@ -171,12 +173,13 @@ bool authentication(Client &clt, string username, string password) {
     cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, size_cert);
 
     if(!clt.crypto->verifyCertificate(cert)) {
-        throw runtime_error("Certificate not valid.");
+        cerr << "Error in certificate verification" << endl; 
+        exit(1);
     }
     
     cout << GREEN << "Server certificate verified" << RESET << endl;  
 
-    // print the successful verification to screen:
+    // print the successful verification to screen, just for debug
     char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
     char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
     cout << CYAN << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n" << RESET << endl;
@@ -202,7 +205,7 @@ bool authentication(Client &clt, string username, string password) {
     
     unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify < 0){
-        cerr << "establishSession: invalid signature!"; 
+        cerr << "Invalid signature!" << endl;
         return false;
     } else { 
         cout << GREEN << "** Valid Signature **" << RESET << endl;
@@ -211,13 +214,13 @@ bool authentication(Client &clt, string username, string password) {
     //Verificare nonce
 
     if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE) != 0){
-        cerr << "Nonce received is not valid!";
+        cerr << "Nonce received is not valid!" << endl;
         exit(1);
     } else {
         cout << GREEN << "** Nonce verified **" << RESET << endl;
     }
 
-    //SCAMBIO CHIAVE DI SESSIONE
+    // -- SCAMBIO CHIAVE DI SESSIONE -- 
 
     clt.crypto->generateNonce(nonceClient.data());
 
@@ -226,11 +229,11 @@ bool authentication(Client &clt, string username, string password) {
 
     cout << "***********************************" << endl;
 
-    nonceClient_t = nonceClient.data();
+    memcpy(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE);
 
     byte_index = 0;   
 
-    //OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
+    // OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
 
     dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
 
@@ -267,7 +270,7 @@ bool authentication(Client &clt, string username, string password) {
     if( ret == 0) {
         cout << RED  << "** server disconnected **" << RESET << endl;
         free(last_message_received);
-        return true;
+        return false;
     }  
 
     char opCode;
@@ -295,16 +298,20 @@ bool authentication(Client &clt, string username, string password) {
 
     memcpy(pubKeyDHBuffer.data(), &last_message_received[byte_index], pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
+    
+   // delete the plaintext from memory:
+#pragma optimize("", off)
+   memset(clear_buf, 0, dim);
+#pragma optimize("", on)
 
-    cout << MAGENTA << "dim: " << dim << RESET << endl;
-
-    dim = byte_index;
-    byte_index = 0;
+    free(clear_buf);
+    free(clear_buf);
+    free(signature);
 
     clt.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHServer);
 
-    free(clear_buf);
-    free(signature);
+    dim = byte_index;
+    byte_index = 0;
     
     clear_buf = (unsigned char*)malloc(dim);
     memcpy(clear_buf, &last_message_received[byte_index], dim);
@@ -314,15 +321,13 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&sign_size, &last_message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    cout << MAGENTA << "sign_size: " << sign_size << RESET << endl;
-
     signature = (unsigned char*)malloc(sign_size);
     memcpy(signature, &last_message_received[byte_index], sign_size);
     byte_index += sign_size;
     
     verify = clt.crypto->digsign_verify(signature, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify < 0) {
-        cerr << "establishSession: invalid signature!";
+        cerr << "Invalid signature!" << endl;
         return false;
     } else {
         cout << GREEN << "** valid signature **" << RESET << endl;
@@ -336,14 +341,22 @@ bool authentication(Client &clt, string username, string password) {
 
     cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
 
+#pragma optimize("", off)
+    memset(clear_buf, 0, dim);
+    memset(tempBuffer.data(), 0, tempBuffer.size());
+#pragma optimize("", on)
+
     free(message_sent);
     free(message_received);
     free(nonceServer);
+    free(nonceClient_rec);
+    free(nonceClient_t);
 
     return true;
 }
 
 bool receiveRequestToTalk(Client &clt, char* msg) {
+
     unsigned int tempBufferLen = 0;
     unsigned int keyBufferLen = 0;
     unsigned int keyBufferDHLen = 0;
@@ -352,15 +365,14 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     EVP_PKEY *peerPubKey = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> keyDHBuffer;
 
-    string input;
     bool verify = false;
 
     int byte_index = 0;
-    unsigned char* username;
+    unsigned char* username = NULL;
     unsigned int username_size = 0;
+    unsigned char* response_to_request = NULL;
     unsigned char response = 'n';
     int dim = 0;
-    unsigned char* response_to_request;
 
     byte_index += sizeof(char);
 
@@ -368,12 +380,14 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     byte_index += sizeof(int);
 
     if(username_size < 0 || username_size > constants::MAX_MESSAGE_SIZE) {
-        throw runtime_error("Username size error");
+        cerr << "Username size error!" << endl;
+        return false;
     }
 
     username = (unsigned char*)malloc(username_size);
     if(username == NULL) {
-        throw runtime_error("Malloc error");
+        cerr << "Username malloc error!" << endl;
+        return false;
     }
 
     memcpy(username, &msg[byte_index], username_size);
@@ -404,7 +418,8 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
         dim = sizeof(char) + sizeof(int) + keyBufferDHLen;
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
-            throw runtime_error("Malloc error");
+            cerr << "Malloc response error!" << endl;
+            return false;
         }
         byte_index = 0;
         memcpy(&(response_to_request[byte_index]), &constants::ACCEPTED, sizeof(char));
@@ -421,16 +436,20 @@ bool receiveRequestToTalk(Client &clt, char* msg) {
     } 
     else {
         cout << RED << ":(" << RESET << endl;
+
         dim = sizeof(char);
+
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
-            throw runtime_error("Malloc error");
+            cerr << "Malloc response error!" << endl;
+            return false;
         }
         byte_index = 0;
         memcpy(&(response_to_request[byte_index]), &constants::REFUSED, sizeof(char));
         byte_index += sizeof(char);
     }  
-        //Messaggio con errore
+
+    //Messaggio con errore
         
     /*memcpy(response_to_request, &response, sizeof(char));
     byte_index += sizeof(char);*/
@@ -510,7 +529,7 @@ void chat(Client clt) {
 
     while(1) {
 
-        memset(buffer,0,constants::MAX_MESSAGE_SIZE);
+        memset(buffer, 0, constants::MAX_MESSAGE_SIZE);
 
         maxfd = (clt.clientConn->getMasterFD() > STDIN_FILENO) ? clt.clientConn->getMasterFD() : STDIN_FILENO;
         FD_ZERO(&fds);
@@ -561,8 +580,8 @@ void chat(Client clt) {
 
             cout << "encrypted_size: " << size_received << endl;
 
-            unsigned char* message_decrypted = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-            //int decrypted_size = clt.crypto->decryptMessage2(clt.conn, buffer, size_received, message_decrypted);
+            vector<unsigned char> message_decrypted;
+            int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(),clt.clientConn->getIV(), buffer, size_received, message_decrypted);
 
             //cout << "decrypted_size: " << decrypted_size << endl;
 
@@ -611,7 +630,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     EVP_PKEY *peerPubKey = NULL;
      EVP_PKEY *sessionDHKey = NULL;
     EVP_PKEY *keyDH = NULL;
-    unsigned char* keyDHBuffer;
+    unsigned char* keyDHBuffer = NULL;
     int keyDHBufferLen = 0;
 
     int dim = sizeof(char) + sizeof(int) + username_to_contact.size();
@@ -655,9 +674,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
 
-        
-
-
         //clt.clientConn->chat->peer_username = (unsigned char*)username_to_contact.c_str();
 
         byte_index = 0;
@@ -688,7 +704,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(peerPubKeyBuffer, &response[byte_index], peerPubKeyLen);
         byte_index += peerPubKeyLen;
 
-        clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->chat->peerPubKey);
+        // clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->chat->peerPubKey);
 
 
         //Costruire chiave di sessione prvDH
@@ -698,17 +714,17 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
         clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
         //Perchè così serializzata?!
-        clt.clientConn->chat->session_key = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
-        if(!clt.clientConn->chat->session_key) {
-            throw runtime_error("malloc failed");
-        }
-        memcpy(clt.clientConn->chat->session_key, tempBuffer.data(), tempBuffer.size());
+        // clt.clientConn->chat->session_key = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
+        // if(!clt.clientConn->chat->session_key) {
+        //    throw runtime_error("malloc failed");
+        // }
+        // memcpy(clt.clientConn->chat->session_key, tempBuffer.data(), tempBuffer.size());
 
         cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
 
         //Costruire e inviare mia chiave DH
 
-        //opcode | keyDHlen | keyDH
+        // opcode | keyDHlen | keyDH
 
         clt.crypto->keyGeneration(keyDH);
         keyDHBufferLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer);

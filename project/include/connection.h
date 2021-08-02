@@ -577,7 +577,6 @@ class serverConnection : public clientConnection {
                     return c.username;
                 }
             }
-
             return NULL;
         }
 };
