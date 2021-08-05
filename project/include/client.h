@@ -57,6 +57,69 @@ string readPassword() {
     return password;
 }
 
+int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
+    int ret = 0;
+
+    printf("sending encrypted is:\n");
+    BIO_dump_fp(stdout, (const char*)message, dim);
+
+    printf("key is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getSessionKey(), 16);
+
+    clt.clientConn->generateIV();
+
+    printf("iv is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getIV(), constants::IV_LEN);
+
+    encrypted.resize(dim);
+    int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, dim, encrypted);
+
+    printf("encrypted send is:\n");
+    BIO_dump_fp(stdout, (const char*)encrypted.data(), encrypted_size);
+
+    do {
+        ret = send(masterFD, encrypted.data(), encrypted_size, 0);
+        if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+            perror("Send Error");
+            throw runtime_error("Send failed");
+        } else if (ret == 0) {
+            cout << "client connection closed" << endl;
+            return -1;
+        } 
+    } while (ret != encrypted_size);
+
+    return ret;
+}
+
+int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted) {
+    int message_len;
+
+    do {
+        message_len = recv(clt.clientConn->getMasterFD(), message, constants::MAX_MESSAGE_SIZE-1, 0);
+        
+        if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+            perror("Receive Error");
+            throw runtime_error("Receive failed");
+        } else if (message_len == 0) {
+            cout << "client connection closed" << endl;
+            return 0;
+        } 
+    } while (message_len < 0);
+
+    printf("ciphertext is:\n");
+    BIO_dump_fp(stdout, (const char*)message, message_len);
+
+    printf("1) session key is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getSessionKey(), 16);
+
+    printf("iv is:\n");
+    BIO_dump_fp(stdout, (const char*)clt.clientConn->getIV(), constants::IV_LEN);
+
+    int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, message_len, decrypted);
+
+    return decrypted_size;
+}
+
 bool authentication(Client &clt, string username, string password) {
     X509 *cert;
     EVP_PKEY* user_key = NULL;
@@ -213,6 +276,19 @@ bool authentication(Client &clt, string username, string password) {
 
     //Verificare nonce
 
+    cout << "Nonce: " << endl;
+    for(int i = 0; i < constants::NONCE_SIZE; i++) {
+        cout << nonceClient_t[i];
+    }
+
+    cout << " | ";
+
+    for(int i = 0; i < constants::NONCE_SIZE; i++) {
+        cout << nonceClient_rec[i];
+    }
+    cout << endl;
+    cout << endl;
+
     if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE) != 0){
         cerr << "Nonce received is not valid!" << endl;
         exit(1);
@@ -286,8 +362,21 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(nonceServer, &last_message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
+    cout << "Nonce: " << endl;
+    for(int i = 0; i < constants::NONCE_SIZE; i++) {
+        cout << nonceClient_t[i];
+    }
+
+    cout << " | ";
+
+    for(int i = 0; i < constants::NONCE_SIZE; i++) {
+        cout << nonceClient.data()[i];
+    }
+    cout << endl;
+    cout << endl;
+
     if(memcmp(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE) != 0){
-        cerr << "Nonce received is not valid!";
+        cerr << "2) Nonce received is not valid!";
         exit(1);
     } else {
         cout << GREEN << "** Nonce verified **" << RESET << endl;
@@ -628,13 +717,14 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     unsigned char* peerPubKeyBuffer;  
     EVP_PKEY *peerKeyDH = NULL;
     EVP_PKEY *peerPubKey = NULL;
-     EVP_PKEY *sessionDHKey = NULL;
+    EVP_PKEY *sessionDHKey = NULL;
     EVP_PKEY *keyDH = NULL;
     unsigned char* keyDHBuffer = NULL;
     int keyDHBufferLen = 0;
+    vector<unsigned char> encrypted;
 
+    // OPCODE | sizeof(username) | username
     int dim = sizeof(char) + sizeof(int) + username_to_contact.size();
-    //int dim = sizeof(char) + sizeof(int) + username_to_contact.size() + sizeof(int) + username.size();
     unsigned char* message = (unsigned char*)malloc(dim);  
 
     memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
@@ -647,14 +737,9 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     memcpy(&(message[byte_index]), username_to_contact.c_str(), username_to_contact.size());
     byte_index += username_to_contact.size();
 
-    /*int username_size = username.size();
-    memcpy(&(message[byte_index]), &username_size, sizeof(int));
-    byte_index += sizeof(int);
+    send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted);
 
-    memcpy(&(message[byte_index]), username.c_str(), username.size());
-    byte_index += username.size();*/
-
-    clt.clientConn->send_message(message, dim);
+    // clt.clientConn->send_message(message, dim);
 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
 
@@ -667,7 +752,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         return;
     } 
 
-    //Cambiare controllo con l'opcode corretto
+    // Cambiare controllo con l'opcode corretto
     
     if(response[0] == constants::ACCEPTED) {
         cout << GREEN << "request accepted, starting the chat" << RESET << endl;
@@ -678,7 +763,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         byte_index = 0;
 
-        byte_index+= sizeof(char);
+        byte_index += sizeof(char);
 
         memcpy(&(peerKeyDHLen), &response[byte_index], sizeof(int));
         byte_index += sizeof(int);
@@ -704,8 +789,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(peerPubKeyBuffer, &response[byte_index], peerPubKeyLen);
         byte_index += peerPubKeyLen;
 
-        // clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->chat->peerPubKey);
-
+        clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getCurrentChat()->pubkey_1);
 
         //Costruire chiave di sessione prvDH
 
@@ -714,10 +798,10 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
         clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
         //Perchè così serializzata?!
-        // clt.clientConn->chat->session_key = (unsigned char*)malloc(MAX_MESSAGE_SIZE);
-        // if(!clt.clientConn->chat->session_key) {
-        //    throw runtime_error("malloc failed");
-        // }
+        userChat* currentChat = clt.clientConn->getCurrentChat();
+        if(!clt.clientConn->getCurrentChat()->session_key) {
+            throw runtime_error("malloc failed");
+        }
         // memcpy(clt.clientConn->chat->session_key, tempBuffer.data(), tempBuffer.size());
 
         cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
@@ -772,68 +856,6 @@ void logout(Client clt) {
     memcpy(&(message[byte_index]), &constants::LOGOUT, sizeof(char));
     byte_index += sizeof(char);
     clt.clientConn->send_message(message, dim);
-}
-
-int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
-    int ret = 0;
-
-    printf("sending encrypted is:\n");
-    BIO_dump_fp(stdout, (const char*)message, dim);
-
-    printf("key is:\n");
-    BIO_dump_fp(stdout, (const char*)clt.clientConn->getSessionKey(), 16);
-
-    clt.clientConn->generateIV();
-
-    printf("iv is:\n");
-    BIO_dump_fp(stdout, (const char*)clt.clientConn->getIV(), constants::IV_LEN);
-
-    int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, dim, encrypted);
-
-    printf("encrypted send is:\n");
-    BIO_dump_fp(stdout, (const char*)encrypted.data(), encrypted_size);
-
-    do {
-        ret = send(masterFD, encrypted.data(), encrypted_size, 0);
-        if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-            perror("Send Error");
-            throw runtime_error("Send failed");
-        } else if (ret == 0) {
-            cout << "client connection closed" << endl;
-            return -1;
-        } 
-    } while (ret != encrypted_size);
-
-    return ret;
-}
-
-int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted) {
-    int message_len;
-
-    do {
-        message_len = recv(clt.clientConn->getMasterFD(), message, constants::MAX_MESSAGE_SIZE-1, 0);
-        
-        if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-            perror("Receive Error");
-            throw runtime_error("Receive failed");
-        } else if (message_len == 0) {
-            cout << "client connection closed" << endl;
-            return 0;
-        } 
-    } while (message_len < 0);
-
-    printf("ciphertext is:\n");
-    BIO_dump_fp(stdout, (const char*)message, message_len);
-
-    printf("1) session key is:\n");
-    BIO_dump_fp(stdout, (const char*)clt.clientConn->getSessionKey(), 16);
-
-    printf("iv is:\n");
-    BIO_dump_fp(stdout, (const char*)clt.clientConn->getIV(), constants::IV_LEN);
-
-    int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, message_len, decrypted);
-
-    return decrypted_size;
 }
 
 void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){

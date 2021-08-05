@@ -403,22 +403,12 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     memcpy(username_to_talk_to, &(buffer[byte_index]), username_to_talk_to_size);
     byte_index += username_to_talk_to_size;
 
-    /*memcpy(&username_size, &(buffer[byte_index]), sizeof(int));
-    byte_index += sizeof(int);
-
+    string username_string = srv.serverConn->findUserFromSd(sd);
+    username_size = username_string.size();
     unsigned char* username = (unsigned char*)malloc(username_size);
+    memcpy(username, (unsigned char*)username_string.c_str(), username_size);
 
-    memcpy(username, &(buffer[byte_index]), username_size);
-    byte_index += username_size;*/
-    string usernameS = srv.serverConn->findUserFromSd(sd);
-    username_size = usernameS.size();
-    unsigned char* username = (unsigned char*)malloc(username_size);
-    memcpy(username, (unsigned char*)usernameS.c_str(), username_size);
-    cout << CYAN << "so ";
-    for(int i = 0; i < username_size; i++){
-        cout << username[i];
-    }
-    cout << " want to talk with ";
+    cout << CYAN << "so " << username_string << " want to talk with ";
     for(int i = 0; i < username_to_talk_to_size; i++){
         cout << username_to_talk_to[i];
     }

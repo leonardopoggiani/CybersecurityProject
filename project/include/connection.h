@@ -16,6 +16,36 @@
 #include "color.h"
 
 using namespace std;
+struct user {
+    string username;
+    int sd;
+    unsigned char* session_key;
+
+    user(string us, int s) {
+        username = us;
+        sd = s;
+        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+    }
+};
+
+struct userChat {
+    unsigned char* username_1;
+    int sd_1;
+    EVP_PKEY* pubkey_1;
+    unsigned char* username_2;
+    int sd_2;
+    EVP_PKEY* pubkey_2;
+    unsigned char* session_key;
+
+    userChat(unsigned char* us1, int s1, unsigned char* us2, int s2) {
+        username_1 = us1;
+        username_2 = us2;
+        sd_1 = s1;
+        sd_2 = s2;
+        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+    }
+};
+
 class clientConnection {
 
     protected:
@@ -25,8 +55,7 @@ class clientConnection {
         unsigned char* talking_to;
         unsigned char* iv;
         unsigned char* session_key;
-        
-
+        userChat* currentChat;
 
     public:
 
@@ -250,37 +279,13 @@ class clientConnection {
             printf("session key new is:\n");
             BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
         }
+
+        userChat* getCurrentChat() {
+            return currentChat;
+        }
 };
 
 // #########################  SERVER ######################### //
-struct user {
-    string username;
-    int sd;
-    unsigned char* session_key;
-
-    user(string us, int s) {
-        username = us;
-        sd = s;
-        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
-    }
-};
-
-struct userChat {
-    unsigned char* username_1;
-    int sd_1;
-    unsigned char* username_2;
-    int sd_2;
-
-    userChat(unsigned char* us1, int s1, unsigned char* us2, int s2) {
-        username_1 = us1;
-        username_2 = us2;
-        sd_1 = s1;
-        sd_2 = s2;
-    }
-};
-
-
-
 class serverConnection : public clientConnection {
 
     private:
@@ -577,6 +582,17 @@ class serverConnection : public clientConnection {
                     return c.username;
                 }
             }
+
+            return NULL;
+        }
+
+        userChat* getCurrentChat(int sd_to_search) {
+            for(userChat* u : activeChat) {
+                if(u->sd_1 == sd_to_search || u->sd_2 == sd_to_search) {
+                    return u;
+                }
+            }
+
             return NULL;
         }
 };
