@@ -81,7 +81,10 @@ int main(int argc, char* const argv[]) {
             
             if(buffer[0] == constants::REQUEST) {
                 cout << GREEN << "\n**Received request to talk**" << RESET << endl;
-                if(receiveRequestToTalk(clt, buffer)){
+                
+                packet.resize(ret);
+                memcpy(packet.data(), buffer, ret);
+                if(receiveRequestToTalk(clt, packet.data(), ret)){
                     cout << "---------------------------------------" << endl;
                     cout << "\n-------Chat-------" << endl;
                     
@@ -95,6 +98,7 @@ int main(int argc, char* const argv[]) {
         switch(option){
             case 1: 
                 cout << CYAN << "See online users to talk\n" << RESET << endl;
+                packet.clear();
                 seeOnlineUsers(clt, packet);
                 break;
             case 2:

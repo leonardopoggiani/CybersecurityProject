@@ -55,18 +55,22 @@ class clientConnection {
         unsigned char* talking_to;
         unsigned char* iv;
         unsigned char* session_key;
+        unsigned char* username;
         userChat* currentChat;
 
     public:
 
         unsigned char* getSessionKey() {
             printf("2) session key is:\n");
-            BIO_dump_fp(stdout, (const char*)session_key, sizeof(session_key));
+            BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
 
             return session_key;
         }
 
         unsigned char* getIV() {
+            printf("2) session key is:\n");
+            BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
+            
             return iv;
         }
 
@@ -592,7 +596,6 @@ class serverConnection : public clientConnection {
                     return u;
                 }
             }
-
             return NULL;
         }
 };

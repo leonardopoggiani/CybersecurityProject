@@ -44,7 +44,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     EVP_PKEY *pubKeyDHClient = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
 
-
     int byte_index = 0;    
     char opCode;
     unsigned char* username;
@@ -260,10 +259,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     unsigned char* last_message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     signed_size = srv.crypto->digsign_sign(last_message, dim, last_message_signed, prvkey_server);
 
-    cout << MAGENTA << "dim: " << dim << RESET << endl;
-
-    cout << MAGENTA << "signed_size: " << signed_size << RESET << endl;
-
     srv.serverConn->send_message(last_message_signed, sd, signed_size);
 
     // Generate secret
@@ -301,7 +296,7 @@ int send_message_enc_srv(CryptoOperation* crypto, int fd, unsigned char* key, un
     BIO_dump_fp(stdout, (const char*)message, dim);
 
     printf("key is:\n");
-    BIO_dump_fp(stdout, (const char*)key, sizeof(key));
+    BIO_dump_fp(stdout, (const char*)key, EVP_MD_size(EVP_sha256()));
 
     printf("iv is:\n");
     BIO_dump_fp(stdout, (const char*)iv, constants::IV_LEN);
@@ -331,12 +326,15 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     int dim = sizeof(char) + sizeof(int) + sizeof(int);
     vector<user> users_logged_in = srv.serverConn->getUsersList();
     unsigned char* message;
+    string requesting_user = srv.serverConn->findUserFromSd(sd);
     buffer.clear();
 
-    for(size_t i = 0; i < users_logged_in.size(); i++) {
-        cout << CYAN << "user " << users_logged_in[i].username << RESET << endl;
-        dim += users_logged_in[i].username.size();
-        dim += sizeof(int);
+    for(size_t i = 0; i < users_logged_in.size(); i++) {    
+        if(memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) != 0) {
+            cout << CYAN << "user " << users_logged_in[i].username << RESET << endl;
+            dim += users_logged_in[i].username.size();
+            dim += sizeof(int);
+        }
     }
 
     message = (unsigned char*)malloc(dim);
@@ -347,28 +345,32 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     int dim_message = 0;
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
-        dim_message += sizeof(int);
-        dim_message += users_logged_in[i].username.size();
-    }   
+        if(memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) != 0) { 
+            dim_message += sizeof(int);
+            dim_message += users_logged_in[i].username.size();
+        }   
+    }
 
     cout << "dim_message" << dim_message << endl;
     memcpy(&(message[byte_index]), &dim_message, sizeof(int));
     byte_index += sizeof(int);
 
-    int list_size = users_logged_in.size();
+    int list_size = users_logged_in.size() - 1;
     cout << "list_size: " << list_size << endl;
     memcpy(&(message[byte_index]), &list_size, sizeof(int));
     byte_index += sizeof(int);
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
 
-        int username_size = users_logged_in[i].username.size();
+        if(memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) != 0) { 
+            int username_size = users_logged_in[i].username.size();
 
-        memcpy(&(message[byte_index]), &username_size, sizeof(int));
-        byte_index += sizeof(int);
+            memcpy(&(message[byte_index]), &username_size, sizeof(int));
+            byte_index += sizeof(int);
 
-        memcpy(&(message[byte_index]), users_logged_in[i].username.c_str(), users_logged_in[i].username.size());
-        byte_index += users_logged_in[i].username.size();
+            memcpy(&(message[byte_index]), users_logged_in[i].username.c_str(), users_logged_in[i].username.size());
+            byte_index += users_logged_in[i].username.size();
+        }
     }   
 
     printf("sending encrypted is:\n");
@@ -380,7 +382,38 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     return true;   
 }
 
-bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
+int receive_message_enc_srv(Server srv, int sd, unsigned char* message, vector<unsigned char> &decrypted) {
+    int message_len;
+
+    do {
+        message_len = recv(sd, message, constants::MAX_MESSAGE_SIZE-1, 0);
+        
+        if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
+            perror("Receive Error");
+            throw runtime_error("Receive failed");
+        } else if (message_len == 0) {
+            cout << "client connection closed" << endl;
+            return 0;
+        } 
+    } while (message_len < 0);
+
+    cout << "message_len: " << message_len << endl;
+
+    printf("ciphertext is:\n");
+    BIO_dump_fp(stdout, (const char*)message, message_len);
+
+    printf("1) session key is:\n");
+    BIO_dump_fp(stdout, (const char*)srv.serverConn->getSessionKey(sd), 16);
+
+    printf("iv is:\n");
+    BIO_dump_fp(stdout, (const char*)srv.serverConn->getIV(), constants::IV_LEN);
+
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, message_len, decrypted);
+
+    return decrypted_size;
+}
+
+bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
     int byte_index = 0;    
     char opCode;
@@ -391,16 +424,26 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     int pubKeyBufferLen = 0;
     int keyDHBufferLen = 0;
     vector<user> users_logged_in = srv.serverConn->getUsersList();
+    vector<unsigned char> decrypted;
+    vector<unsigned char> encrypted;
 
-    memcpy(&opCode, &(buffer[byte_index]), sizeof(char));
+    printf("requestToTalk is:\n");
+    BIO_dump_fp(stdout, (const char*)buffer, buf_len);
+
+    decrypted.resize(buf_len);
+    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), buffer, buf_len, decrypted);
+
+    memcpy(&opCode, &(decrypted.data()[byte_index]), sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(&username_to_talk_to_size, &(buffer[byte_index]), sizeof(int));
+    memcpy(&username_to_talk_to_size, &(decrypted.data()[byte_index]), sizeof(int));
     byte_index += sizeof(int);
+
+    cout << "username_to_talk_to_size: " << username_to_talk_to_size << endl;
 
     unsigned char* username_to_talk_to = (unsigned char*)malloc(username_to_talk_to_size);
 
-    memcpy(username_to_talk_to, &(buffer[byte_index]), username_to_talk_to_size);
+    memcpy(username_to_talk_to, &(decrypted.data()[byte_index]), username_to_talk_to_size);
     byte_index += username_to_talk_to_size;
 
     string username_string = srv.serverConn->findUserFromSd(sd);
@@ -414,6 +457,8 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     }
     cout << RESET << endl;
 
+    srv.serverConn->generateIV();
+
     for(auto us : srv.serverConn->getActiveChats()) {
         if(memcmp(us->username_1, username, username_size) == 0 || 
             memcmp(us->username_2, username, username_size) == 0) 
@@ -425,7 +470,8 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
                 unsigned char* already_chatting = (unsigned char*)malloc(sizeof(char));
                 already_chatting[0] = 'n';
 
-                srv.serverConn->send_message(already_chatting, sd, sizeof(char));
+                encrypted.resize(sizeof(char));
+                send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), already_chatting, sizeof(char), encrypted);
 
                 free(already_chatting);
                 return true;
@@ -441,7 +487,8 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
                 unsigned char* already_chatting = (unsigned char*)malloc(sizeof(char));
                 already_chatting[0] = 'n';
 
-                srv.serverConn->send_message(already_chatting, sd, sizeof(char));
+                encrypted.resize(sizeof(char));
+                send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), already_chatting, sizeof(char), encrypted);
 
                 free(already_chatting);
                 return true;
@@ -464,14 +511,16 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     int user_to_talk_to_sd = 0;
     for(size_t i = 0; i < users_logged_in.size(); i++) {
         if(strncmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to), username_size) == 0) {
-            srv.serverConn->send_message(message,users_logged_in[i].sd, dim);
+            encrypted.clear();
+            send_message_enc_srv(srv.crypto, users_logged_in[i].sd, srv.serverConn->getSessionKey(users_logged_in[i].sd), srv.serverConn->getIV(), message, dim, encrypted);
             user_to_talk_to_sd = users_logged_in[i].sd;
         }
     }
 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    decrypted.clear();
 
-    int ret = srv.serverConn->receive_message(user_to_talk_to_sd, response);
+    int ret = receive_message_enc_srv(srv, user_to_talk_to_sd, response, decrypted);
     if(ret == 0) {
         cout << RED <<"**client disconnected**" << RESET << endl;
         return false;
@@ -481,72 +530,78 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&opCode, &(response[byte_index]), sizeof(char));
     byte_index += sizeof(char);
 
-    if(opCode == constants::ACCEPTED)
-    {   
-
-  
-    //Recuperare chiave pubblica utente della risposta
-
-    std::stringstream filename_stream;
-    std::stringstream username_string;
-
-    for(int i = 0; i < username_to_talk_to_size; i++) {
-        filename_stream << username_to_talk_to[i];
-        username_string << username_to_talk_to[i];
-    }
-
-    cout << endl;
-
-    filename_stream << "_pubkey.pem";
-
-    string filename = filename_stream.str();
-
-    string filename_dir = "keys/public/" + filename;
-        
-    FILE* file;
-    file = fopen(filename_dir.c_str(), "r");
-    if(!file)
-        throw runtime_error("An error occurred, the file doesn't exist.");
-
-    EVP_PKEY *pubkey_client_B = PEM_read_PUBKEY(file, NULL, NULL, NULL);
-    if(!pubkey_client_B){
-        fclose(file);
-        throw runtime_error("An error occurred while reading the public key.");
-    }
-
-    //Serializzare chiave pubblica
-    pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
-    //Cambiare dim
-    memcpy(&keyDHBufferLen, &(response[byte_index]), sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&keyClientDHBuffer, &(response[byte_index]), keyDHBufferLen);
-    byte_index+= keyDHBufferLen;
-
-    dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
-    
-    free(message);
+    cout << "opCode: " << opCode << endl;
 
     byte_index = 0;
     message = (unsigned char*)malloc(dim);
 
-    //RICOSTRUIRE IL MESSAGGIO PERCHE' da segmentation fault
+    if(opCode == constants::ACCEPTED) {   
+        //Recuperare chiave pubblica utente della risposta
 
+        byte_index += sizeof(char);
 
+        std::stringstream filename_stream;
+        std::stringstream username_string;
 
-    memcpy(&(response[byte_index]), &pubKeyBufferLen, sizeof(int));
-    byte_index += sizeof(int);
+        for(int i = 0; i < username_to_talk_to_size; i++) {
+            filename_stream << username_to_talk_to[i];
+            username_string << username_to_talk_to[i];
+        }
 
-    memcpy(&(response[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
-    byte_index += pubKeyBufferLen;
+        cout << endl;
 
+        filename_stream << "_pubkey.pem";
 
+        string filename = filename_stream.str();
 
+        string filename_dir = "keys/public/" + filename;
+            
+        FILE* file;
+        file = fopen(filename_dir.c_str(), "r");
+        if(!file)
+            throw runtime_error("An error occurred, the file doesn't exist.");
+
+        EVP_PKEY *pubkey_client_B = PEM_read_PUBKEY(file, NULL, NULL, NULL);
+        if(!pubkey_client_B){
+            fclose(file);
+            throw runtime_error("An error occurred while reading the public key.");
+        }
+
+        // Serializzare chiave pubblica
+        pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
+
+        // Cambiare dim
+        memcpy(&keyDHBufferLen, &(decrypted.data()[byte_index]), sizeof(int));
+        byte_index += sizeof(int);
+
+        memcpy(&keyClientDHBuffer, &(decrypted.data()[byte_index]), keyDHBufferLen);
+        byte_index+= keyDHBufferLen;
+
+        dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
+        
+        free(message);
+
+        byte_index = 0;
+        message = (unsigned char*)malloc(dim);
+
+        //RICOSTRUIRE IL MESSAGGIO PERCHE' da segmentation fault
+
+        memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
+        byte_index += sizeof(char);
+
+        memcpy(&(message[byte_index]), &pubKeyBufferLen, sizeof(int));
+        byte_index += sizeof(int);
+
+        memcpy(&(message[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
+        byte_index += pubKeyBufferLen;
+    } else {
+        // liberare tutto e inviare risposta negativa
+        memcpy(&(message[byte_index]), &constants::REFUSED, sizeof(char));
+        byte_index += sizeof(char);
     }
 
-  
-
-    srv.serverConn->send_message(response, sd, dim);
+    encrypted.clear();
+    send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, encrypted);
 
     free(username_to_talk_to);
     free(username);

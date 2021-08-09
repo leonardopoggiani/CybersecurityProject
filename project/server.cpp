@@ -69,20 +69,20 @@ int main(int argc, char* const argv[]) {
                     }else if(buffer[0] == constants::REQUEST) {
                         cout << GREEN << "\n**** REQUEST TO TALK****" << RESET << endl;
 
-                        if (!requestToTalk(srv, sd, buffer.data())) throw runtime_error("Request to talk failed on Server");
+                        if (!requestToTalk(srv, sd, buffer.data(), ret)) throw runtime_error("Request to talk failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     }else if(buffer[0] == constants::START_CHAT) {
                         cout << GREEN << "\n**** START CHAT ****" << RESET << endl;
 
-                        if (!start_chat(srv, sd, buffer.data())) throw runtime_error("Request to talk failed on Server");
+                        if (!start_chat(srv, sd, buffer.data())) throw runtime_error("Starting char failed on Server");
                         cout << BOLDGREEN << "Chat started! " << RESET << endl;
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::CHAT) {
                         cout << GREEN << "\n**** CHAT ****" << RESET << endl;
 
-                        if (!chatting(srv, sd, buffer.data())) throw runtime_error("Request to talk failed on Server");
+                        if (!chatting(srv, sd, buffer.data())) throw runtime_error("Chatting failed on Server");
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::LOGOUT) {
