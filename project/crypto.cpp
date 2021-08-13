@@ -529,7 +529,7 @@ void CryptoOperation::secretDerivation(EVP_PKEY *my_prvkey, EVP_PKEY *peer_pubke
     if(!peer_pubkey)
         throw runtime_error("An error occurred reading the public key.");
 
-    ctx_drv = EVP_PKEY_CTX_new(my_prvkey,NULL);
+    ctx_drv = EVP_PKEY_CTX_new(my_prvkey, NULL);
     if(!ctx_drv)
         throw runtime_error("An error occurred during the creation of the context.");
 

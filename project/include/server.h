@@ -530,8 +530,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     memcpy(&opCode, &(response[byte_index]), sizeof(char));
     byte_index += sizeof(char);
 
-    cout << "opCode: " << opCode << endl;
-
     byte_index = 0;
     message = (unsigned char*)malloc(dim);
 
@@ -589,11 +587,18 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
         byte_index += sizeof(char);
 
+        memcpy(&(message[byte_index]), &keyDHBufferLen, sizeof(int));
+        byte_index += sizeof(int);
+
+        memcpy(&(message[byte_index]), keyClientDHBuffer.data(), keyDHBufferLen);
+        byte_index += keyDHBufferLen;
+
         memcpy(&(message[byte_index]), &pubKeyBufferLen, sizeof(int));
         byte_index += sizeof(int);
 
         memcpy(&(message[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
         byte_index += pubKeyBufferLen;
+   
     } else {
         // liberare tutto e inviare risposta negativa
         memcpy(&(message[byte_index]), &constants::REFUSED, sizeof(char));

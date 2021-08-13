@@ -703,7 +703,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     EVP_PKEY *peerPubKey = NULL;
     EVP_PKEY *sessionDHKey = NULL;
     EVP_PKEY *keyDH = NULL;
-    unsigned char* keyDHBuffer = NULL;
+    array<unsigned char, constants::MAX_MESSAGE_SIZE> keyDHBuffer;
     int keyDHBufferLen = 0;
     vector<unsigned char> encrypted;
     vector<unsigned char> decrypted;
@@ -724,8 +724,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
     send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted);
 
-    // clt.clientConn->send_message(message, dim);
-
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
      
     cout << "** waiting for response ** " << endl;
@@ -745,6 +743,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         cout << GREEN << "request accepted, starting the chat" << RESET << endl;
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
+
+        clt.clientConn->setCurrentChat(username_to_contact, username);
 
         byte_index = 0;
 
@@ -781,13 +781,20 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         cout << GREEN << "*** Generating session key ***" << RESET << endl;
 
         array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+
+        clt.crypto->keyGeneration(sessionDHKey);
         clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
+
+        // prima era
+        // clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
+        // senza fare la keyGeneration, ma quando era inizializzato sessionDHKey?
+
+        memcpy(clt.clientConn->getCurrentChat()->session_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
+
         //Perchè così serializzata?!
-        userChat* currentChat = clt.clientConn->getCurrentChat();
         if(!clt.clientConn->getCurrentChat()->session_key) {
             throw runtime_error("malloc failed");
         }
-        // memcpy(clt.clientConn->chat->session_key, tempBuffer.data(), tempBuffer.size());
 
         cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
 
@@ -795,8 +802,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         // opcode | keyDHlen | keyDH
 
-        clt.crypto->keyGeneration(keyDH);
-        keyDHBufferLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer);
+        keyDHBufferLen = clt.crypto->serializePublicKey(sessionDHKey, keyDHBuffer.data());
         dim = sizeof(char) + sizeof(int) + keyDHBufferLen;
         free(message);
         
@@ -811,10 +817,12 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(&(message[byte_index]), &keyDHBufferLen, sizeof(int));
         byte_index += sizeof(int);
 
-        memcpy(&(message[byte_index]), keyDHBuffer, keyDHBufferLen);
+        memcpy(&(message[byte_index]), keyDHBuffer.data(), keyDHBufferLen);
         byte_index += keyDHBufferLen;
 
         //Inviare messaggio
+        encrypted.clear();
+        send_message_enc(clt.clientConn->getMasterFD(), clt, message, byte_index, encrypted);
 
         //Quando abbiamo finito togliere start_chat, per ora lo lascio per le prove
         start_chat(clt, username, username_to_contact);

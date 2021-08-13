@@ -46,6 +46,20 @@ struct userChat {
     }
 };
 
+struct currentChat {
+    string username_1;
+    string username_2;
+    EVP_PKEY* pubkey_1;
+    EVP_PKEY* pubkey_2;
+    unsigned char* session_key;
+
+    currentChat(string us1, string us2) {
+        username_1 = us1;
+        username_2 = us2;
+        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+    }
+};
+
 class clientConnection {
 
     protected:
@@ -56,9 +70,13 @@ class clientConnection {
         unsigned char* iv;
         unsigned char* session_key;
         unsigned char* username;
-        userChat* currentChat;
+        currentChat* current_chat;
 
     public:
+
+        void setCurrentChat(string username_to_contact, string username) {
+            current_chat = new currentChat(username_to_contact, username);
+        }
 
         unsigned char* getSessionKey() {
             printf("2) session key is:\n");
@@ -284,8 +302,8 @@ class clientConnection {
             BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
         }
 
-        userChat* getCurrentChat() {
-            return currentChat;
+        currentChat* getCurrentChat() {
+            return current_chat;
         }
 };
 
