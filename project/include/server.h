@@ -608,6 +608,22 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     encrypted.clear();
     send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, encrypted);
 
+    int sd_1 = 0;
+    int sd_2 = 0;
+
+    for(auto user : users_logged_in) {
+        if(memcmp(user.username.c_str(), username, username_size) == 0) {
+            sd_1 = user.sd;
+        }
+
+        if(memcmp(user.username.c_str(), username_to_talk_to, username_to_talk_to_size) == 0) {
+            sd_2 = user.sd;
+        }
+    }
+
+    userChat *new_chat = new userChat(username, sd_1, username_to_talk_to, sd_2);
+    srv.serverConn->insertChat(new_chat);
+
     free(username_to_talk_to);
     free(username);
     free(response);
@@ -686,11 +702,13 @@ bool start_chat(Server srv, int sd, unsigned char* buffer) {
     return true;
 }
 
-bool chatting(Server srv, int sd, unsigned char* buffer) {
+bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
 
     unsigned char* message_received;
     unsigned char recv_iv[constants::IV_LEN];
     unsigned char recv_tag[constants::TAG_LEN];
+    vector<unsigned char> decrypted;
+    vector<unsigned char> encrypted;
     int message_size = 0;
     int byte_index = 0;
     int sd_to_send = -1;
@@ -703,19 +721,14 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
         return false;
     }
 
-    memcpy(&(opCode), &buffer[byte_index], sizeof(char));
-    byte_index += sizeof(char);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), buffer, msg_len, decrypted);
 
-    cout << MAGENTA << "[DEBUG] " << "opcode: " << opCode << RESET << endl; 
+    printf("messaggio :\n");
+    BIO_dump_fp(stdout, (const char*)decrypted.data(), decrypted_size);
 
-    memcpy(&(message_size), &buffer[byte_index], sizeof(int));
-    byte_index += sizeof(int);
-
-    cout << MAGENTA << "[DEBUG] " << "message_size: " << message_size << RESET << endl; 
-
-    message_received = (unsigned char*)malloc(message_size);
-    memcpy(message_received, &buffer[byte_index], message_size);
-    byte_index += message_size;
+    message_received = (unsigned char*)malloc(decrypted_size);
+    memcpy(message_received, &decrypted.data()[byte_index], decrypted_size);
+    byte_index += decrypted_size;
 
     /*
     memcpy(recv_iv, &buffer[byte_index], constants::IV_LEN);
@@ -724,7 +737,7 @@ bool chatting(Server srv, int sd, unsigned char* buffer) {
     byte_index += constants::TAG_LEN;
     */
 
-    srv.serverConn->send_message(buffer, sd_to_send, byte_index);
+    send_message_enc_srv(srv.crypto, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), srv.serverConn->getIV(), decrypted.data(), msg_len, encrypted);
 
     free(message_received);
     return true;   

@@ -111,13 +111,14 @@ int main(int argc, char* const argv[]) {
                     return 1;
                 }
                 sendRequestToTalk(clt, username_to_contact, username);
+                
                 break;
             case 3:
                 cout << RED << "Logout..\n" << RESET << endl;  
                 logout(clt);
                 return 0;
             default:
-                cout << RED << "**Command not recognized**" << RESET << endl;
+                cout << RED << "** Command not recognized **" << RESET << endl;
                 return 1;
         }
     }

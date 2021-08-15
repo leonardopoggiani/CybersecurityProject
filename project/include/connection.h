@@ -551,7 +551,9 @@ class serverConnection : public clientConnection {
         }
 
         int findSd(int sd_to_search) {
+
             for(userChat* c : activeChat) {
+
                 if(c->sd_1 == sd_to_search) {
                     return c->sd_2;
                 } else if(c->sd_2 == sd_to_search) {

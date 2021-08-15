@@ -60,24 +60,13 @@ string readPassword() {
 int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
     int ret = 0;
 
-    printf("sending encrypted is:\n");
-    BIO_dump_fp(stdout, (const char*)message, dim);
-
     unsigned char* session_key = clt.clientConn->getSessionKey();
-    printf("session key is:\n");
-    BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
 
     clt.clientConn->generateIV();
     unsigned char* iv = clt.clientConn->getIV();
 
-    printf("iv is:\n");
-    BIO_dump_fp(stdout, (const char*)iv, constants::IV_LEN);
-
     encrypted.resize(dim);
     int encrypted_size = clt.crypto->encryptMessage(session_key, iv, message, dim, encrypted);
-
-    printf("encrypted send is:\n");
-    BIO_dump_fp(stdout, (const char*)encrypted.data(), encrypted_size);
 
     do {
         ret = send(masterFD, encrypted.data(), encrypted_size, 0);
@@ -107,17 +96,6 @@ int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char
             return 0;
         } 
     } while (message_len < 0);
-
-    cout << RED << "MESSAGE_LEN: " << message_len << RESET << endl;
- 
-    printf("ciphertext is:\n");
-    BIO_dump_fp(stdout, (const char*)message, message_len);
-
-    printf("1) session key is:\n");
-    BIO_dump_fp(stdout, (const char*)clt.clientConn->getSessionKey(), 16);
-
-    printf("iv is:\n");
-    BIO_dump_fp(stdout, (const char*)clt.clientConn->getIV(), constants::IV_LEN);
 
     int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, message_len, decrypted);
 
@@ -441,8 +419,6 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     unsigned char response = 'n';
     int dim = 0;
 
-    cout << "msg_len: " << msg_len << endl;
-
     printf("msg is:\n");
     BIO_dump_fp(stdout, (const char*)msg, msg_len);
 
@@ -452,8 +428,6 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
     memcpy(&(username_size), &decrypted.data()[byte_index], sizeof(int));
     byte_index += sizeof(int);
-
-    cout << "username size: " << username_size << endl;
 
     if(username_size < 0 || username_size > constants::MAX_MESSAGE_SIZE) {
         cerr << "Username size error!" << endl;
@@ -526,7 +500,6 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         byte_index += sizeof(char);
     }  
 
-    cout << "dim: " << dim << endl;
     send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted);
 
     free(response_to_request);
@@ -566,37 +539,10 @@ void chat(Client clt) {
     string message;
     unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     unsigned char* to_send;
+    vector<unsigned char> encrypted;
+    vector<unsigned char> decrypted;
     int maxfd;
-
-    int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
-    if (ret == 0) {
-        cout << RED << "** client connection closed **" << RESET << endl;
-        free(buffer);
-        return;
-    } 
-
-    int username_size = 0;
-    int byte_index = 0;
-
-    memcpy(&(username_size), &buffer[byte_index], sizeof(int));
-    byte_index += sizeof(int);
-
-    unsigned char* username_talking_to = (unsigned char*)malloc(username_size);
-    if(!username_talking_to) {
-        throw runtime_error("malloc failed");
-    }
-
-    memcpy(username_talking_to, &buffer[byte_index], username_size);
-    byte_index += username_size;
-
-    cout << "Talking to ";
-
-    for(int i = 0; i < username_size; i++) {
-        cout << username_talking_to[i];
-    }
-    cout << endl;
-
-    clt.clientConn->setTalkingTo(username_talking_to);
+    int ret;
 
     buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
 
@@ -634,12 +580,11 @@ void chat(Client clt) {
             memcpy(&(to_send[byte_index]), message.c_str(), message_size);
             byte_index += message_size;
 
-            clt.clientConn->send_message(to_send, message_size);
-
+            send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, message_size, encrypted);
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
-            ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), buffer);
+            ret = receive_message_enc(clt, buffer, decrypted);
             if (ret == 0) {
                 cout << RED << "**client connection closed**" << RESET << endl;
                 free(buffer);
@@ -677,11 +622,6 @@ void chat(Client clt) {
             
             memcpy(message, &buffer[byte_index], message_size);
             byte_index += message_size;
-
-            for(int i = 0; i < username_size; i++) {
-                cout << username_talking_to[i];
-            }
-            cout << ": ";
 
             for(int i = 0; i < message_size; i++) {
                 cout << message[i];
@@ -793,13 +733,12 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         //Perchè così serializzata?!
         if(!clt.clientConn->getCurrentChat()->session_key) {
-            throw runtime_error("malloc failed");
+            throw runtime_error("Malloc failed");
         }
 
         cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
 
         //Costruire e inviare mia chiave DH
-
         // opcode | keyDHlen | keyDH
 
         keyDHBufferLen = clt.crypto->serializePublicKey(sessionDHKey, keyDHBuffer.data());
@@ -810,6 +749,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         if(message == NULL) {
             throw runtime_error("Malloc error");
         }
+
         byte_index = 0;
         memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
         byte_index += sizeof(char);
@@ -823,9 +763,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         //Inviare messaggio
         encrypted.clear();
         send_message_enc(clt.clientConn->getMasterFD(), clt, message, byte_index, encrypted);
-
-        //Quando abbiamo finito togliere start_chat, per ora lo lascio per le prove
-        start_chat(clt, username, username_to_contact);
 
         chat(clt);
 
