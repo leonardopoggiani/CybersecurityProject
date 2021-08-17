@@ -47,15 +47,21 @@ struct userChat {
 };
 
 struct currentChat {
-    string username_1;
-    string username_2;
+    unsigned char* username_1;
+    int dim_us1;
+    unsigned char* username_2;
+    int dim_us2;
     EVP_PKEY* pubkey_1;
     EVP_PKEY* pubkey_2;
     unsigned char* session_key;
 
-    currentChat(string us1, string us2) {
-        username_1 = us1;
-        username_2 = us2;
+    currentChat(unsigned char* us1, int d_us1, unsigned char* us2, int d_us2) {
+        username_1 = (unsigned char*)malloc(d_us1);
+        username_2 = (unsigned char*)malloc(d_us2);
+        memcpy(username_1, us1, d_us1);
+        memcpy(username_2, us2, d_us2);
+        dim_us1 = d_us1;
+        dim_us2 = d_us2;
         session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
     }
 };
@@ -70,25 +76,34 @@ class clientConnection {
         unsigned char* iv;
         unsigned char* session_key;
         unsigned char* username;
+        int username_size;
         currentChat* current_chat;
 
     public:
 
-        void setCurrentChat(string username_to_contact, string username) {
-            current_chat = new currentChat(username_to_contact, username);
+        unsigned char* getUsername() {
+            return username;
+        }
+
+        int getUsernameSize() {
+            return username_size;
+        }
+ 
+        void setUsername(string us) {
+            username = (unsigned char*)malloc(us.size());
+            username_size = us.size();
+            memcpy(username, us.c_str(), us.size());
+        }
+
+        void setCurrentChat(unsigned char* username_to_contact, int us_size1, unsigned char* username, int us_size2) {
+            current_chat = new currentChat(username_to_contact, us_size1, username, us_size2);
         }
 
         unsigned char* getSessionKey() {
-            printf("2) session key is:\n");
-            BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
-
             return session_key;
         }
 
         unsigned char* getIV() {
-            printf("2) session key is:\n");
-            BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
-            
             return iv;
         }
 
@@ -302,7 +317,7 @@ class clientConnection {
             BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
         }
 
-        currentChat* getCurrentChat() {
+        currentChat* getMyCurrentChat() {
             return current_chat;
         }
 };
@@ -335,6 +350,13 @@ class serverConnection : public clientConnection {
             if(RAND_poll() != 1)
                 throw runtime_error("An error occurred in RAND_poll."); 
             if(RAND_bytes(iv, constants::IV_LEN) != 1)
+                throw runtime_error("An error occurred in RAND_bytes.");
+        }
+
+        void generateIV(unsigned char* initialization_vector) {
+            if(RAND_poll() != 1)
+                throw runtime_error("An error occurred in RAND_poll."); 
+            if(RAND_bytes(initialization_vector, constants::IV_LEN) != 1)
                 throw runtime_error("An error occurred in RAND_bytes.");
         }
 
@@ -565,15 +587,9 @@ class serverConnection : public clientConnection {
         }
 
         unsigned char* getSessionKey(int sd) {
-
-            cout << "sd: " << sd << endl;
-
             for(auto user : users_logged_in) {
                 if(user.sd == sd) {
                     cout << "user: " << user.username << endl;
-
-                    printf("2) session key is:\n");
-                    BIO_dump_fp(stdout, (const char*)user.session_key, EVP_MD_size(EVP_sha256()));
 
                     return user.session_key;
                 }

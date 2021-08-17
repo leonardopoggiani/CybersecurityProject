@@ -23,7 +23,6 @@ struct Client {
     EVP_PKEY *prvKeyClient;
     clientConnection *clientConn = new clientConnection();
     CryptoOperation *crypto = new CryptoOperation();
-    string username;  
 };
 
 string readMessage() {
@@ -117,7 +116,6 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* signature = NULL;
     string to_insert;
     array<unsigned char, NONCE_SIZE> nonceClient;
-    clt.username = username;
 
     string filename = "./keys/private/" + username + "_prvkey.pem";
 	
@@ -419,9 +417,6 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     unsigned char response = 'n';
     int dim = 0;
 
-    printf("msg is:\n");
-    BIO_dump_fp(stdout, (const char*)msg, msg_len);
-
     clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), msg, msg_len, decrypted);
 
     byte_index += sizeof(char);
@@ -443,7 +438,10 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     memcpy(username, &decrypted.data()[byte_index], username_size);
     byte_index += username_size;
 
-    if(memcpy((void*)clt.username.c_str(), username, username_size) == 0) {
+    unsigned char* username_to_copy = clt.clientConn->getUsername();
+    int username_to_copy_size = clt.clientConn->getUsernameSize();
+
+    if(memcmp(username_to_copy, username, username_size) == 0) {
         cout << RED << "You're trying to speak with yourself, insert a valid username" << RESET << endl;
         return false;
     }
@@ -462,6 +460,8 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     if(response == 'y') {
 
         cout << GREEN << "ok so i'll start the chat" << RESET << endl;
+
+        clt.clientConn->setCurrentChat(username, username_size, username_to_copy, username_to_copy_size);
 
         clt.crypto->keyGeneration(keyDH);
         keyBufferDHLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer.data());
@@ -534,6 +534,12 @@ void start_chat(Client clt, string username, string username_to_contact) {
     clt.clientConn->send_message(buffer,dim);
 }
 
+void print_unsigned_array(unsigned char* array, int dim) {
+    for(int i = 0; i < dim; i++) {
+        cout << array[i];
+    }
+}
+
 void chat(Client clt) {
     fd_set fds;
     string message;
@@ -547,6 +553,9 @@ void chat(Client clt) {
     buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
 
     while(1) {
+
+        decrypted.clear();
+        encrypted.clear();
 
         memset(buffer, 0, constants::MAX_MESSAGE_SIZE);
 
@@ -580,7 +589,7 @@ void chat(Client clt) {
             memcpy(&(to_send[byte_index]), message.c_str(), message_size);
             byte_index += message_size;
 
-            send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, message_size, encrypted);
+            ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, byte_index, encrypted);
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
@@ -591,46 +600,36 @@ void chat(Client clt) {
                 return;
             } 
 
-            cout << "message_size: " << ret << endl;
+            cout << BLUE;
 
-            int size_received = 0;
-            memcpy(&size_received, buffer + sizeof(char), sizeof(int));
-
-            cout << "encrypted_size: " << size_received << endl;
-
-            vector<unsigned char> message_decrypted;
-            int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(),clt.clientConn->getIV(), buffer, size_received, message_decrypted);
-
-            //cout << "decrypted_size: " << decrypted_size << endl;
-
-            cout << "message_decrypted: " << endl;
-            for(int i = 0; i < constants::MAX_MESSAGE_SIZE; i++) {
-                cout << message_decrypted[i];
+            if(memcmp(clt.clientConn->getMyCurrentChat()->username_1, clt.clientConn->getUsername(), clt.clientConn->getMyCurrentChat()->dim_us1) == 0) {
+                print_unsigned_array(clt.clientConn->getMyCurrentChat()->username_2, clt.clientConn->getMyCurrentChat()->dim_us2);
+            } else if(memcmp(clt.clientConn->getMyCurrentChat()->username_2, clt.clientConn->getUsername(), clt.clientConn->getMyCurrentChat()->dim_us2) == 0) {
+                print_unsigned_array(clt.clientConn->getMyCurrentChat()->username_1, clt.clientConn->getMyCurrentChat()->dim_us1);
+            } else {
+                throw runtime_error("Username not found");
             }
 
-            cout << endl;
+            cout << ": " << endl;
 
-            int message_size = 0;
-            int byte_index = sizeof(char);
+            for(int i = 0; i < ret - sizeof(char) - sizeof(int) + 2; i++) {
+                cout << "*";
+            }
+            cout << RESET << endl;
 
-            unsigned char* message;
-
-            memcpy(&(message_size), &buffer[byte_index], sizeof(int));
-            byte_index += sizeof(int);
-
-            message = (unsigned char*)malloc(sizeof(char) + sizeof(int) + message_size);
-            
-            memcpy(message, &buffer[byte_index], message_size);
-            byte_index += message_size;
-
-            for(int i = 0; i < message_size; i++) {
-                cout << message[i];
+            for(int i = sizeof(char) + sizeof(int); i < ret; i++) {
+                cout << decrypted.data()[i];
             }
 
-            cout << endl;
+            cout << BLUE << " *" << endl;
+
+            for(int i = 0; i < ret - sizeof(char) - sizeof(int) + 2; i++) {
+                cout << "*";
+            }
+
+            cout << RESET << endl;
         }
     }
-    
 }
 
 void sendRequestToTalk(Client clt, string username_to_contact, string username) {
@@ -675,8 +674,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         return;
     } 
 
-    cout << RED << "ret: " << ret << RESET << endl;
-
     // Cambiare controllo con l'opcode corretto
     
     if(response[0] == constants::ACCEPTED) {
@@ -684,7 +681,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
 
-        clt.clientConn->setCurrentChat(username_to_contact, username);
+        clt.clientConn->setCurrentChat((unsigned char*)username_to_contact.c_str(), username_to_contact.size(), (unsigned char*)username.c_str(), username.size());
 
         byte_index = 0;
 
@@ -714,11 +711,9 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(peerPubKeyBuffer, &decrypted.data()[byte_index], peerPubKeyLen);
         byte_index += peerPubKeyLen;
 
-        clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getCurrentChat()->pubkey_1);
+        clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_1);
 
         // Costruire chiave di sessione prvDH
-
-        cout << GREEN << "*** Generating session key ***" << RESET << endl;
 
         array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
 
@@ -729,14 +724,12 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         // clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
         // senza fare la keyGeneration, ma quando era inizializzato sessionDHKey?
 
-        memcpy(clt.clientConn->getCurrentChat()->session_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
+        memcpy(clt.clientConn->getMyCurrentChat()->session_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
 
         //Perchè così serializzata?!
-        if(!clt.clientConn->getCurrentChat()->session_key) {
+        if(!clt.clientConn->getMyCurrentChat()->session_key) {
             throw runtime_error("Malloc failed");
         }
-
-        cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
 
         //Costruire e inviare mia chiave DH
         // opcode | keyDHlen | keyDH

@@ -415,8 +415,6 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     int len = 0;
     int pl_len = 0;
 
-    cout << "msg_len: " << msg_len << endl;
-
     // if (msg_len < (constants::IV_LEN + constants::TAG_LEN))
     //     throw runtime_error("Message length not valid.");
     
@@ -442,18 +440,10 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     try {
         memcpy(recv_iv, msg + sizeof(char), constants::IV_LEN);
 
-        printf("recv_iv is:\n");
-        BIO_dump_fp(stdout, (const char*)recv_iv, constants::IV_LEN);
-
         memcpy(ciphr_msg, msg + constants::IV_LEN + sizeof(char), ciphr_len);
-
-        printf("cipher message is:\n");
-        BIO_dump_fp(stdout, (const char*)ciphr_msg, ciphr_len);
 
         memcpy(recv_tag, msg + ciphr_len + constants::IV_LEN + sizeof(char), constants::TAG_LEN);
 
-        printf("tag is:\n");
-        BIO_dump_fp(stdout, (const char*)recv_tag, constants::TAG_LEN);
 
         if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), session_key, recv_iv))
             throw runtime_error("An error occurred while initializing the context.");
@@ -482,8 +472,6 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     delete[] ciphr_msg;
     delete[] tempBuffer;
     EVP_CIPHER_CTX_free(ctx);
-
-    cout << "ret: " << ret << endl;
     
     if(ret > 0){
         pl_len += len;

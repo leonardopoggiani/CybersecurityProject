@@ -705,7 +705,7 @@ bool start_chat(Server srv, int sd, unsigned char* buffer) {
 bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
 
     unsigned char* message_received;
-    unsigned char recv_iv[constants::IV_LEN];
+    array<unsigned char, constants::IV_LEN> iv;
     unsigned char recv_tag[constants::TAG_LEN];
     vector<unsigned char> decrypted;
     vector<unsigned char> encrypted;
@@ -730,14 +730,10 @@ bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
     memcpy(message_received, &decrypted.data()[byte_index], decrypted_size);
     byte_index += decrypted_size;
 
-    /*
-    memcpy(recv_iv, &buffer[byte_index], constants::IV_LEN);
-    byte_index += constants::IV_LEN;
-    memcpy(recv_tag, &buffer[byte_index], constants::TAG_LEN);
-    byte_index += constants::TAG_LEN;
-    */
+    int encrypted_size = send_message_enc_srv(srv.crypto, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), iv.data(), decrypted.data(), decrypted_size, encrypted);
 
-    send_message_enc_srv(srv.crypto, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), srv.serverConn->getIV(), decrypted.data(), msg_len, encrypted);
+    printf("encrypted :\n");
+    BIO_dump_fp(stdout, (const char*)encrypted.data(), encrypted_size);
 
     free(message_received);
     return true;   

@@ -49,6 +49,8 @@ int main(int argc, char* const argv[]) {
     cin >> username;
     cout << endl;
 
+    clt.clientConn->setUsername(username);
+
     cout << "Fine! Now insert you password to chat with others" << endl;
     password = readPassword();
 
