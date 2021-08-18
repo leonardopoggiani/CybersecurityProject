@@ -16,13 +16,12 @@
 
 using namespace std;
 
-array<unsigned char, constants::MAX_MESSAGE_SIZE> buffer;
-vector<unsigned char> received;
-
 int main(int argc, char* const argv[]) {
 
     int ret = 0;
     Server srv;
+    array<unsigned char, constants::MAX_MESSAGE_SIZE> buffer;
+    vector<unsigned char> received;
   
     while(1) {
 
@@ -57,42 +56,55 @@ int main(int argc, char* const argv[]) {
                     if(buffer[0] == constants::AUTH) {
                         cout << GREEN << "\n**** AUTHENTICATION ****" << RESET << endl;
                       
-                        if (!authentication(srv, sd, buffer.data())) throw runtime_error("Authentication failed on Server");
+                        if (!authentication(srv, sd, buffer.data())) {
+                            cerr << RED << "Authentication failed on Server" << RESET << endl;
+                            exit(1);
+                        };
+
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::ONLINE) {
                         cout << GREEN << "\n**** ONLINE USERS REQUEST ****" << RESET << endl;
 
-                        if (!seeOnlineUsers(srv, sd, received)) throw runtime_error("Online Users request failed on Server");
+                        if (!seeOnlineUsers(srv, sd, received)) {
+                            cerr << RED << "Online user request failed on Server" << RESET << endl;
+                            exit(1);
+                        };
                         cout << "-----------------------------" << endl << endl;
 
-                    }else if(buffer[0] == constants::REQUEST) {
+                    } else if(buffer[0] == constants::REQUEST) {
                         cout << GREEN << "\n**** REQUEST TO TALK****" << RESET << endl;
 
-                        if (!requestToTalk(srv, sd, buffer.data(), ret)) throw runtime_error("Request to talk failed on Server");
+                        if (!requestToTalk(srv, sd, buffer.data(), ret)){
+                            cerr << RED << "Request to talk failed on Server" << RESET << endl;
+                            exit(1);
+                        };
                         cout << "-----------------------------" << endl << endl;
 
-                    }else if(buffer[0] == constants::ACCEPTED) {
+                    } else if(buffer[0] == constants::ACCEPTED) {
                         
                         cout << GREEN << "\n**** START CHAT ****" << RESET << endl;
-                        cout << BOLDGREEN << "Chat started! " << RESET << endl;
+                        cout << BOLDGREEN << "[LOG] Chat started! " << RESET << endl;
 
                     } else if(buffer[0] == constants::CHAT) {
                         cout << GREEN << "\n**** CHAT ****" << RESET << endl;
 
-                        if (!chatting(srv, sd, buffer.data(), ret)) throw runtime_error("Chatting failed on Server");
+                        if (!chatting(srv, sd, buffer.data(), ret)) {
+                            cerr << RED << "Chat failed on Server" << RESET << endl;
+                            exit(1);
+                        };
                         cout << "-----------------------------" << endl << endl;
 
                     } else if(buffer[0] == constants::LOGOUT) {
 
-                        cout << YELLOW << "\n**** LOGOUT ****" << RESET << endl;
+                        cout << YELLOW << "\n[LOG] LOGOUT " << RESET << endl;
 
                         srv.serverConn->disconnect_host(sd, i);
                         srv.serverConn->printOnlineUsers();
                         continue;
                         
                     } else {
-                        cout << RED << "**Invalid command { " << buffer[0] << " } , please retry**" << RESET << endl;
+                        cout << RED << "[ERROR] Invalid command { " << buffer[0] << " } , please retry" << RESET << endl;
                         continue;
                     }
                 }  
@@ -100,7 +112,7 @@ int main(int argc, char* const argv[]) {
         }
     }
 
+    received.clear();
     return 0;
-
 }
 

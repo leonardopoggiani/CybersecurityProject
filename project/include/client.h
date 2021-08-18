@@ -70,11 +70,11 @@ int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, 
     do {
         ret = send(masterFD, encrypted.data(), encrypted_size, 0);
         if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-            perror("Send Error");
-            throw runtime_error("Send failed");
+            cerr << RED << "[ERROR] send failed " << RESET << endl;
+            exit(EXIT_FAILURE);
         } else if (ret == 0) {
-            cout << "client connection closed" << endl;
-            return -1;
+            cout << "[ERROR] client connection closed" << endl;
+            return 0;
         } 
     } while (ret != encrypted_size);
 
@@ -82,16 +82,16 @@ int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, 
 }
 
 int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted) {
-    int message_len;
+    int message_len = -1;
 
     do {
         message_len = recv(clt.clientConn->getMasterFD(), message, constants::MAX_MESSAGE_SIZE-1, 0);
         
         if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-            perror("Receive Error");
-            throw runtime_error("Receive failed");
+            cerr << RED << "[ERROR] receive failed " << RESET << endl;
+            exit(EXIT_FAILURE);
         } else if (message_len == 0) {
-            cout << "client connection closed" << endl;
+            cout << "[ERROR] client connection closed" << endl;
             return 0;
         } 
     } while (message_len < 0);
@@ -317,7 +317,6 @@ bool authentication(Client &clt, string username, string password) {
 
     char opCode;
     byte_index = 0;    
-    int signature_size = 0;
     
     memcpy(&(opCode), &last_message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
@@ -398,18 +397,11 @@ bool authentication(Client &clt, string username, string password) {
 
 bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
-    unsigned int tempBufferLen = 0;
-    unsigned int keyBufferLen = 0;
     unsigned int keyBufferDHLen = 0;
     EVP_PKEY *keyDH = NULL;
-    EVP_PKEY *peerKeyDH = NULL;
-    EVP_PKEY *peerPubKey = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> keyDHBuffer;
     vector<unsigned char> decrypted;
     vector<unsigned char> encrypted; 
-
-    bool verify = false;
-
     int byte_index = 0;
     unsigned char* username = NULL;
     unsigned int username_size = 0;
@@ -500,38 +492,14 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         byte_index += sizeof(char);
     }  
 
-    send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted);
+    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted);
+    if(ret <= 0) {
+        return false;
+    }
 
     free(response_to_request);
     free(username);
     return true;
-}
-
-void start_chat(Client clt, string username, string username_to_contact) {
-
-    int dim = username.size() + username_to_contact.size() + sizeof(char) + sizeof(int) + sizeof(int);
-
-    unsigned char* buffer = (unsigned char*)malloc(dim);
-    int byte_index = 0;   
-
-    memcpy(&(buffer[byte_index]), &constants::START_CHAT, sizeof(char));
-    byte_index += sizeof(char);
-
-    int username_1_size = username.size();
-    memcpy(&(buffer[byte_index]), &username_1_size, sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&(buffer[byte_index]), username.c_str(), username.size());
-    byte_index += username.size();
-
-    int username_2_size = username_to_contact.size();
-    memcpy(&(buffer[byte_index]), &username_2_size, sizeof(int));
-    byte_index += sizeof(int);
-    
-    memcpy(&(buffer[byte_index]), username_to_contact.c_str(), username_to_contact.size());
-    byte_index += username_to_contact.size();
-
-    clt.clientConn->send_message(buffer,dim);
 }
 
 void print_unsigned_array(unsigned char* array, int dim) {
@@ -543,14 +511,12 @@ void print_unsigned_array(unsigned char* array, int dim) {
 void chat(Client clt) {
     fd_set fds;
     string message;
-    unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     unsigned char* to_send;
     vector<unsigned char> encrypted;
     vector<unsigned char> decrypted;
+    unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     int maxfd;
-    int ret;
-
-    buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    int ret = -1;
 
     while(1) {
 
@@ -564,7 +530,7 @@ void chat(Client clt) {
         FD_SET(clt.clientConn->getMasterFD(), &fds); 
         FD_SET(STDIN_FILENO, &fds); 
         
-        select(maxfd+1, &fds, NULL, NULL, NULL); 
+        select(maxfd + 1, &fds, NULL, NULL, NULL); 
 
         if(FD_ISSET(0, &fds)) {  
             cout << "\n ";
@@ -590,15 +556,14 @@ void chat(Client clt) {
             byte_index += message_size;
 
             ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, byte_index, encrypted);
+            if(ret <= 0) {
+                return;
+            }
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
+            
             ret = receive_message_enc(clt, buffer, decrypted);
-            if (ret == 0) {
-                cout << RED << "**client connection closed**" << RESET << endl;
-                free(buffer);
-                return;
-            } 
 
             cout << BLUE;
 
@@ -607,12 +572,21 @@ void chat(Client clt) {
             } else if(memcmp(clt.clientConn->getMyCurrentChat()->username_2, clt.clientConn->getUsername(), clt.clientConn->getMyCurrentChat()->dim_us2) == 0) {
                 print_unsigned_array(clt.clientConn->getMyCurrentChat()->username_1, clt.clientConn->getMyCurrentChat()->dim_us1);
             } else {
-                throw runtime_error("Username not found");
+                cout << RED << "[ERROR] username not found" << RESET << endl;
+                exit(1);
             }
 
             cout << ": " << endl;
 
-            for(int i = 0; i < ret - sizeof(char) - sizeof(int) + 2; i++) {
+            // padding: 
+            /*
+                *********
+                message *
+                *********
+            */
+            int limit = ret - sizeof(char) - sizeof(int) + 2;
+
+            for(int i = 0; i < limit ; i++) {
                 cout << "*";
             }
             cout << RESET << endl;
@@ -623,7 +597,7 @@ void chat(Client clt) {
 
             cout << BLUE << " *" << endl;
 
-            for(int i = 0; i < ret - sizeof(char) - sizeof(int) + 2; i++) {
+            for(int i = 0; i < limit; i++) {
                 cout << "*";
             }
 
@@ -639,9 +613,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     unsigned char* peerKeyDHBuffer;
     unsigned char* peerPubKeyBuffer;  
     EVP_PKEY *peerKeyDH = NULL;
-    EVP_PKEY *peerPubKey = NULL;
     EVP_PKEY *sessionDHKey = NULL;
-    EVP_PKEY *keyDH = NULL;
     array<unsigned char, constants::MAX_MESSAGE_SIZE> keyDHBuffer;
     int keyDHBufferLen = 0;
     vector<unsigned char> encrypted;
@@ -661,13 +633,16 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     memcpy(&(message[byte_index]), username_to_contact.c_str(), username_to_contact.size());
     byte_index += username_to_contact.size();
 
-    send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted);
+    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted);
+    if(ret <= 0) {
+        return;
+    }
 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
      
     cout << "** waiting for response ** " << endl;
 
-    int ret = receive_message_enc(clt, response, decrypted);
+    ret = receive_message_enc(clt, response, decrypted);
     if (ret == 0) {
         cout << RED << "client connection closed" << RESET << endl;
         free(response);
@@ -675,7 +650,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     } 
 
     // Cambiare controllo con l'opcode corretto
-    
     if(response[0] == constants::ACCEPTED) {
         cout << GREEN << "request accepted, starting the chat" << RESET << endl;
         cout << "---------------------------------------" << endl;
@@ -755,7 +729,10 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         //Inviare messaggio
         encrypted.clear();
-        send_message_enc(clt.clientConn->getMasterFD(), clt, message, byte_index, encrypted);
+        ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, byte_index, encrypted);
+        if(ret <= 0) {
+            return;
+        }
 
         chat(clt);
 
