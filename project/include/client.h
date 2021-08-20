@@ -29,7 +29,7 @@ string readMessage() {
     string message;
     getline(cin, message);
     if (message.length() > constants::MAX_MESSAGE_SIZE) {
-        cerr << "Error: the message must be loger than " << endl;
+        cerr << RED << "Error: the message must be loger than this" << RESET << endl;
         exit(EXIT_FAILURE);
     }
     return message;
@@ -121,13 +121,13 @@ bool authentication(Client &clt, string username, string password) {
 	
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {
-        cerr << "User does not have a key file" << endl; 
+        cerr << RED << "User does not have a key file" << RESET << endl; 
         exit(1);
     }   
 
 	user_key = PEM_read_PrivateKey(file, NULL, NULL, (void*)password.c_str());
 	if(!user_key) {
-        cerr << "User does not valid, retry..." << endl; 
+        cerr << RED << "User does not valid, retry..." << RESET << endl; 
         return false;
     }
 
@@ -169,7 +169,7 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message_received);
     if(ret == 0) {
-        cout << RED << "** client connection closed **" << RESET << endl;
+        cout << RED << "[LOG] client connection closed " << RESET << endl;
         free(message_received);
         return false;
     }
@@ -187,7 +187,7 @@ bool authentication(Client &clt, string username, string password) {
 
     unsigned char* cert_buf = (unsigned char*)malloc(size_cert);
     if(!cert_buf) {
-        cerr << "Malloc error on certification buffer" << endl; 
+        cerr << RED << "[ERROR] malloc error on certification buffer" << RESET << endl; 
         exit(1);
     }
 
@@ -196,7 +196,7 @@ bool authentication(Client &clt, string username, string password) {
 
     nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
     if(!nonceServer) {
-        cerr << "Malloc error on nonce server" << endl; 
+        cerr << RED << "[ERROR] malloc error on nonce server" << RESET << endl; 
         exit(1);
     }
 
@@ -216,16 +216,16 @@ bool authentication(Client &clt, string username, string password) {
     cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, size_cert);
 
     if(!clt.crypto->verifyCertificate(cert)) {
-        cerr << "Error in certificate verification" << endl; 
+        cerr << RED << "[ERROR] error in certificate verification" << RESET << endl; 
         exit(1);
     }
     
-    cout << GREEN << "Server certificate verified" << RESET << endl;  
+    cout << GREEN << "[LOG] server certificate verified" << RESET << endl;  
 
     // print the successful verification to screen, just for debug
     char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
     char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-    cout << CYAN << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n" << RESET << endl;
+    cout << CYAN << "[DEBUG] certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n" << RESET << endl;
     free(tmp);
     free(tmp2);
 
@@ -248,18 +248,18 @@ bool authentication(Client &clt, string username, string password) {
     
     unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify < 0){
-        cerr << "Invalid signature!" << endl;
+        cerr << RED << "[ERROR] invalid signature!" << endl;
         return false;
     } else { 
-        cout << GREEN << "** Valid Signature **" << RESET << endl;
+        cout << GREEN << "[LOG] valid Signature " << RESET << endl;
     }
 
     //Verificare nonce
     if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE) != 0){
-        cerr << "Nonce received is not valid!" << endl;
+        cerr << RED << "[ERROR] nonce received is not valid!" << RESET << endl;
         exit(1);
     } else {
-        cout << GREEN << "** Nonce verified **" << RESET << endl;
+        cout << GREEN << "[LOG] nonce verified " << RESET << endl;
     }
 
     // -- SCAMBIO CHIAVE DI SESSIONE -- 
@@ -281,7 +281,8 @@ bool authentication(Client &clt, string username, string password) {
 
     message_sent = (unsigned char*)malloc(dim);
     if(!message_sent) {
-        throw runtime_error("Malloc error");
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
     }
 
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
@@ -310,7 +311,7 @@ bool authentication(Client &clt, string username, string password) {
     unsigned char* last_message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), last_message_received);
     if( ret == 0) {
-        cout << RED  << "** server disconnected **" << RESET << endl;
+        cout << RED  << "[LOG] server disconnected " << RESET << endl;
         free(last_message_received);
         return false;
     }  
@@ -328,10 +329,10 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += constants::NONCE_SIZE;
 
     if(memcmp(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE) != 0){
-        cerr << "2) Nonce received is not valid!" << endl;
+        cerr << RED << "[ERROR] nonce received is not valid" << RESET << endl;
         exit(1);
     } else {
-        cout << GREEN << "** Nonce verified **" << RESET << endl;
+        cout << GREEN << "[LOG] nonce verified " << RESET << endl;
     }
 
     memcpy(&(pubKeyDHBufferLen), &last_message_received[byte_index], sizeof(int));
@@ -367,19 +368,19 @@ bool authentication(Client &clt, string username, string password) {
     
     verify = clt.crypto->digsign_verify(signature, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify < 0) {
-        cerr << "Invalid signature!" << endl;
+        cerr << RED << "[ERROR] invalid signature" << RESET << endl;
         return false;
     } else {
-        cout << GREEN << "** valid signature **" << RESET << endl;
+        cout << GREEN << "[LOG] valid signature " << RESET << endl;
     }
 
-    cout << GREEN << "*** Generating session key ***" << RESET << endl;
+    cout << GREEN << "[LOG] Generating session key " << RESET << endl;
 
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     clt.crypto->secretDerivation(prvKeyDHClient, pubKeyDHServer, tempBuffer.data());
     clt.clientConn->addSessionKey(tempBuffer.data(), tempBuffer.size());
 
-    cout << YELLOW << "*** Authentication succeeded ***" << RESET << endl;
+    cout << YELLOW << "[LOG] Authentication succeeded " << RESET << endl;
 
 #pragma optimize("", off)
     memset(clear_buf, 0, dim);
@@ -417,13 +418,13 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     byte_index += sizeof(int);
 
     if(username_size < 0 || username_size > constants::MAX_MESSAGE_SIZE) {
-        cerr << "Username size error!" << endl;
+        cerr << RED << "[ERROR] username size error" << RESET << endl;
         return false;
     }
 
     username = (unsigned char*)malloc(username_size);
     if(username == NULL) {
-        cerr << "Username malloc error!" << endl;
+        cerr << RED << "[ERROR] username malloc error" << RESET << endl;
         return false;
     }
 
@@ -434,7 +435,7 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     int username_to_copy_size = clt.clientConn->getUsernameSize();
 
     if(memcmp(username_to_copy, username, username_size) == 0) {
-        cout << RED << "You're trying to speak with yourself, insert a valid username" << RESET << endl;
+        cout << RED << "[ERROR] you're trying to speak with yourself, insert a valid username" << RESET << endl;
         return false;
     }
    
@@ -451,7 +452,7 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     // Messaggio con chiave pubblica DH
     if(response == 'y') {
 
-        cout << GREEN << "ok so i'll start the chat" << RESET << endl;
+        cout << GREEN << "[LOG] starting the chat" << RESET << endl;
 
         clt.clientConn->setCurrentChat(username, username_size, username_to_copy, username_to_copy_size);
 
@@ -461,7 +462,7 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         dim = sizeof(char) + sizeof(int) + keyBufferDHLen;
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
-            cerr << "Malloc response error!" << endl;
+            cerr << RED << "[ERROR] malloc response error" << RESET << endl;
             return false;
         }
 
@@ -478,15 +479,16 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         cout << "***********************************" << endl;
 
     } else {
-        cout << RED << ":(" << RESET << endl;
+        cout << RED << "refused :(" << RESET << endl;
 
         dim = sizeof(char);
 
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
-            cerr << "Malloc response error!" << endl;
+            cerr << RED << "[ERROR] malloc response error" << RESET << endl;
             return false;
         }
+
         byte_index = 0;
         memcpy(&(response_to_request[byte_index]), &constants::REFUSED, sizeof(char));
         byte_index += sizeof(char);
@@ -640,11 +642,11 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
      
-    cout << "** waiting for response ** " << endl;
+    cout << "*** waiting for response *** " << endl;
 
     ret = receive_message_enc(clt, response, decrypted);
     if (ret == 0) {
-        cout << RED << "client connection closed" << RESET << endl;
+        cout << RED << "[LOG] client connection closed" << RESET << endl;
         free(response);
         return;
     } 
@@ -666,7 +668,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
         if(!peerKeyDHBuffer) {
-            throw runtime_error("malloc failed");
+            cout << RED << "[ERROR] malloc error" << RESET << endl;
+            exit(1);
         }
 
         memcpy(peerKeyDHBuffer, &decrypted.data()[byte_index], peerKeyDHLen);
@@ -679,7 +682,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         peerPubKeyBuffer = (unsigned char*)malloc(peerPubKeyLen);
         if(!peerPubKeyBuffer) {
-            throw runtime_error("malloc failed");
+            cout << RED << "[ERROR] malloc error" << RESET << endl;
+            exit(1);
         }
 
         memcpy(peerPubKeyBuffer, &decrypted.data()[byte_index], peerPubKeyLen);
@@ -702,7 +706,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         //Perchè così serializzata?!
         if(!clt.clientConn->getMyCurrentChat()->session_key) {
-            throw runtime_error("Malloc failed");
+            cout << RED << "[ERROR] malloc error" << RESET << endl;
+            exit(1);    
         }
 
         //Costruire e inviare mia chiave DH
@@ -714,7 +719,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         
         message = (unsigned char*)malloc(dim); 
         if(message == NULL) {
-            throw runtime_error("Malloc error");
+            cout << RED << "[ERROR] malloc error" << RESET << endl;
+            exit(1);
         }
 
         byte_index = 0;
@@ -776,11 +782,11 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
     int ret = receive_message_enc(clt, message_received, buffer);
 
     if (ret == 0) {
-        cout << RED << "client connection closed" << RESET << endl;
+        cout << RED << "[LOG] client connection closed" << RESET << endl;
         buffer.clear();
         return;
     } else {
-        cout << GREEN << "list received" << RESET << endl;
+        cout << GREEN << "[LOG] list received" << RESET << endl;
     }
 
     byte_index = 0;    
