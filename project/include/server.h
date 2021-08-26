@@ -283,7 +283,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 }
 
 int decrypt_message(Server srv, int sd, unsigned char* message, int dim, vector<unsigned char> &decrypted) {
-    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, dim, decrypted);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), message, dim, decrypted);
     return decrypted_size;
 }
 
@@ -378,7 +378,7 @@ int receive_message_enc_srv(Server srv, int sd, unsigned char* message, vector<u
         } 
     } while (message_len < 0);
 
-    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, message_len, decrypted);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), message, message_len, decrypted);
 
     return decrypted_size;
 }
@@ -398,7 +398,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     vector<unsigned char> encrypted;
 
     decrypted.resize(buf_len);
-    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), buffer, buf_len, decrypted);
+    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, buf_len, decrypted);
 
     memcpy(&opCode, &(decrypted.data()[byte_index]), sizeof(char));
     byte_index += sizeof(char);
@@ -514,12 +514,13 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
         // Serializzare chiave pubblica
         pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
+        int pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
 
         // Cambiare dim
         memcpy(&keyDHBufferLen, &(decrypted.data()[byte_index]), sizeof(int));
         byte_index += sizeof(int);
 
-        memcpy(&keyClientDHBuffer, &(decrypted.data()[byte_index]), keyDHBufferLen);
+        memcpy(keyClientDHBuffer.data(), &(decrypted.data()[byte_index]), keyDHBufferLen);
         byte_index+= keyDHBufferLen;
 
         dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
@@ -528,8 +529,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
         byte_index = 0;
         message = (unsigned char*)malloc(dim);
-
-        //RICOSTRUIRE IL MESSAGGIO PERCHE' da segmentation fault
 
         memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
         byte_index += sizeof(char);
@@ -593,11 +592,13 @@ bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
         return false;
     }
 
-    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), buffer, msg_len, decrypted);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, msg_len, decrypted);
 
     message_received = (unsigned char*)malloc(decrypted_size);
     memcpy(message_received, &decrypted.data()[byte_index], decrypted_size);
     byte_index += decrypted_size;
+
+    BIO_dump_fp(stdout, (const char*)message_received, decrypted_size);
 
     int encrypted_size = send_message_enc_srv(srv.crypto, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), iv.data(), decrypted.data(), decrypted_size, encrypted);
     if(encrypted_size <= 0) {

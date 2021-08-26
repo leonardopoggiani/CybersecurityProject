@@ -19,7 +19,7 @@ using namespace std;
 struct user {
     string username;
     int sd;
-    unsigned char* session_key;
+    unsigned char* session_key = NULL;
 
     user(string us, int s) {
         username = us;
@@ -29,15 +29,16 @@ struct user {
 };
 
 struct userChat {
-    unsigned char* username_1;
+    unsigned char* username_1 = NULL;
     int dim_us1;
     int sd_1;
-    unsigned char* username_2;
+    unsigned char* username_2 = NULL;
     int dim_us2;
     int sd_2;
-    EVP_PKEY* pubkey_1;
-    EVP_PKEY* pubkey_2;
-    unsigned char* session_key;
+    EVP_PKEY* pubkey_1 = NULL;
+    EVP_PKEY* pubkey_2 = NULL;
+    unsigned char* iv = NULL;
+    unsigned char* chat_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
 
     userChat(unsigned char* us1, int d_us1, int s1, unsigned char* us2, int d_us2, int s2) {
         username_1 = (unsigned char*)malloc(d_us1);
@@ -48,7 +49,6 @@ struct userChat {
         dim_us2 = d_us2;
         sd_1 = s1;
         sd_2 = s2;
-        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
     }
 
     userChat(unsigned char* us1, int d_us1, unsigned char* us2, int d_us2) {
@@ -58,7 +58,6 @@ struct userChat {
         memcpy(username_2, us2, d_us2);
         dim_us1 = d_us1;
         dim_us2 = d_us2;
-        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
     }
 };
 
@@ -68,12 +67,12 @@ class clientConnection {
         struct sockaddr_in address;
         int master_fd;
         int port;
-        unsigned char* talking_to;
-        unsigned char* iv;
-        unsigned char* session_key;
-        unsigned char* username;
+        unsigned char* talking_to = NULL;
+        unsigned char* iv = NULL;
+        unsigned char* session_key = NULL;
+        unsigned char* username = NULL;
         int username_size;
-        userChat* current_chat;
+        userChat* current_chat = NULL;
 
     public:
 
@@ -113,6 +112,13 @@ class clientConnection {
             if(RAND_poll() != 1)
                 throw runtime_error("An error occurred in RAND_poll."); 
             if(RAND_bytes(iv, constants::IV_LEN) != 1)
+                throw runtime_error("An error occurred in RAND_bytes.");
+        }
+
+        void generateIV(unsigned char* initialization_vector) {
+            if(RAND_poll() != 1)
+                throw runtime_error("An error occurred in RAND_poll."); 
+            if(RAND_bytes(initialization_vector, constants::IV_LEN) != 1)
                 throw runtime_error("An error occurred in RAND_bytes.");
         }
 
@@ -311,9 +317,12 @@ class clientConnection {
             talking_to = talking_to;
         }
 
-        void addSessionKey(unsigned char* sessionKey, int size) {
+        void addSessionKey(unsigned char* sessionKey) {
             session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
             memcpy(session_key, sessionKey, EVP_MD_size(EVP_sha256()));
+
+            cout << "session_key: " << endl;
+            BIO_dump_fp(stdout, (const char*)sessionKey, EVP_MD_size(EVP_sha256()));
         }
 
         userChat* getMyCurrentChat() {
@@ -335,12 +344,12 @@ class serverConnection : public clientConnection {
 
         vector<user> users_logged_in;
         vector<userChat*> activeChat;
-        array<unsigned char, constants::IV_LEN> iv;
+        array<unsigned char, constants::IV_LEN> iv_server;
 
     public:
 
         unsigned char* getIV() {
-            return iv.data();
+            return iv_server.data();
         }
 
         void generateIV() {
@@ -348,7 +357,7 @@ class serverConnection : public clientConnection {
                 cerr << RED << "[ERROR] error in rand_poll" << RESET << endl;
                 exit(1);
             }
-            if(RAND_bytes(iv.data(), constants::IV_LEN) != 1) {
+            if(RAND_bytes(iv_server.data(), constants::IV_LEN) != 1) {
                 cerr << RED << "[ERROR] error in rand_bytes" << RESET << endl;
                 exit(1);
             }
@@ -611,7 +620,6 @@ class serverConnection : public clientConnection {
         }
 
         void addSessionKey(int sd, unsigned char* sessionKey) {
-
             for(auto user : users_logged_in) {
                 if(user.sd == sd) {
                     memcpy(user.session_key, sessionKey, EVP_MD_size(EVP_sha256()));

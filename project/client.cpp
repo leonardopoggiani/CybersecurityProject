@@ -42,7 +42,7 @@ int main(int argc, char* const argv[]) {
     if( clt.clientConn->checkAck(buffer) ) {
         cout << GREEN << " [LOG] ack received" << RESET << endl;
     } else {
-        cerr << RED << "[ERROR] ack not valid" << endl;
+        cerr << RED << "[ERROR] ack not valid" << RESET << endl;
         exit(1);
     }
 
@@ -59,7 +59,7 @@ int main(int argc, char* const argv[]) {
     cout << GREEN << "\n**** AUTHENTICATION ****" << RESET << endl;
 
     if (!authentication(clt,username,password)) {
-        cerr << RED << "[ERROR] authentication failed" << endl;
+        cerr << RED << "[ERROR] authentication failed" << RESET << endl;
         exit(1);
     } 
     
@@ -92,6 +92,74 @@ int main(int argc, char* const argv[]) {
                 memcpy(packet.data(), buffer, ret);
 
                 if(receiveRequestToTalk(clt, packet.data(), ret)){
+                    vector<unsigned char> decrypted;
+                    int peerKeyDHLen = 0;
+                    unsigned char* peerKeyDHBuffer = NULL;
+                    int peerPubKeyLen = 0;
+                    unsigned char* peerPubKeyBuffer = NULL; 
+                    EVP_PKEY* peerKeyDH = NULL;
+                    EVP_PKEY *sessionDHKey = NULL;
+                    
+                    packet.clear();
+                    packet.resize(constants::MAX_MESSAGE_SIZE);
+                    int received_size = receive_message_enc(clt, packet.data(), decrypted);
+                    packet.clear();
+
+                    int byte_index = sizeof(char);
+
+                    memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
+                    byte_index += sizeof(int);
+
+                    cout << "keyBufferDHLen: " << peerKeyDHLen << endl;
+
+                    peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
+                    if(!peerKeyDHBuffer) {
+                        cout << RED << "[ERROR] malloc error" << RESET << endl;
+                        exit(1);
+                    }
+
+                    memcpy(peerKeyDHBuffer, &decrypted.data()[byte_index], peerKeyDHLen);
+                    byte_index += peerKeyDHLen;
+
+                    clt.crypto->deserializePublicKey(peerKeyDHBuffer, peerKeyDHLen, peerKeyDH);
+
+                    memcpy(&(peerPubKeyLen), &decrypted.data()[byte_index], sizeof(int));
+                    byte_index += sizeof(int);
+
+                    peerPubKeyBuffer = (unsigned char*)malloc(peerPubKeyLen);
+                    if(!peerPubKeyBuffer) {
+                        cout << RED << "[ERROR] malloc error" << RESET << endl;
+                        exit(1);
+                    }
+
+                    memcpy(peerPubKeyBuffer, &decrypted.data()[byte_index], peerPubKeyLen);
+                    byte_index += peerPubKeyLen;
+
+                    clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_2);
+
+                    // Costruire chiave di sessione prvDH
+
+                    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+
+                    clt.crypto->keyGeneration(sessionDHKey);
+                    clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
+
+                    // prima era
+                    // clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
+                    // senza fare la keyGeneration, ma quando era inizializzato sessionDHKey?
+
+                    memcpy(clt.clientConn->getMyCurrentChat()->chat_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
+
+                    //Perchè così serializzata?!
+                    if(!clt.clientConn->getMyCurrentChat()->chat_key) {
+                        cout << RED << "[ERROR] malloc error" << RESET << endl;
+                        exit(1);    
+                    } else {
+                        cout << MAGENTA << "[DEBUG] chat key:" << endl;
+                        BIO_dump_fp(stdout, (const char*)clt.clientConn->getMyCurrentChat()->chat_key, EVP_MD_size(EVP_sha256()));
+                        cout << RESET << endl;
+                    }
+
                     cout << "---------------------------------------" << endl;
                     cout << "\n-------Chat-------" << endl;
                     

@@ -402,9 +402,6 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
     int len = 0;
     int ciphr_len = 0;
 
-    // if( msg_len > (UINT_MAX - 2*TAG_SIZE + IV_SIZE + sizeof(uint16_t)) )
-    //     throw runtime_error("Message too big.");
-
     finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(char);
 
     if(finalSize > constants::MAX_MESSAGE_SIZE) {
@@ -487,7 +484,7 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
     return start;
 }
 
-unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer) {
+unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer) {
     unsigned char recv_iv[constants::IV_LEN];
     unsigned char recv_tag[constants::TAG_LEN];
     unsigned char *ciphr_msg;
@@ -542,12 +539,12 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
         }
         
         if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN)){
-            cout << RED << "[ERROR] error while decrypting the message " << RESET << endl;
+            cout << RED << "[ERROR] error while decrypting the message (IV)" << RESET << endl;
             exit(1);
         }
 
         if(!EVP_DecryptUpdate(ctx, tempBuffer, &len, ciphr_msg, ciphr_len)){
-            cout << RED << "[ERROR] error while decrypting the message " << RESET << endl;
+            cout << RED << "[ERROR] error while decrypting the message (MSG) " << RESET << endl;
             exit(1);
         }
         pl_len = len;
@@ -574,13 +571,13 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     
     if(ret > 0){
         pl_len += len;
-    } else{
-        cout << RED << "[ERROR] error while decrypting the message " << RESET << endl;
+    } else {
+        cout << RED << "[ERROR] error while decrypting the message (RET) " << RESET << endl;
         exit(1);
     }
     
     if (pl_len < 0 || pl_len > UINT_MAX){
-        cout << RED << "[ERROR] error while decrypting the message " << RESET << endl;
+        cout << RED << "[ERROR] error while decrypting the message (OW)" << RESET << endl;
         exit(1);
     }
 

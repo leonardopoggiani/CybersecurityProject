@@ -96,7 +96,7 @@ int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char
         } 
     } while (message_len < 0);
 
-    int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), message, message_len, decrypted);
+    int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), message, message_len, decrypted);
 
     return decrypted_size;
 }
@@ -378,7 +378,7 @@ bool authentication(Client &clt, string username, string password) {
 
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     clt.crypto->secretDerivation(prvKeyDHClient, pubKeyDHServer, tempBuffer.data());
-    clt.clientConn->addSessionKey(tempBuffer.data(), tempBuffer.size());
+    clt.clientConn->addSessionKey(tempBuffer.data());
 
     cout << YELLOW << "[LOG] Authentication succeeded " << RESET << endl;
 
@@ -410,7 +410,7 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     unsigned char response = 'n';
     int dim = 0;
 
-    clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), clt.clientConn->getIV(), msg, msg_len, decrypted);
+    clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), msg, msg_len, decrypted);
 
     byte_index += sizeof(char);
 
@@ -516,7 +516,9 @@ void chat(Client clt) {
     unsigned char* to_send;
     vector<unsigned char> encrypted;
     vector<unsigned char> decrypted;
+    vector<unsigned char> clear;
     unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    unsigned char* iv = (unsigned char*)malloc(constants::IV_LEN);
     int maxfd;
     int ret = -1;
 
@@ -544,28 +546,51 @@ void chat(Client clt) {
             }
 
             int byte_index = 0;
-            int dim_send = sizeof(char) + sizeof(int) + message.size();
+
+            clt.clientConn->generateIV(iv);
+
+            cout << "chat key: " << endl;
+            BIO_dump_fp(stdout, (const char*)clt.clientConn->getMyCurrentChat()->chat_key, EVP_MD_size(EVP_sha256()));
+            
+            int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, iv, (unsigned char*)message.c_str(), message.size(), encrypted);
+            if(encrypted_size < 0 || encrypted_size > constants::MAX_MESSAGE_SIZE) {
+                cout << RED << "[ERROR] message not valid" << RESET << endl;
+                exit(1);
+            }
+
+            int dim_send = encrypted_size;
             to_send = (unsigned char*)malloc(dim_send);
+            if(!to_send) {
+                cout << RED << "[ERROR] malloc error" << RESET << endl;
+                exit(1);
+            }
 
-            memcpy(&(to_send[byte_index]), &(constants::CHAT), sizeof(char));
-            byte_index += sizeof(char);
+            memcpy(&(to_send[byte_index]), encrypted.data(), encrypted_size);
+            byte_index += encrypted_size;
 
-            int message_size = message.size();
-            memcpy(&(to_send[byte_index]), &message_size , sizeof(int));
-            byte_index += sizeof(int);
+            cout << "encrypted original message sent: " << endl;
+            BIO_dump_fp(stdout, (const char*)encrypted.data(), encrypted_size);
 
-            memcpy(&(to_send[byte_index]), message.c_str(), message_size);
-            byte_index += message_size;
+            encrypted.clear();
 
-            ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, byte_index, encrypted);
+            ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, dim_send, encrypted);
+
+            cout << "final message sent: " << endl;
+            BIO_dump_fp(stdout, (const char*)encrypted.data(), ret);
+
             if(ret <= 0) {
+                cerr << RED << "[ERROR] error during the send encrypted" << RESET << endl;
                 return;
             }
+
+            message.clear();
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             
             ret = receive_message_enc(clt, buffer, decrypted);
+
+            int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, decrypted.data(), ret, clear);
 
             cout << BLUE;
 
@@ -586,7 +611,7 @@ void chat(Client clt) {
                 message *
                 *********
             */
-            int limit = ret - sizeof(char) - sizeof(int) + 2;
+            int limit = decrypted_size - sizeof(char) - sizeof(int) + 2;
 
             for(int i = 0; i < limit ; i++) {
                 cout << "*";
@@ -594,7 +619,7 @@ void chat(Client clt) {
             cout << RESET << endl;
 
             for(int i = sizeof(char) + sizeof(int); i < ret; i++) {
-                cout << decrypted.data()[i];
+                cout << clear.data()[i];
             }
 
             cout << BLUE << " *" << endl;
@@ -702,12 +727,16 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         // clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
         // senza fare la keyGeneration, ma quando era inizializzato sessionDHKey?
 
-        memcpy(clt.clientConn->getMyCurrentChat()->session_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
+        memcpy(clt.clientConn->getMyCurrentChat()->chat_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
 
         //Perchè così serializzata?!
-        if(!clt.clientConn->getMyCurrentChat()->session_key) {
+        if(!clt.clientConn->getMyCurrentChat()->chat_key) {
             cout << RED << "[ERROR] malloc error" << RESET << endl;
             exit(1);    
+        } else {
+            cout << MAGENTA << "[DEBUG] chat key:" << endl;
+            BIO_dump_fp(stdout, (const char*)clt.clientConn->getMyCurrentChat()->chat_key, EVP_MD_size(EVP_sha256()));
+            cout << RESET << endl;
         }
 
         //Costruire e inviare mia chiave DH

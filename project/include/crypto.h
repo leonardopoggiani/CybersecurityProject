@@ -42,7 +42,7 @@ class CryptoOperation {
 
         // encryption and decryption
         unsigned int encryptMessage(unsigned char* key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer);
-        unsigned int decryptMessage(unsigned char* key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer);
+        unsigned int decryptMessage(unsigned char* key, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer);
 
         void buildParameters(EVP_PKEY *&dh_params);
         void keyGeneration(EVP_PKEY *&my_prvkey);
