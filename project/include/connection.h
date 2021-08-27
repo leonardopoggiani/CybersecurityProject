@@ -73,8 +73,17 @@ class clientConnection {
         unsigned char* username = NULL;
         int username_size;
         userChat* current_chat = NULL;
+        EVP_PKEY* keyDHBufferTemp = NULL;
 
     public:
+
+        void setKeyDHBufferTemp(EVP_PKEY* keyDH, unsigned int size) {
+            keyDHBufferTemp = keyDH;
+        }
+
+        EVP_PKEY* getKeyDHBufferTemp() {
+            return keyDHBufferTemp;
+        }
 
         unsigned char* getUsername() {
             return username;
@@ -490,9 +499,9 @@ class serverConnection : public clientConnection {
         
         void insertUser(string username, int sd){
             if(users_logged_in.size() + 1 < constants::MAX_CLIENTS) {
-                user* new_user = new user(username,sd);
+                user* new_user = new user(username, sd);
                 users_logged_in.push_back(*new_user);
-            } else  {
+            } else {
                 cerr << RED << "[ERROR] error maximum number of client online" << RESET << endl;
                 exit(1);
             }
@@ -610,8 +619,6 @@ class serverConnection : public clientConnection {
         unsigned char* getSessionKey(int sd) {
             for(auto user : users_logged_in) {
                 if(user.sd == sd) {
-                    cout << "user: " << user.username << endl;
-
                     return user.session_key;
                 }
             }

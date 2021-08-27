@@ -20,6 +20,7 @@ const string menu = "Hi! This is a secure messaging system. \n What do you want 
 
 int main(int argc, char* const argv[]) {
     
+    EVP_PKEY* pubKeyDH = NULL;
     char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> packet;
     string username;
@@ -110,8 +111,6 @@ int main(int argc, char* const argv[]) {
                     memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
                     byte_index += sizeof(int);
 
-                    cout << "keyBufferDHLen: " << peerKeyDHLen << endl;
-
                     peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
                     if(!peerKeyDHBuffer) {
                         cout << RED << "[ERROR] malloc error" << RESET << endl;
@@ -138,11 +137,9 @@ int main(int argc, char* const argv[]) {
                     clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_2);
 
                     // Costruire chiave di sessione prvDH
-
                     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
 
-                    clt.crypto->keyGeneration(sessionDHKey);
-                    clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
+                    clt.crypto->secretDerivation(clt.clientConn->getKeyDHBufferTemp(), peerKeyDH, tempBuffer.data());
 
                     // prima era
                     // clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());

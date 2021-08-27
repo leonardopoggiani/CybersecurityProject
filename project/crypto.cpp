@@ -452,7 +452,7 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
             cout << RED << "[ERROR] error getting the tag" << RESET << endl;
             exit(1);
         }
-        
+
         if(ciphr_len < 0){
             cout << RED << "[ERROR] error in the encryption" << RESET << endl;
             exit(1);
@@ -537,6 +537,9 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
             cout << RED << "[ERROR] error during the initialization of decryption" << RESET << endl;
             exit(1);
         }
+
+        cout << "ciphr_msg:" << endl;
+        BIO_dump_fp(stdout, (const char*)ciphr_msg, ciphr_len);
         
         if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN)){
             cout << RED << "[ERROR] error while decrypting the message (IV)" << RESET << endl;
@@ -558,6 +561,7 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
 
         buffer.resize(pl_len);
         memcpy(buffer.data(), tempBuffer, pl_len);
+
     } catch(const exception& e) {
         delete[] ciphr_msg;
         delete[] tempBuffer;

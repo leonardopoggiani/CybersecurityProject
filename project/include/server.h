@@ -313,11 +313,18 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     vector<user> users_logged_in = srv.serverConn->getUsersList();
     unsigned char* message;
     string requesting_user = srv.serverConn->findUserFromSd(sd);
+
+    if(requesting_user.size() == 0) {
+        cerr << RED << "[ERROR] receive error" << RESET << endl;
+        exit(1);
+    }
+
     buffer.clear();
 
-    for(size_t i = 0; i < users_logged_in.size(); i++) {    
-        if(memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) != 0) {
-            cout << CYAN << "user " << users_logged_in[i].username << RESET << endl;
+    for(int i = 0; i < (int)users_logged_in.size(); i++) {    
+        if( (users_logged_in[i].username.size() == requesting_user.size()) && memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) == 0 ) {
+            continue;
+        } else {
             dim += users_logged_in[i].username.size();
             dim += sizeof(int);
         }
@@ -331,10 +338,12 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     int dim_message = 0;
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
-        if(memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) != 0) { 
+        if( (users_logged_in[i].username.size() == requesting_user.size()) && memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) == 0) { 
+            continue;
+        } else {
             dim_message += sizeof(int);
             dim_message += users_logged_in[i].username.size();
-        }   
+        }
     }
 
     memcpy(&(message[byte_index]), &dim_message, sizeof(int));
@@ -346,7 +355,9 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
 
-        if(memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) != 0) { 
+        if( (users_logged_in[i].username.size() == requesting_user.size()) && memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) == 0) { 
+            continue;
+        } else {
             int username_size = users_logged_in[i].username.size();
 
             memcpy(&(message[byte_index]), &username_size, sizeof(int));
@@ -452,9 +463,9 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     memcpy(&(message[byte_index]), username, username_size);
     byte_index += username_size;
 
-    int user_to_talk_to_sd = 0;
-    for(size_t i = 0; i < users_logged_in.size(); i++) {
-        if(strncmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to), username_size) == 0) {
+    int user_to_talk_to_sd = -1;
+    for(int i = 0; i < (int)users_logged_in.size(); i++) {
+        if( strncmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to), users_logged_in[i].username.size()) == 0 ) {
             encrypted.clear();
             send_message_enc_srv(srv.crypto, users_logged_in[i].sd, srv.serverConn->getSessionKey(users_logged_in[i].sd), srv.serverConn->getIV(), message, dim, encrypted);
             user_to_talk_to_sd = users_logged_in[i].sd;
@@ -598,7 +609,9 @@ bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
     memcpy(message_received, &decrypted.data()[byte_index], decrypted_size);
     byte_index += decrypted_size;
 
-    BIO_dump_fp(stdout, (const char*)message_received, decrypted_size);
+    byte_index = sizeof(char);
+    memcpy(iv.data(), &decrypted.data()[byte_index], constants::IV_LEN);
+    byte_index += constants::IV_LEN;
 
     int encrypted_size = send_message_enc_srv(srv.crypto, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), iv.data(), decrypted.data(), decrypted_size, encrypted);
     if(encrypted_size <= 0) {
