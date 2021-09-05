@@ -110,13 +110,14 @@ bool authentication(Client &clt, string username, string password) {
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     array<unsigned char, NONCE_SIZE> nonceClient;
-    unsigned int pubKeyDHBufferLen;
+    array<unsigned char, NONCE_SIZE> nonceServer;
+    array<unsigned char, NONCE_SIZE> nonceClient_rec;
+    array<unsigned char, NONCE_SIZE> nonceClient_t;
     vector<unsigned char> buffer;
-    unsigned char* nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
-    unsigned char* nonceClient_rec = (unsigned char*)malloc(constants::NONCE_SIZE);
-    unsigned char* nonceClient_t = (unsigned char*)malloc(constants::NONCE_SIZE);
+    
     unsigned char* signature = NULL;
     string to_insert;
+    unsigned int pubKeyDHBufferLen;
 
     string filename = "./keys/private/" + username + "_prvkey.pem";
 	
@@ -137,7 +138,7 @@ bool authentication(Client &clt, string username, string password) {
     clt.crypto->generateNonce(nonceClient.data());
 
     // conservo il nonce per verificarlo al passo successivo
-    memcpy(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE);
+    memcpy(nonceClient_t.data(), nonceClient.data(), constants::NONCE_SIZE);
 
     int byte_index = 0;   
 
@@ -195,16 +196,10 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(cert_buf, &message_received[byte_index], size_cert);
     byte_index += size_cert;
 
-    nonceServer = (unsigned char*)malloc(constants::NONCE_SIZE);
-    if(!nonceServer) {
-        cerr << RED << "[ERROR] malloc error on nonce server" << RESET << endl; 
-        exit(1);
-    }
-
-    memcpy(nonceServer, &message_received[byte_index], constants::NONCE_SIZE);
+    memcpy(nonceServer.data(), &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    memcpy(nonceClient_rec, &message_received[byte_index], constants::NONCE_SIZE);
+    memcpy(nonceClient_rec.data(), &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
     
     memcpy(&(signed_size), &message_received[byte_index], sizeof(int));
@@ -256,7 +251,7 @@ bool authentication(Client &clt, string username, string password) {
     }
 
     //Verificare nonce
-    if(memcmp(nonceClient_t, nonceClient_rec, constants::NONCE_SIZE) != 0){
+    if(memcmp(nonceClient_t.data(), nonceClient_rec.data(), constants::NONCE_SIZE) != 0){
         cerr << RED << "[ERROR] nonce received is not valid!" << RESET << endl;
         exit(1);
     } else {
@@ -272,7 +267,7 @@ bool authentication(Client &clt, string username, string password) {
 
     cout << "***********************************" << endl;
 
-    memcpy(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE);
+    memcpy(nonceClient_t.data(), nonceClient.data(), constants::NONCE_SIZE);
 
     byte_index = 0;   
 
@@ -292,7 +287,7 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(message_sent[byte_index]), nonceClient.data(), nonceClient.size());
     byte_index += constants::NONCE_SIZE;
 
-    memcpy(&(message_sent[byte_index]), nonceServer, constants::NONCE_SIZE);
+    memcpy(&(message_sent[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
     memcpy(&(message_sent[byte_index]), &pubKeyDHBufferLen, sizeof(int));
@@ -322,13 +317,13 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(opCode), &last_message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(nonceServer, &last_message_received[byte_index], constants::NONCE_SIZE);
+    memcpy(nonceServer.data(), &last_message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
     memcpy(nonceClient.data(), &last_message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    if(memcmp(nonceClient_t, nonceClient.data(), constants::NONCE_SIZE) != 0){
+    if(memcmp(nonceClient_t.data(), nonceClient.data(), constants::NONCE_SIZE) != 0){
         cerr << RED << "[ERROR] nonce received is not valid" << RESET << endl;
         exit(1);
     } else {
@@ -388,9 +383,6 @@ bool authentication(Client &clt, string username, string password) {
 
     free(message_sent);
     free(message_received);
-    free(nonceServer);
-    free(nonceClient_rec);
-    free(nonceClient_t);
 
     return true;
 }
