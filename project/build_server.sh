@@ -9,4 +9,3 @@ clear
 echo "Starting server.."
 
 valgrind --track-origins=yes ./server  &
-

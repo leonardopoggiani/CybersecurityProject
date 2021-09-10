@@ -63,6 +63,10 @@ int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, 
 
     clt.clientConn->generateIV();
     unsigned char* iv = clt.clientConn->getIV();
+    if(!iv) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
 
     encrypted.resize(dim);
     int encrypted_size = clt.crypto->encryptMessage(session_key, iv, message, dim, encrypted);
@@ -144,7 +148,11 @@ bool authentication(Client &clt, string username, string password) {
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
 
-    unsigned char* message_sent = (unsigned char*)malloc(dim);      
+    unsigned char* message_sent = (unsigned char*)malloc(dim);   
+    if(!message_sent) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }   
 
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
@@ -160,7 +168,18 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += nonceClient.size();
 
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    if(!message_signed) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }   
+
     int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
+    if(signed_size < 0) {
+        cerr << RED << "[ERROR] invalid signature!" << RESET << endl;
+        return false;
+    } else {
+        cout << GREEN << "[LOG] valid signature " << RESET << endl;
+    }
 
     clt.clientConn->send_message(message_signed, signed_size);
 
@@ -169,6 +188,11 @@ bool authentication(Client &clt, string username, string password) {
 
     // ricevere certificato
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
+    if(!message_received) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }   
+
     int ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), message_received);
     if(ret == 0) {
         cout << RED << "[LOG] client connection closed " << RESET << endl;
@@ -206,6 +230,11 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += sizeof(int);
     
     signature = (unsigned char*)malloc(signed_size);
+    if(!signature) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
+
     memcpy(signature, &message_received[byte_index], signed_size);
     byte_index += signed_size;
 
@@ -220,7 +249,17 @@ bool authentication(Client &clt, string username, string password) {
 
     // print the successful verification to screen, just for debug
     char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+    if(!tmp) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
     char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+    if(!tmp2) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
     cout << CYAN << "[DEBUG] certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n" << RESET << endl;
     free(tmp);
     free(tmp2);
@@ -230,6 +269,10 @@ bool authentication(Client &clt, string username, string password) {
     byte_index = 0;
     dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
     unsigned char* clear_buf = (unsigned char*)malloc(dim);
+    if(!clear_buf) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
 
     memcpy(clear_buf, &message_received[byte_index], dim);
     byte_index += sizeof(char);
@@ -239,6 +282,11 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += sizeof(int);
 
     unsigned char* sign = (unsigned char*)malloc(sign_size);
+    if(!sign) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
     memcpy(sign, &message_received[byte_index], sign_size);
     byte_index += sign_size;
     
@@ -298,12 +346,28 @@ bool authentication(Client &clt, string username, string password) {
 
     //Aggiungere firma
     message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    if(!message_signed) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
     signed_size = 0;
     signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
+    if(signed_size < 0){
+        cerr << RED << "[ERROR] invalid signature!" << endl;
+        return false;
+    } else { 
+        cout << GREEN << "[LOG] valid Signature " << RESET << endl;
+    }
 
     clt.clientConn->send_message(message_signed, signed_size);
 
-    unsigned char* last_message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
+    unsigned char* last_message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    if(!last_message_received) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
+
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), last_message_received);
     if( ret == 0) {
         cout << RED  << "[LOG] server disconnected " << RESET << endl;
@@ -350,6 +414,11 @@ bool authentication(Client &clt, string username, string password) {
     byte_index = 0;
     
     clear_buf = (unsigned char*)malloc(dim);
+    if(!clear_buf) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
+
     memcpy(clear_buf, &last_message_received[byte_index], dim);
     byte_index += dim;
 
@@ -358,6 +427,11 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += sizeof(int);
 
     signature = (unsigned char*)malloc(sign_size);
+    if(!signature) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
+
     memcpy(signature, &last_message_received[byte_index], sign_size);
     byte_index += sign_size;
     
@@ -424,6 +498,11 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     byte_index += username_size;
 
     unsigned char* username_to_copy = clt.clientConn->getUsername();
+    if(!username_to_copy) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
+
     int username_to_copy_size = clt.clientConn->getUsernameSize();
 
     if( (username_size == username_to_copy_size) && memcmp(username_to_copy, username, username_size) == 0) {
@@ -506,12 +585,20 @@ void print_unsigned_array(unsigned char* array, int dim) {
 void chat(Client clt) {
     fd_set fds;
     string message;
-    unsigned char* to_send;
+    unsigned char* to_send = NULL;
     vector<unsigned char> encrypted;
     vector<unsigned char> decrypted;
     vector<unsigned char> clear;
     unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    if(!buffer) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        return;
+    }
     unsigned char* iv = (unsigned char*)malloc(constants::IV_LEN);
+    if(!iv) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        return;
+    }
     int maxfd;
     int ret = -1;
 
@@ -540,6 +627,10 @@ void chat(Client clt) {
 
             int byte_index = 0;
             unsigned char* tempBuffer = (unsigned char*)malloc(message.size() + sizeof(char));
+            if(!tempBuffer) {
+                cerr << RED << "[ERROR] malloc error" << RESET << endl;
+                return;
+            }
 
             memcpy(&(tempBuffer[byte_index]), &constants::CHAT, sizeof(char));
             byte_index += sizeof(char);
@@ -628,8 +719,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     int byte_index = 0;  
     int peerPubKeyLen = 0;
     int peerKeyDHLen = 0;
-    unsigned char* peerKeyDHBuffer;
-    unsigned char* peerPubKeyBuffer;  
+    unsigned char* peerKeyDHBuffer = NULL;
+    unsigned char* peerPubKeyBuffer = NULL;
     EVP_PKEY *peerKeyDH = NULL;
     EVP_PKEY *sessionDHKey = NULL;
     array<unsigned char, constants::MAX_MESSAGE_SIZE> keyDHBuffer;
@@ -639,7 +730,11 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
     // OPCODE | sizeof(username) | username
     int dim = sizeof(char) + sizeof(int) + username_to_contact.size();
-    unsigned char* message = (unsigned char*)malloc(dim);  
+    unsigned char* message = (unsigned char*)malloc(dim); 
+    if(!message) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
 
     memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
     byte_index += sizeof(char);
@@ -657,7 +752,11 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     }
 
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
-     
+    if(!response) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
+
     cout << "*** waiting for response *** " << endl;
 
     ret = receive_message_enc(clt, response, decrypted);
@@ -776,10 +875,16 @@ void logout(Client clt) {
 
     int dim = sizeof(char);
     unsigned char* message = (unsigned char*)malloc(dim);  
+    if(message == NULL) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
 
     memcpy(&(message[byte_index]), &constants::LOGOUT, sizeof(char));
     byte_index += sizeof(char);
     clt.clientConn->send_message(message, dim);
+
+    free(message);
 }
 
 void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
@@ -788,6 +893,10 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 
     int dim = sizeof(char);
     unsigned char* message = (unsigned char*)malloc(dim);  
+    if(message == NULL) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
 
     memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
     byte_index += sizeof(char);
@@ -796,7 +905,11 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 
     free(message);
     buffer.clear();
-    unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);  
+    unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
+    if(message_received == NULL) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    } 
 
     clt.clientConn->generateIV();
     int ret = receive_message_enc(clt, message_received, buffer);
@@ -838,6 +951,11 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
             byte_index += sizeof(int);
 
             unsigned char* username = (unsigned char*)malloc(username_size);
+            if(username == NULL) {
+                cout << RED << "[ERROR] malloc error" << RESET << endl;
+                exit(1);
+            } 
+            
             memcpy(username, &buffer[byte_index], username_size);
             byte_index += username_size;
 
