@@ -127,13 +127,13 @@ bool authentication(Client &clt, string username, string password) {
 	
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {
-        cerr << RED << "User does not have a key file" << RESET << endl; 
+        cerr << RED << "[ERROR] User does not have a key file" << RESET << endl; 
         exit(1);
     }   
 
 	user_key = PEM_read_PrivateKey(file, NULL, NULL, (void*)password.c_str());
 	if(!user_key) {
-        cerr << RED << "[ERROR] User does not valid, retry" << RESET << endl; 
+        cerr << RED << "[ERROR] Password not valid, retry" << RESET << endl; 
         return false;
     }
 
@@ -621,33 +621,43 @@ void chat(Client clt) {
             getline(cin, message);
             cout << endl;
 
+            int byte_index = 0;
+            unsigned char* tempBuffer;
+            int dim = 0;
+
             if(message.compare(":q!") == 0) {
-                break;
+                cout << MAGENTA << "[LOG] user ending the chat" << RESET << endl;
+                dim = sizeof(char);
+            } else {
+                dim = sizeof(char) + message.size();
             }
 
-            int byte_index = 0;
-            unsigned char* tempBuffer = (unsigned char*)malloc(message.size() + sizeof(char));
+            tempBuffer = (unsigned char*)malloc(dim);
             if(!tempBuffer) {
                 cerr << RED << "[ERROR] malloc error" << RESET << endl;
                 return;
             }
 
-            memcpy(&(tempBuffer[byte_index]), &constants::CHAT, sizeof(char));
-            byte_index += sizeof(char);
+            if(message.compare(":q!") == 0) {
+                memcpy(&(tempBuffer[byte_index]), &constants::REFUSED, sizeof(char));
+                byte_index += sizeof(char);
+            } else {
+                memcpy(&(tempBuffer[byte_index]), &constants::CHAT, sizeof(char));
+                byte_index += sizeof(char);
 
-            memcpy(&(tempBuffer[byte_index]), message.c_str(), message.size());
-            byte_index += message.size();
+                memcpy(&(tempBuffer[byte_index]), message.c_str(), message.size());
+                byte_index += message.size();
+            }
 
             clt.clientConn->generateIV(iv);
-            int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, iv, tempBuffer, message.size() + sizeof(char), encrypted);
+            int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, iv, tempBuffer, dim, encrypted);
             if(encrypted_size < 0 || encrypted_size > constants::MAX_MESSAGE_SIZE) {
                 cout << RED << "[ERROR] message not valid" << RESET << endl;
                 exit(1);
             }
 
             byte_index = 0;
-            int dim_send = encrypted_size;
-            to_send = (unsigned char*)malloc(dim_send);
+            to_send = (unsigned char*)malloc(encrypted_size);
             if(!to_send) {
                 cout << RED << "[ERROR] malloc error" << RESET << endl;
                 exit(1);
@@ -658,19 +668,30 @@ void chat(Client clt) {
 
             encrypted.clear();
 
-            ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, dim_send, encrypted);
+            ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, encrypted_size, encrypted);
+
+            cout << "buffer: " << endl;
+            BIO_dump_fp(stdout, (const char*)encrypted.data(), ret);
 
             if(ret <= 0) {
                 cerr << RED << "[ERROR] error during the send encrypted" << RESET << endl;
                 return;
             }
 
-            message.clear();
+            if(message.compare(":q!") == 0) {
+                cout << MAGENTA << "[LOG] chat ended" << RESET << endl;
+                message.clear();
+                exit(1);
+            }
+
         }
 
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             
             ret = receive_message_enc(clt, buffer, decrypted);
+
+            cout << "buffer received: " << endl;
+            BIO_dump_fp(stdout, (const char*)buffer, ret);
 
             int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, decrypted.data(), ret, clear);
 
@@ -693,6 +714,14 @@ void chat(Client clt) {
                 message *
                 *********
             */
+
+            if(decrypted.at(0) == constants::REFUSED) {
+                // the other user want to end the chat
+
+                cout << " other user want to end the chat.. disconnecting" << RESET << endl;
+                exit(1);
+            }
+
             int limit = decrypted_size + 2;
 
             for(int i = 0; i < limit ; i++) {
@@ -771,6 +800,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         cout << GREEN << "[LOG] request accepted, starting the chat" << RESET << endl;
         cout << "---------------------------------------" << endl;
         cout << "\n-------Chat-------" << endl;
+        cout << "you can insert ':q!' to exit the chat!" << endl;
+        cout << "---------------------------------------" << endl;
 
         clt.clientConn->setCurrentChat((unsigned char*)username_to_contact.c_str(), username_to_contact.size(), (unsigned char*)username.c_str(), username.size());
 

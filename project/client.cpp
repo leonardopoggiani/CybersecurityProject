@@ -59,7 +59,7 @@ int main(int argc, char* const argv[]) {
 
     cout << GREEN << "\n**** AUTHENTICATION ****" << RESET << endl;
 
-    if (!authentication(clt,username,password)) {
+    if (!authentication(clt, username, password)) {
         cerr << RED << "[ERROR] authentication failed" << RESET << endl;
         exit(1);
     } 
@@ -147,23 +147,23 @@ int main(int argc, char* const argv[]) {
 
                     memcpy(clt.clientConn->getMyCurrentChat()->chat_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
 
-                    //Perchè così serializzata?!
                     if(!clt.clientConn->getMyCurrentChat()->chat_key) {
                         cout << RED << "[ERROR] malloc error" << RESET << endl;
                         exit(1);    
-                    } else {
-                        cout << MAGENTA << "[DEBUG] chat key:" << endl;
-                        BIO_dump_fp(stdout, (const char*)clt.clientConn->getMyCurrentChat()->chat_key, EVP_MD_size(EVP_sha256()));
-                        cout << RESET << endl;
                     }
 
                     cout << "---------------------------------------" << endl;
                     cout << "\n-------Chat-------" << endl;
+                    cout << "you can insert ':q!' to exit the chat!" << endl;
+                    cout << "---------------------------------------" << endl;
                     
                     chat(clt);
 
                     cout << "------------------" << endl;
                 }
+            } else {
+                cout << RED << "[ERROR] error, disconnecting" << RESET << endl;
+                exit(1); 
             }
         }
 

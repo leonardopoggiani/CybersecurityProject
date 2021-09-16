@@ -65,6 +65,45 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(username, &buffer[byte_index], username_size);
     byte_index += username_size;
 
+    vector<user> already_logged_in = srv.serverConn->getUsersList();
+
+    if(already_logged_in.size() != 0) {
+        int already_logged_error = 1;
+
+
+        for(auto us : already_logged_in) {
+
+            if(us.username.size() == username_size) {
+
+                already_logged_error = 1;
+
+                for(int i = 0; i < username_size; i++) {
+                    if(us.username.c_str()[i] != username[i]) {
+                        already_logged_error = 0;
+                        break;
+                    }
+                }
+
+                if(already_logged_error == 1) {
+                    break;
+                } 
+            } else {
+                already_logged_error = 0;
+            }
+        }
+
+        if(already_logged_error == 1) {
+            free(username);
+            
+            unsigned char* error_message = (unsigned char*)malloc(sizeof(char));
+            memcpy(error_message, &constants::ERROR_CODE, sizeof(char));
+
+            srv.serverConn->send_message(error_message, sd, sizeof(char));
+
+            return true;
+        }
+    }
+
     memcpy(nonceClient.data(), &buffer[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
@@ -99,7 +138,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     FILE* file;
     file = fopen(filename_dir.c_str(), "r");
     if(!file) {
-        cerr << RED << "[ERROR] Username size error!" << RESET << endl;
+        cerr << RED << "[ERROR] File does not exist!" << RESET << endl;
         return false;
     }
 
@@ -733,5 +772,54 @@ bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
 
     free(message_received);
     return true;   
+}
+
+bool closingChat(Server srv, int sd, unsigned char* buffer, int dim) {
+    vector<userChat*> chats = srv.serverConn->getActiveChats();
+    int index = 0;
+    int other_sd = 0;
+    vector<unsigned char> decrypted;
+    vector<unsigned char> encrypted;
+    unsigned char* message_received;
+    int byte_index = 0;
+    array<unsigned char, constants::IV_LEN> iv;
+
+    for(auto chat : chats) {
+        if(chat->sd_1 == sd) {
+            other_sd = chat->sd_2;
+            cout << MAGENTA << "[DEBUG] chat found and deleted" << RESET << endl;
+            break;
+        } else if(chat->sd_2 == sd) {
+            other_sd = chat->sd_1;
+            cout << MAGENTA << "[DEBUG] chat found and deleted" << RESET << endl;
+            break;
+        }
+
+        index++;
+    }
+
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, dim, decrypted);
+
+    message_received = (unsigned char*)malloc(decrypted_size);
+    if(!message_received) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+    
+    memcpy(message_received, &decrypted.data()[byte_index], decrypted_size);
+    byte_index += decrypted_size;
+
+    byte_index = sizeof(char);
+    memcpy(iv.data(), &decrypted.data()[byte_index], constants::IV_LEN);
+    byte_index += constants::IV_LEN;
+
+    int encrypted_size = send_message_enc_srv(srv.crypto, other_sd, srv.serverConn->getSessionKey(other_sd), iv.data(), decrypted.data(), decrypted_size, encrypted);
+    if(encrypted_size <= 0) {
+        cout << RED << "[ERROR] encryption failed" << RESET << endl;
+        return false;
+    }
+
+    free(message_received);
+    return true;
 }
 

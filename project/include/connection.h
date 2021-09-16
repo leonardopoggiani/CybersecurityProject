@@ -466,9 +466,9 @@ class serverConnection : public clientConnection {
                 cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
                 cout << "********************************" << endl << endl;
 
-                string buffer = "ack";
+                string ack = "ack";
 
-                if(send(new_socket, buffer.c_str(), buffer.size(), 0) != (ssize_t) buffer.size()) {
+                if(send(new_socket, ack.c_str(), ack.size(), 0) != (ssize_t) ack.size()) {
                     cerr << RED << "[ERROR] error in sending ack" << RESET << endl;
                     exit(1);
                 }

@@ -21,6 +21,7 @@ namespace constants
     constexpr char LOGOUT = '5';
     constexpr char ACCEPTED = '6';
     constexpr char START_CHAT = '7';
+    constexpr char ERROR_CODE = '8';
     constexpr char REFUSED = '9';
 
 }

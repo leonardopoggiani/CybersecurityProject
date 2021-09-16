@@ -199,7 +199,15 @@ int main(int argc, char* const argv[]) {
                         };
                         cout << "-----------------------------" << endl << endl;
 
-                    } else if(buffer[0] == constants::LOGOUT) {
+                    } else if(buffer[0] == constants::REFUSED) {
+                        cout << GREEN << "\n**** CLOSING CHAT ****" << RESET << endl;
+
+                        if (!closingChat(srv, sd, buffer.data(), ret)){
+                            cerr << RED << "Request to close chat failed on Server" << RESET << endl;
+                            exit(1);
+                        };
+                    } 
+                    else if(buffer[0] == constants::LOGOUT) {
 
                         cout << YELLOW << "\n[LOG] LOGOUT " << RESET << endl;
 
