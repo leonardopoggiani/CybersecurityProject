@@ -19,7 +19,7 @@ using namespace std;
 struct user {
     string username;
     int sd;
-    unsigned char* session_key;
+    unsigned char* session_key = NULL;
 
     user(string us, int s) {
         username = us;
@@ -29,20 +29,35 @@ struct user {
 };
 
 struct userChat {
-    unsigned char* username_1;
+    unsigned char* username_1 = NULL;
+    int dim_us1;
     int sd_1;
-    EVP_PKEY* pubkey_1;
-    unsigned char* username_2;
+    unsigned char* username_2 = NULL;
+    int dim_us2;
     int sd_2;
-    EVP_PKEY* pubkey_2;
-    unsigned char* session_key;
+    EVP_PKEY* pubkey_1 = NULL;
+    EVP_PKEY* pubkey_2 = NULL;
+    unsigned char* iv = NULL;
+    unsigned char* chat_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
 
-    userChat(unsigned char* us1, int s1, unsigned char* us2, int s2) {
-        username_1 = us1;
-        username_2 = us2;
+    userChat(unsigned char* us1, int d_us1, int s1, unsigned char* us2, int d_us2, int s2) {
+        username_1 = (unsigned char*)malloc(d_us1);
+        username_2 = (unsigned char*)malloc(d_us2);
+        memcpy(username_1, us1, d_us1);
+        memcpy(username_2, us2, d_us2);
+        dim_us1 = d_us1;
+        dim_us2 = d_us2;
         sd_1 = s1;
         sd_2 = s2;
-        session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+    }
+
+    userChat(unsigned char* us1, int d_us1, unsigned char* us2, int d_us2) {
+        username_1 = (unsigned char*)malloc(d_us1);
+        username_2 = (unsigned char*)malloc(d_us2);
+        memcpy(username_1, us1, d_us1);
+        memcpy(username_2, us2, d_us2);
+        dim_us1 = d_us1;
+        dim_us2 = d_us2;
     }
 };
 
@@ -52,17 +67,47 @@ class clientConnection {
         struct sockaddr_in address;
         int master_fd;
         int port;
-        unsigned char* talking_to;
-        unsigned char* iv;
-        unsigned char* session_key;
-        userChat* currentChat;
+        unsigned char* talking_to = NULL;
+        unsigned char* iv = NULL;
+        unsigned char* session_key = NULL;
+        unsigned char* username = NULL;
+        int username_size;
+        userChat* current_chat = NULL;
+        EVP_PKEY* keyDHBufferTemp = NULL;
 
     public:
 
-        unsigned char* getSessionKey() {
-            printf("2) session key is:\n");
-            BIO_dump_fp(stdout, (const char*)session_key, sizeof(session_key));
+        void setKeyDHBufferTemp(EVP_PKEY* keyDH, unsigned int size) {
+            keyDHBufferTemp = keyDH;
+        }
 
+        EVP_PKEY* getKeyDHBufferTemp() {
+            return keyDHBufferTemp;
+        }
+
+        unsigned char* getUsername() {
+            return username;
+        }
+
+        int getUsernameSize() {
+            return username_size;
+        }
+ 
+        void setUsername(string us) {
+            username = (unsigned char*)malloc(us.size());
+            username_size = us.size();
+            memcpy(username, us.c_str(), us.size());
+        }
+
+        void setCurrentChat(unsigned char* username_to_contact, int us_size1, int sd1, unsigned char* username, int us_size2, int sd2) {
+            current_chat = new userChat(username_to_contact, us_size1, sd1, username, us_size2, sd2);
+        }
+
+        void setCurrentChat(unsigned char* username_to_contact, int us_size1, unsigned char* username, int us_size2) {
+            current_chat = new userChat(username_to_contact, us_size1, username, us_size2);
+        }
+
+        unsigned char* getSessionKey() {
             return session_key;
         }
 
@@ -79,13 +124,21 @@ class clientConnection {
                 throw runtime_error("An error occurred in RAND_bytes.");
         }
 
+        void generateIV(unsigned char* initialization_vector) {
+            if(RAND_poll() != 1)
+                throw runtime_error("An error occurred in RAND_poll."); 
+            if(RAND_bytes(initialization_vector, constants::IV_LEN) != 1)
+                throw runtime_error("An error occurred in RAND_bytes.");
+        }
+
         clientConnection(){
             port = 8080;
+
             if ((master_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-                cerr << "\n Socket creation error \n" << endl;
-                exit(EXIT_FAILURE);
+                cerr << RED << "\n[ERROR] Socket creation error \n" << RESET << endl;
+                exit(1);
             } else {
-                cout << "--- socket created ---" << endl;
+                cout << "[LOG] socket created " << endl;
             }
 
             const int trueFlag = 1;
@@ -94,11 +147,11 @@ class clientConnection {
             address.sin_family = AF_INET;
             address.sin_port = htons(constants::CLIENT_PORT);
             
-            if(inet_pton(AF_INET, constants::LOCALHOST, &address.sin_addr)<=0) {
-                cerr << "\nInvalid address/ Address not supported \n" << endl;
-                exit(EXIT_FAILURE);
+            if(inet_pton(AF_INET, constants::LOCALHOST, &address.sin_addr) <= 0) {
+                cerr << RED << "\n[ERROR] Address not supported \n" << RESET << endl;
+                exit(1);
             } else {
-                cout << "--- address valid ---" << endl;
+                cout << "[LOG] address valid " << endl;
             }
         }
 
@@ -109,7 +162,7 @@ class clientConnection {
         ~clientConnection() {
             // Chiude il socket
             close(master_fd);
-            cout << "--- connection closed ---" << endl;
+            cout << "[LOG] connection closed " << endl;
         }
 
         void make_connection(){
@@ -119,8 +172,8 @@ class clientConnection {
             flags = fcntl(master_fd, F_GETFL, 0);
 
             if(flags < 0) {
-                perror("Connection error");
-                throw runtime_error("Connection Failed");
+                cerr << RED << "[ERROR] connection error" << RESET << endl;
+                exit(1);
             }
 
             if((flags & O_NONBLOCK) == 0) {
@@ -133,13 +186,13 @@ class clientConnection {
 
             if (ret == -1) {
                 if(is_blocking || errno != EINPROGRESS) { 
-                    perror("Connection error");
-                    throw runtime_error("Connection Failed");
+                    cerr << RED << "[ERROR] connection error" << RESET << endl;
+                    exit(1);
                 }
 
                 if(!wait(master_fd)) {
-                    perror("Connection Error");
-                    throw runtime_error("Connection Failed");
+                    cerr << RED << "[ERROR] connection error" << RESET << endl;
+                    exit(1);
                 }
             }
         }
@@ -149,7 +202,8 @@ class clientConnection {
             int poll_response;
 
             if(socket < 0){
-                throw runtime_error("Socket descriptor not valid.");
+                cerr << RED << "[ERROR] socket descriptor not valid" << RESET << endl;
+                exit(1);
             }
 
             fds[0].fd = socket;
@@ -168,13 +222,13 @@ class clientConnection {
             int message_len;
 
             do {
-                message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
+                message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE - 1, 0);
                 
                 if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Receive Error");
-                    throw runtime_error("Receive failed");
+                    cerr << RED << "[ERROR] receive failed" << RESET << endl;
+                    exit(1);
                 } else if (message_len == 0) {
-                    cout << "client connection closed" << endl;
+                    cout << "[LOG] client connection closed" << endl;
                     return 0;
                 } 
             } while (message_len < 0);
@@ -190,10 +244,10 @@ class clientConnection {
                 message_len = recv(sd, buffer, constants::MAX_MESSAGE_SIZE-1, 0);
                 
                 if(message_len == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Receive Error");
-                    throw runtime_error("Receive failed");
+                    cerr << RED << "[ERROR] receive failed" << RESET << endl;
+                    exit(1);
                 } else if (message_len == 0) {
-                    cout << "client connection closed" << endl;
+                    cout << "[LOG] client connection closed" << endl;
                     return 0;
                 } 
             } while (message_len < 0);
@@ -205,16 +259,17 @@ class clientConnection {
             int ret;
 
             if (message.length() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
+                cerr << RED << "[ERROR] send failed" << RESET << endl;
+                exit(1);
             }
 
             do {
                 ret = send(getMasterFD(), message.c_str(), message.length(), 0);
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
+                    cerr << RED << "[ERROR] send failed" << RESET << endl;
+                    exit(1);
                 } else if (ret == 0) {
-                    cout << "client connection closed" << endl;
+                    cout << "[LOG] client connection closed" << endl;
                     return -1;
                 } 
             } while (ret != (int) message.length());
@@ -225,17 +280,18 @@ class clientConnection {
             int ret;
 
             if (message.size() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
+                cerr << RED << "[ERROR] send failed" << RESET << endl;
+                exit(1);
             }
             
             do {
                 ret = send(getMasterFD(), &message[0], message.size(), 0);
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
+                    cerr << RED << "[ERROR] send failed" << RESET << endl;
+                    exit(1);
                 } else if (ret == 0) {
-                    cout << "client connection closed" << endl;
-                    return -1;
+                    cout << "[LOG] client connection closed" << endl;
+                    return 0;
                 } 
             } while (ret != (int) message.size());
 
@@ -248,11 +304,11 @@ class clientConnection {
             do {
                 ret = send(getMasterFD(), &message[0], dim, 0);
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
+                    cerr << RED << "[ERROR] send failed" << RESET << endl;
+                    exit(1);
                 } else if (ret == 0) {
-                    cout << "client connection closed" << endl;
-                    return -1;
+                    cout << "[LOG] client connection closed" << endl;
+                    return 0;
                 } 
             } while (ret != dim);
 
@@ -270,18 +326,16 @@ class clientConnection {
             talking_to = talking_to;
         }
 
-        void addSessionKey(unsigned char* sessionKey, int size) {
+        void addSessionKey(unsigned char* sessionKey) {
             session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
             memcpy(session_key, sessionKey, EVP_MD_size(EVP_sha256()));
 
-            printf("session key sent is:\n");
+            cout << "session_key: " << endl;
             BIO_dump_fp(stdout, (const char*)sessionKey, EVP_MD_size(EVP_sha256()));
-            printf("session key new is:\n");
-            BIO_dump_fp(stdout, (const char*)session_key, EVP_MD_size(EVP_sha256()));
         }
 
-        userChat* getCurrentChat() {
-            return currentChat;
+        userChat* getMyCurrentChat() {
+            return current_chat;
         }
 };
 
@@ -299,21 +353,34 @@ class serverConnection : public clientConnection {
 
         vector<user> users_logged_in;
         vector<userChat*> activeChat;
-
-        unsigned char* iv;
+        array<unsigned char, constants::IV_LEN> iv_server;
 
     public:
 
         unsigned char* getIV() {
-            return iv;
+            return iv_server.data();
         }
 
         void generateIV() {
-            iv = (unsigned char*)malloc(constants::IV_LEN);
-            if(RAND_poll() != 1)
-                throw runtime_error("An error occurred in RAND_poll."); 
-            if(RAND_bytes(iv, constants::IV_LEN) != 1)
-                throw runtime_error("An error occurred in RAND_bytes.");
+            if(RAND_poll() != 1) {
+                cerr << RED << "[ERROR] error in rand_poll" << RESET << endl;
+                exit(1);
+            }
+            if(RAND_bytes(iv_server.data(), constants::IV_LEN) != 1) {
+                cerr << RED << "[ERROR] error in rand_bytes" << RESET << endl;
+                exit(1);
+            }
+        }
+
+        void generateIV(unsigned char* initialization_vector) {
+            if(RAND_poll() != 1) {
+                cerr << RED << "[ERROR] error in rand_poll" << RESET << endl;
+                exit(1);
+            }
+            if(RAND_bytes(initialization_vector, constants::IV_LEN) != 1) {
+                cerr << RED << "[ERROR] error in rand_bytes" << RESET << endl;
+                exit(1);
+            }
         }
 
         serverConnection():clientConnection() {
@@ -329,20 +396,23 @@ class serverConnection : public clientConnection {
         }
 
         void serverBind() {
-            if (::bind(master_fd, (struct sockaddr *)&address, sizeof(address)) < 0) 
-                throw runtime_error("Error in binding");  
-            cout << "Listening on port: " <<  port << endl;  
+            if (::bind(master_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+                cerr << RED << "[ERROR] error in binding" << RESET << endl;
+                exit(1);  
+            }
+            cout << " [LOG] Listening on port: " <<  port << endl;  
         }
 
         void listenForConnections() {
-            if (listen(master_fd, 3) < 0)
-                throw runtime_error("Error in listening");
+            if (listen(master_fd, 3) < 0) {
+                cerr << RED << "[ERROR] error in listening" << RESET << endl;
+                exit(1);
+            }
         }
 
         ~serverConnection() {
-            // Chiude il socket
             close(master_fd);
-            cout << "--- connection closed ---" << endl;
+            cout << "[LOG] connection closed " << endl;
         }
         
         void initSet() {
@@ -364,15 +434,19 @@ class serverConnection : public clientConnection {
         }
 
         int getClient(unsigned int i) {
-            if (i > constants::MAX_CLIENTS - 1)
-                throw runtime_error("Max clients exceeds");
+            if (i > constants::MAX_CLIENTS - 1) {
+                cerr << RED << "[ERROR] max clients exceeds" << RESET << endl;
+                exit(1);
+            }
             return client_socket[i];
         }
 
         void selectActivity() {
             activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);  
-            if ((activity < 0) && (errno!=EINTR))
-                throw runtime_error("Error in the select function"); 
+            if ((activity < 0) && (errno!=EINTR)) {
+                cerr << RED << "[ERROR] error in select" << RESET << endl;
+                exit(1);
+            }
         }
 
         void accept_connection() {
@@ -381,8 +455,8 @@ class serverConnection : public clientConnection {
 
             try {
                 if ((new_socket = accept(master_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen))<0) {
-                    perror("accept");  
-                    throw runtime_error("Failure on accept");
+                    cerr << RED << "[ERROR] error in accept" << RESET << endl;
+                    exit(1);
                 }  
 
                 cout << "********************************" << endl;
@@ -392,10 +466,12 @@ class serverConnection : public clientConnection {
                 cout << "Port: \t\t" << ntohs(address.sin_port) << endl;
                 cout << "********************************" << endl << endl;
 
-                string buffer = "ack";
+                string ack = "ack";
 
-                if(send(new_socket, buffer.c_str(), buffer.size(), 0) != (ssize_t) buffer.size())  
-                    throw runtime_error("Error sending the ack message"); 
+                if(send(new_socket, ack.c_str(), ack.size(), 0) != (ssize_t) ack.size()) {
+                    cerr << RED << "[ERROR] error in sending ack" << RESET << endl;
+                    exit(1);
+                }
 
                 for (unsigned int i = 0; i < constants::MAX_CLIENTS; i++) {  
                     if(client_socket[i] == 0)  {  
@@ -423,30 +499,28 @@ class serverConnection : public clientConnection {
         
         void insertUser(string username, int sd){
             if(users_logged_in.size() + 1 < constants::MAX_CLIENTS) {
-                user* new_user = new user(username,sd);
+                user* new_user = new user(username, sd);
                 users_logged_in.push_back(*new_user);
-            } else  {
-                cerr << "Maximum number of online users reached" << endl;
-                return;
+            } else {
+                cerr << RED << "[ERROR] error maximum number of client online" << RESET << endl;
+                exit(1);
             }
         }
 
         void removeUser(int sd) {
-            cout << " removing user " << endl;
             for(int i = 0; i < (int) users_logged_in.size(); i++) {
                 if(users_logged_in[i].sd == sd) {
                     users_logged_in.erase(users_logged_in.begin() + i);
-                    cout << "removed user" << endl;
-
+                    cout << "[LOG] removed user" << endl;
                     return;
                 }
             }
-            cout << "no user found" << endl;
+            cout << "[LOG] no user found" << endl;
         }
 
         void printOnlineUsers(){
             if( users_logged_in.size() == 0 ) {
-                cout << "no users online" << endl;
+                cout << "[LOG] no users online" << endl;
                 return;
             }
 
@@ -460,17 +534,18 @@ class serverConnection : public clientConnection {
             int ret;
 
             if (message.size() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
+                cerr << RED << "[ERROR] max message size exceeds" << RESET << endl;
+                exit(1);
             }
             
             do {
                 ret = send(sd, &message[0], message.size(), 0);
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
+                    cerr << RED << "[ERROR] send failed" << RESET << endl;
+                    exit(1);
                 } else if (ret == 0) {
-                    cout << "client connection closed" << endl;
-                    return -1;
+                    cout << "[LOG] client connection closed" << endl;
+                    return 0;
                 }  
             } while (ret != (int) message.size());
 
@@ -481,17 +556,18 @@ class serverConnection : public clientConnection {
             int ret;
 
             if (message.length() > constants::MAX_MESSAGE_SIZE) {
-                throw runtime_error("Max message size exceeded in Send");
+                cerr << RED << "[ERROR] max message size exceeds" << RESET << endl;
+                exit(1);
             }
 
             do {
                 ret = send(sd, message.c_str(), message.length(), 0);
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
+                    cerr << RED << "[ERROR] send failed" << RESET << endl;
+                    exit(1);
                 } else if (ret == 0) {
-                    cout << "client connection closed" << endl;
-                    return -1;
+                    cout << "[LOG] client connection closed" << endl;
+                    return 0;
                 } 
             } while (ret != (int) message.length());
 
@@ -504,10 +580,10 @@ class serverConnection : public clientConnection {
             do {
                 ret = send(sd, &message[0], dim, 0);
                 if(ret == -1 && ((errno != EWOULDBLOCK) || (errno != EAGAIN))) {
-                    perror("Send Error");
-                    throw runtime_error("Send failed");
+                    cerr << RED << "[ERROR] send failed" << RESET << endl;
+                    exit(1);    
                 }  else if (ret == 0) {
-                    cout << "client connection closed" << endl;
+                    cout << "[LOG] client connection closed" << endl;
                     return -1;
                 } 
             } while (ret != dim);
@@ -541,16 +617,8 @@ class serverConnection : public clientConnection {
         }
 
         unsigned char* getSessionKey(int sd) {
-
-            cout << "sd: " << sd << endl;
-
             for(auto user : users_logged_in) {
                 if(user.sd == sd) {
-                    cout << "user: " << user.username << endl;
-
-                    printf("2) session key is:\n");
-                    BIO_dump_fp(stdout, (const char*)user.session_key, EVP_MD_size(EVP_sha256()));
-
                     return user.session_key;
                 }
             }
@@ -559,19 +627,9 @@ class serverConnection : public clientConnection {
         }
 
         void addSessionKey(int sd, unsigned char* sessionKey) {
-
-            printf("1) session key is:\n");
-            BIO_dump_fp(stdout, (const char*)sessionKey, EVP_MD_size(EVP_sha256()));
-
             for(auto user : users_logged_in) {
                 if(user.sd == sd) {
-
-                    cout << "user: " << user.username << endl;
-
                     memcpy(user.session_key, sessionKey, EVP_MD_size(EVP_sha256()));
-
-                    printf("2) session key is:\n");
-                    BIO_dump_fp(stdout, (const char*)user.session_key, EVP_MD_size(EVP_sha256()));
                 }
             }
         }
@@ -592,7 +650,6 @@ class serverConnection : public clientConnection {
                     return u;
                 }
             }
-
             return NULL;
         }
 };
