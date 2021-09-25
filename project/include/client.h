@@ -854,10 +854,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         if(!clt.clientConn->getMyCurrentChat()->chat_key) {
             cout << RED << "[ERROR] malloc error" << RESET << endl;
             exit(1);    
-        } else {
-            cout << MAGENTA << "[DEBUG] chat key:" << endl;
-            BIO_dump_fp(stdout, (const char*)clt.clientConn->getMyCurrentChat()->chat_key, EVP_MD_size(EVP_sha256()));
-            cout << RESET << endl;
         }
 
         //Costruire e inviare mia chiave DH

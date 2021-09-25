@@ -787,11 +787,9 @@ bool closingChat(Server srv, int sd, unsigned char* buffer, int dim) {
     for(auto chat : chats) {
         if(chat->sd_1 == sd) {
             other_sd = chat->sd_2;
-            cout << MAGENTA << "[DEBUG] chat found and deleted" << RESET << endl;
             break;
         } else if(chat->sd_2 == sd) {
             other_sd = chat->sd_1;
-            cout << MAGENTA << "[DEBUG] chat found and deleted" << RESET << endl;
             break;
         }
 
