@@ -20,7 +20,6 @@ const string menu = "Hi! This is a secure messaging system. \n What do you want 
 
 int main(int argc, char* const argv[]) {
     
-    EVP_PKEY* pubKeyDH = NULL;
     char* buffer = new char[constants::MAX_MESSAGE_SIZE];
     vector<unsigned char> packet;
     string username;
@@ -41,13 +40,13 @@ int main(int argc, char* const argv[]) {
     }
 
     if( clt.clientConn->checkAck(buffer) ) {
-        cout << GREEN << " [LOG] ack received" << RESET << endl;
+        cout << GREEN << "[LOG] ack received" << RESET << endl;
     } else {
         cerr << RED << "[ERROR] ack not valid" << RESET << endl;
         exit(1);
     }
 
-    cout << GREEN << "Welcome! \n\n" << RESET << endl;
+    cout << BOLDGREEN << "\n\nWelcome! \n\n" << RESET << endl;
     cout << "Please type your username -> ";
     cin >> username;
     cout << endl;
@@ -99,11 +98,15 @@ int main(int argc, char* const argv[]) {
                     int peerPubKeyLen = 0;
                     unsigned char* peerPubKeyBuffer = NULL; 
                     EVP_PKEY* peerKeyDH = NULL;
-                    EVP_PKEY *sessionDHKey = NULL;
                     
                     packet.clear();
                     packet.resize(constants::MAX_MESSAGE_SIZE);
                     int received_size = receive_message_enc(clt, packet.data(), decrypted);
+                    if(received_size < 0) {
+                        cout << RED << "[ERROR] receive error" << RESET << endl;
+                        exit(1);
+                    }
+
                     packet.clear();
 
                     int byte_index = sizeof(char);

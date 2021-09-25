@@ -466,12 +466,11 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     unsigned int keyBufferDHLen = 0;
     EVP_PKEY *keyDH = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> keyDHBuffer;
-    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     vector<unsigned char> decrypted;
     vector<unsigned char> encrypted; 
     int byte_index = 0;
     unsigned char* username = NULL;
-    unsigned int username_size = 0;
+    int username_size = 0;
     unsigned char* response_to_request = NULL;
     unsigned char response = 'n';
     int dim = 0;
@@ -511,7 +510,7 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     }
    
     cout << "Do you want to talk with ";
-    for(unsigned int i = 0; i < username_size; i++) {
+    for(int i = 0; i < username_size; i++) {
         cout << username[i];
     }
     cout << "? (y/n)" << endl;
@@ -670,9 +669,6 @@ void chat(Client clt) {
 
             ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, encrypted_size, encrypted);
 
-            cout << "buffer: " << endl;
-            BIO_dump_fp(stdout, (const char*)encrypted.data(), ret);
-
             if(ret <= 0) {
                 cerr << RED << "[ERROR] error during the send encrypted" << RESET << endl;
                 return;
@@ -689,9 +685,6 @@ void chat(Client clt) {
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             
             ret = receive_message_enc(clt, buffer, decrypted);
-
-            cout << "buffer received: " << endl;
-            BIO_dump_fp(stdout, (const char*)buffer, ret);
 
             int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, decrypted.data(), ret, clear);
 

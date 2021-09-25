@@ -90,7 +90,6 @@ int main(int argc, char* const argv[]) {
                         vector<unsigned char> decrypted;
                         vector<unsigned char> encrypted;
                         int keyDHBufferLen = 0;
-                        char opCode;
                         unsigned char* keyClientDHBuffer;
                         int byte_index = sizeof(char);
 
@@ -114,13 +113,13 @@ int main(int argc, char* const argv[]) {
                         int clientB_sd;
 
                         for(auto chat : chatList) {
-                            if( (srv.serverConn->findUserFromSd(sd).size() == chat->dim_us2) && memcmp(srv.serverConn->findUserFromSd(sd).c_str(), chat->username_2, chat->dim_us2) == 0 ) {
+                            if( ((int) srv.serverConn->findUserFromSd(sd).size() == chat->dim_us2) && memcmp(srv.serverConn->findUserFromSd(sd).c_str(), chat->username_2, chat->dim_us2) == 0 ) {
                                 usernameA = (unsigned char*) malloc(chat->dim_us2);
                                 memcpy(usernameA, chat->username_2, chat->dim_us2);
                                 usernameA_size = chat->dim_us2;
                                 clientB_sd = chat->sd_1;
                                 break;
-                            } else if( (srv.serverConn->findUserFromSd(sd).size() == chat->dim_us1) && memcmp(srv.serverConn->findUserFromSd(sd).c_str(), chat->username_1, chat->dim_us1) == 0 ) {
+                            } else if( ((int) srv.serverConn->findUserFromSd(sd).size() == chat->dim_us1) && memcmp(srv.serverConn->findUserFromSd(sd).c_str(), chat->username_1, chat->dim_us1) == 0 ) {
                                 usernameA = (unsigned char*) malloc(chat->dim_us1);
                                 memcpy(usernameA, chat->username_1, chat->dim_us1);
                                 usernameA_size = chat->dim_us1;

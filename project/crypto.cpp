@@ -536,10 +536,7 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
         if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), session_key, recv_iv)){
             cout << RED << "[ERROR] error during the initialization of decryption" << RESET << endl;
             exit(1);
-        }
-
-        cout << "ciphr_msg:" << endl;
-        BIO_dump_fp(stdout, (const char*)ciphr_msg, ciphr_len);
+        }   
         
         if(!EVP_DecryptUpdate(ctx, NULL, &len, recv_iv, constants::IV_LEN)){
             cout << RED << "[ERROR] error while decrypting the message (IV)" << RESET << endl;

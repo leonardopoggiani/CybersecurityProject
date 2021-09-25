@@ -329,9 +329,6 @@ class clientConnection {
         void addSessionKey(unsigned char* sessionKey) {
             session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
             memcpy(session_key, sessionKey, EVP_MD_size(EVP_sha256()));
-
-            cout << "session_key: " << endl;
-            BIO_dump_fp(stdout, (const char*)sessionKey, EVP_MD_size(EVP_sha256()));
         }
 
         userChat* getMyCurrentChat() {

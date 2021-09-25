@@ -73,7 +73,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
         for(auto us : already_logged_in) {
 
-            if(us.username.size() == username_size) {
+            if((int) us.username.size() == username_size) {
 
                 already_logged_error = 1;
 
@@ -454,8 +454,6 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
     byte_index += sizeof(char);
 
-    int dim_message = 0;
-
     memcpy(&(message[byte_index]), &dim, sizeof(int));
     byte_index += sizeof(int);
 
@@ -512,7 +510,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     int username_size = 0;
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyClientBuffer;
     array<unsigned char, MAX_MESSAGE_SIZE> keyClientDHBuffer;
-    int pubKeyBufferLen = 0;
     int keyDHBufferLen = 0;
     vector<user> users_logged_in = srv.serverConn->getUsersList();
     vector<unsigned char> decrypted;
@@ -661,7 +658,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         }
 
         // Serializzare chiave pubblica
-        pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
         int pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
 
         // Cambiare dim
