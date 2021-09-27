@@ -8,7 +8,7 @@ namespace constants
     constexpr unsigned int NONCE_SIZE = 16;
     constexpr unsigned int TAG_LEN = 16;
     constexpr unsigned int IV_LEN = 12;
-    constexpr unsigned int MAX_MESSAGE_SIZE = 10000;
+    constexpr    int MAX_MESSAGE_SIZE = 10000;
     constexpr int MAX_CLIENTS = 10;
     constexpr const char* CA_CERT_PATH = "ca_cert";
     constexpr const char* CRL_PATH = "./certificates/FoundationsOfCybersecurity_crl.pem";
@@ -21,6 +21,7 @@ namespace constants
     constexpr char LOGOUT = '5';
     constexpr char ACCEPTED = '6';
     constexpr char START_CHAT = '7';
+    constexpr char ERROR_CODE = '8';
     constexpr char REFUSED = '9';
 
 }
