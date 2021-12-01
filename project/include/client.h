@@ -448,7 +448,7 @@ bool authentication(Client &clt, string username, string password) {
     clt.crypto->secretDerivation(prvKeyDHClient, pubKeyDHServer, tempBuffer.data());
     clt.clientConn->addSessionKey(tempBuffer.data());
 
-    cout << YELLOW << "[LOG] Authentication succeeded " << RESET << endl;
+    cout << CYAN << "[LOG] Authentication succeeded " << RESET << endl;
 
 #pragma optimize("", off)
     memset(clear_buf, 0, dim);
