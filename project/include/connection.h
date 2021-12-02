@@ -597,8 +597,18 @@ class serverConnection : public clientConnection {
             return activeChat;
         }
 
+        void printActiveChats() {
+            for(auto chat : activeChat) {
+                cout << "Chat: " << chat->sd_1 << " - " << chat->sd_2 << endl;
+            }
+        }
+
         void insertChat(userChat* u) {
             activeChat.push_back(u);
+        }
+
+        void removeChat(int index) {
+            activeChat.erase(activeChat.begin() + index);
         }
 
         int findSd(int sd_to_search) {

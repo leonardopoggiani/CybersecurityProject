@@ -91,7 +91,12 @@ int main(int argc, char* const argv[]) {
                 packet.resize(ret);
                 memcpy(packet.data(), buffer, ret);
 
-                if(receiveRequestToTalk(clt, packet.data(), ret)){
+                ret = receiveRequestToTalk(clt, packet.data(), ret);
+
+                if(ret == 1) {
+                    // Request to talk accettata, inizio la chat
+                    cout << GREEN << "[LOG] requesto to talk accepted" << RESET << endl;
+
                     vector<unsigned char> decrypted;
                     int peerKeyDHLen = 0;
                     unsigned char* peerKeyDHBuffer = NULL;
@@ -163,6 +168,8 @@ int main(int argc, char* const argv[]) {
                     chat(clt);
 
                     cout << "------------------" << endl;
+                } else if(ret == 0) {
+                    continue;
                 }
             } else {
                 cout << RED << "[ERROR] error, disconnecting" << RESET << endl;

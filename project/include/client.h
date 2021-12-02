@@ -298,7 +298,7 @@ bool authentication(Client &clt, string username, string password) {
         cout << GREEN << "[LOG] valid Signature " << RESET << endl;
     }
 
-    //Verificare nonce
+    // Verificare nonce
     if(memcmp(nonceClient_t.data(), nonceClient_rec.data(), constants::NONCE_SIZE) != 0){
         cerr << RED << "[ERROR] nonce received is not valid!" << RESET << endl;
         exit(1);
@@ -461,7 +461,7 @@ bool authentication(Client &clt, string username, string password) {
     return true;
 }
 
-bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
+int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
     unsigned int keyBufferDHLen = 0;
     EVP_PKEY *keyDH = NULL;
@@ -484,13 +484,13 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
     if(username_size < 0 || username_size > constants::MAX_MESSAGE_SIZE) {
         cerr << RED << "[ERROR] username size error" << RESET << endl;
-        return false;
+        return -1;
     }
 
     username = (unsigned char*)malloc(username_size);
     if(username == NULL) {
         cerr << RED << "[ERROR] username malloc error" << RESET << endl;
-        return false;
+        return -1;
     }
 
     memcpy(username, &decrypted.data()[byte_index], username_size);
@@ -506,7 +506,7 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
     if( (username_size == username_to_copy_size) && memcmp(username_to_copy, username, username_size) == 0) {
         cout << RED << "[ERROR] you're trying to speak with yourself, insert a valid username" << RESET << endl;
-        return false;
+        return -1;
     }
    
     cout << "Do you want to talk with ";
@@ -534,7 +534,7 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
             cerr << RED << "[ERROR] malloc response error" << RESET << endl;
-            return false;
+            return -1;
         }
 
         byte_index = 0;
@@ -557,22 +557,33 @@ bool receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
             cerr << RED << "[ERROR] malloc response error" << RESET << endl;
-            return false;
+            return -1;
         }
 
         byte_index = 0;
         memcpy(&(response_to_request[byte_index]), &constants::REFUSED, sizeof(char));
         byte_index += sizeof(char);
+
+        int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted);
+        if(ret <= 0) {
+            return -1;
+        }
+
+        free(response_to_request);
+        free(username);
+
+        return 0;
     }  
 
     int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted);
     if(ret <= 0) {
-        return false;
+        return -1;
     }
 
     free(response_to_request);
     free(username);
-    return true;
+
+    return 1;
 }
 
 void print_unsigned_array(unsigned char* array, int dim) {
@@ -682,6 +693,7 @@ void chat(Client clt) {
 
         }
 
+        // arrivo di un messaggio da parte dell'altro client
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             
             ret = receive_message_enc(clt, buffer, decrypted);
@@ -701,7 +713,7 @@ void chat(Client clt) {
 
             cout << ": " << endl;
 
-            // padding: 
+            // output dei messaggi inviati: 
             /*
                 *********
                 message *
@@ -710,8 +722,7 @@ void chat(Client clt) {
 
             if(decrypted.at(0) == constants::REFUSED) {
                 // the other user want to end the chat
-
-                cout << " other user want to end the chat.. disconnecting" << RESET << endl;
+                cout << "wants to end the chat.. disconnecting" << RESET << endl;
                 exit(1);
             }
 

@@ -67,16 +67,20 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     vector<user> already_logged_in = srv.serverConn->getUsersList();
 
+    // controllo username gia' loggato oppure no
     if(already_logged_in.size() != 0) {
         int already_logged_error = 1;
 
-
         for(auto us : already_logged_in) {
 
+            already_logged_error = 1;
+
+            /*
             if((int) us.username.size() == username_size) {
 
                 already_logged_error = 1;
 
+                // controllo dello username un carattere alla volta
                 for(int i = 0; i < username_size; i++) {
                     if(us.username.c_str()[i] != username[i]) {
                         already_logged_error = 0;
@@ -89,8 +93,16 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
                 } 
             } else {
                 already_logged_error = 0;
+            }*/
+
+
+            // TODO //
+            if((int) us.username.size() == username_size) {
+                if(memcmp(us.username.c_str(), username, username_size) != 0) {
+                    already_logged_error = 0;
+                }
             }
-        }
+        } 
 
         if(already_logged_error == 1) {
             free(username);
@@ -372,7 +384,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     srv.serverConn->send_message(last_message_signed, sd, signed_size);
 
-    // Generate secret
+    // Generate session key
     cout << GREEN << "[LOG] Generating session key" << RESET << endl;
 
     unsigned char* temp_session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
@@ -385,7 +397,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     srv.serverConn->addSessionKey(sd, temp_session_key);
     
-    cout << YELLOW << "[LOG] Authentication succeeded " << RESET << endl;
+    cout << CYAN << "[LOG] Authentication succeeded " << RESET << endl;
 
     free(temp_session_key);
     free(username);
@@ -547,10 +559,12 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
     for(auto us : srv.serverConn->getActiveChats()) {
         if( (memcmp(us->username_1, username, username_size) == 0 || 
-            memcmp(us->username_2, username, username_size) == 0) || 
+            memcmp(us->username_2, username, username_size) == 0) ||
             (memcmp(us->username_1, username_to_talk_to, username_to_talk_to_size) == 0 || 
             memcmp(us->username_2, username_to_talk_to, username_to_talk_to_size) == 0) )
             {
+                srv.serverConn->printActiveChats();
+
                 cout << RED << "[ERROR] user already chatting" << RESET << endl;
                 free(username_to_talk_to);
                 free(username);
@@ -623,7 +637,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     }
 
     if(opCode == constants::ACCEPTED) {   
-        //Recuperare chiave pubblica utente della risposta
+        //Recuperare chiave pubblica utente che ha risposto
 
         byte_index += sizeof(char);
 
@@ -702,26 +716,28 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     encrypted.clear();
     send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, encrypted);
 
-    int sd_1 = 0;
-    int sd_2 = 0;
+    if(opCode == constants::ACCEPTED) {
+        int sd_1 = 0;
+        int sd_2 = 0;
 
-    for(auto user : users_logged_in) {
-        if(memcmp(user.username.c_str(), username, username_size) == 0) {
-            sd_1 = user.sd;
+        for(auto user : users_logged_in) {
+            if(memcmp(user.username.c_str(), username, username_size) == 0) {
+                sd_1 = user.sd;
+            }
+
+            if(memcmp(user.username.c_str(), username_to_talk_to, username_to_talk_to_size) == 0) {
+                sd_2 = user.sd;
+            }
         }
 
-        if(memcmp(user.username.c_str(), username_to_talk_to, username_to_talk_to_size) == 0) {
-            sd_2 = user.sd;
+        userChat *new_chat = new userChat(username, username_size ,sd_1, username_to_talk_to, username_to_talk_to_size, sd_2);
+        if(!new_chat) {
+            cerr << RED << "[ERROR] malloc error" << RESET << endl;
+            exit(1);
         }
-    }
 
-    userChat *new_chat = new userChat(username, username_size ,sd_1, username_to_talk_to, username_to_talk_to_size, sd_2);
-    if(!new_chat) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
+        srv.serverConn->insertChat(new_chat);
     }
-
-    srv.serverConn->insertChat(new_chat);
 
     free(message);
     free(username_to_talk_to);
@@ -812,6 +828,10 @@ bool closingChat(Server srv, int sd, unsigned char* buffer, int dim) {
         cout << RED << "[ERROR] encryption failed" << RESET << endl;
         return false;
     }
+
+    cout << "Indice: " << index << endl;
+
+    srv.serverConn->removeChat(index);
 
     free(message_received);
     return true;
