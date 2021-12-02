@@ -97,73 +97,7 @@ int main(int argc, char* const argv[]) {
                     // Request to talk accettata, inizio la chat
                     cout << GREEN << "[LOG] requesto to talk accepted" << RESET << endl;
 
-                    vector<unsigned char> decrypted;
-                    int peerKeyDHLen = 0;
-                    unsigned char* peerKeyDHBuffer = NULL;
-                    int peerPubKeyLen = 0;
-                    unsigned char* peerPubKeyBuffer = NULL; 
-                    EVP_PKEY* peerKeyDH = NULL;
-                    
-                    packet.clear();
-                    packet.resize(constants::MAX_MESSAGE_SIZE);
-                    int received_size = receive_message_enc(clt, packet.data(), decrypted);
-                    if(received_size < 0) {
-                        cout << RED << "[ERROR] receive error" << RESET << endl;
-                        exit(1);
-                    }
-
-                    packet.clear();
-
-                    int byte_index = sizeof(char);
-
-                    memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
-                    byte_index += sizeof(int);
-
-                    peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
-                    if(!peerKeyDHBuffer) {
-                        cout << RED << "[ERROR] malloc error" << RESET << endl;
-                        exit(1);
-                    }
-
-                    memcpy(peerKeyDHBuffer, &decrypted.data()[byte_index], peerKeyDHLen);
-                    byte_index += peerKeyDHLen;
-
-                    clt.crypto->deserializePublicKey(peerKeyDHBuffer, peerKeyDHLen, peerKeyDH);
-
-                    memcpy(&(peerPubKeyLen), &decrypted.data()[byte_index], sizeof(int));
-                    byte_index += sizeof(int);
-
-                    peerPubKeyBuffer = (unsigned char*)malloc(peerPubKeyLen);
-                    if(!peerPubKeyBuffer) {
-                        cout << RED << "[ERROR] malloc error" << RESET << endl;
-                        exit(1);
-                    }
-
-                    memcpy(peerPubKeyBuffer, &decrypted.data()[byte_index], peerPubKeyLen);
-                    byte_index += peerPubKeyLen;
-
-                    clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_2);
-
-                    // Costruire chiave di sessione prvDH
-                    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
-
-                    clt.crypto->secretDerivation(clt.clientConn->getKeyDHBufferTemp(), peerKeyDH, tempBuffer.data());
-
-                    // prima era
-                    // clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
-                    // senza fare la keyGeneration, ma quando era inizializzato sessionDHKey?
-
-                    memcpy(clt.clientConn->getMyCurrentChat()->chat_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
-
-                    if(!clt.clientConn->getMyCurrentChat()->chat_key) {
-                        cout << RED << "[ERROR] malloc error" << RESET << endl;
-                        exit(1);    
-                    }
-
-                    cout << "---------------------------------------" << endl;
-                    cout << "\n-------Chat-------" << endl;
-                    cout << "you can insert ':q!' to exit the chat!" << endl;
-                    cout << "---------------------------------------" << endl;
+                    startingChat(clt, packet);
                     
                     chat(clt);
 

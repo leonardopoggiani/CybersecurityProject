@@ -401,10 +401,7 @@ bool authentication(Client &clt, string username, string password) {
     byte_index += pubKeyDHBufferLen;
     
     // delete the plaintext from memory:
-#pragma optimize("", off)
-   memset(clear_buf, 0, dim);
-#pragma optimize("", on)
-
+    memset(clear_buf, 0, dim);
     free(clear_buf);
     free(signature);
 
@@ -450,11 +447,8 @@ bool authentication(Client &clt, string username, string password) {
 
     cout << CYAN << "[LOG] Authentication succeeded " << RESET << endl;
 
-#pragma optimize("", off)
     memset(clear_buf, 0, dim);
     memset(tempBuffer.data(), 0, tempBuffer.size());
-#pragma optimize("", on)
-
     free(message_sent);
     free(message_received);
 
@@ -592,7 +586,68 @@ void print_unsigned_array(unsigned char* array, int dim) {
     }
 }
 
+void startingChat(Client clt, vector<unsigned char> packet) {
+    vector<unsigned char> decrypted;
+    int peerKeyDHLen = 0;
+    unsigned char* peerKeyDHBuffer = NULL;
+    int peerPubKeyLen = 0;
+    unsigned char* peerPubKeyBuffer = NULL; 
+    EVP_PKEY* peerKeyDH = NULL;
+    
+    packet.clear();
+    packet.resize(constants::MAX_MESSAGE_SIZE);
+    int received_size = receive_message_enc(clt, packet.data(), decrypted);
+    if(received_size < 0) {
+        cout << RED << "[ERROR] receive error" << RESET << endl;
+        exit(1);
+    }
+
+    packet.clear();
+
+    int byte_index = sizeof(char);
+
+    memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
+    if(!peerKeyDHBuffer) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    memcpy(peerKeyDHBuffer, &decrypted.data()[byte_index], peerKeyDHLen);
+    byte_index += peerKeyDHLen;
+
+    clt.crypto->deserializePublicKey(peerKeyDHBuffer, peerKeyDHLen, peerKeyDH);
+
+    memcpy(&(peerPubKeyLen), &decrypted.data()[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    peerPubKeyBuffer = (unsigned char*)malloc(peerPubKeyLen);
+    if(!peerPubKeyBuffer) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    memcpy(peerPubKeyBuffer, &decrypted.data()[byte_index], peerPubKeyLen);
+    byte_index += peerPubKeyLen;
+
+    clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_2);
+
+    // Costruire chiave di sessione prvDH
+    array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
+
+    clt.crypto->secretDerivation(clt.clientConn->getKeyDHBufferTemp(), peerKeyDH, tempBuffer.data());
+    memcpy(clt.clientConn->getMyCurrentChat()->chat_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
+
+    if(!clt.clientConn->getMyCurrentChat()->chat_key) {
+        cout << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);    
+    }
+}
+
 void chat(Client clt) {
+
     fd_set fds;
     string message;
     unsigned char* to_send = NULL;
@@ -600,17 +655,25 @@ void chat(Client clt) {
     vector<unsigned char> decrypted;
     vector<unsigned char> clear;
     unsigned char* buffer = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+
     if(!buffer) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         return;
     }
+
     unsigned char* iv = (unsigned char*)malloc(constants::IV_LEN);
     if(!iv) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         return;
     }
+
     int maxfd;
     int ret = -1;
+
+    cout << "---------------------------------------" << endl;
+    cout << "\n-------Chat-------" << endl;
+    cout << "you can insert ':q!' to exit the chat!" << endl;
+    cout << "---------------------------------------" << endl;
 
     while(1) {
 
@@ -799,18 +862,12 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         return;
     } 
 
-    // Cambiare controllo con l'opcode corretto
+    // request to talk accettata, avvio la chat
     if(response[0] == constants::ACCEPTED) {
-        cout << GREEN << "[LOG] request accepted, starting the chat" << RESET << endl;
-        cout << "---------------------------------------" << endl;
-        cout << "\n-------Chat-------" << endl;
-        cout << "you can insert ':q!' to exit the chat!" << endl;
-        cout << "---------------------------------------" << endl;
 
         clt.clientConn->setCurrentChat((unsigned char*)username_to_contact.c_str(), username_to_contact.size(), (unsigned char*)username.c_str(), username.size());
 
         byte_index = 0;
-
         byte_index += sizeof(char);
 
         memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));

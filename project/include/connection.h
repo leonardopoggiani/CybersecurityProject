@@ -611,7 +611,7 @@ class serverConnection : public clientConnection {
             activeChat.erase(activeChat.begin() + index);
         }
 
-        int findSd(int sd_to_search) {
+        int retrieveOtherChatter(int sd_to_search) {
             for(userChat* c : activeChat) {
                 if(c->sd_1 == sd_to_search) {
                     return c->sd_2;
