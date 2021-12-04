@@ -74,6 +74,8 @@ class clientConnection {
         int username_size;
         userChat* current_chat = NULL;
         EVP_PKEY* keyDHBufferTemp = NULL;
+        int counter_send = 0;
+        int counter_recv = 0;
 
     public:
 
@@ -347,6 +349,7 @@ class serverConnection : public clientConnection {
         int activity;
         int addrlen;
         int port;
+
 
         vector<user> users_logged_in;
         vector<userChat*> activeChat;
