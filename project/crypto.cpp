@@ -396,7 +396,6 @@ bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int sign
 unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer) {
     unsigned char *ciphertext;
     unsigned char tag[constants::TAG_LEN];
-    unsigned char aad[constants::AAD_LEN];
     EVP_CIPHER_CTX *ctx = NULL;
     unsigned int finalSize = 0;
     unsigned int start = 0;
