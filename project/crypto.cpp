@@ -4,34 +4,33 @@
 
 using namespace std;
 
-//Message Digest for digital signature and hash
 const EVP_MD* md = EVP_sha256();
 
 void sumControl(int a, int b){
 	if (a > INT_MAX - b){
-		perror("integer overflow");
-		exit(-1);
+		cout << RED << "[ERROR] integer overflow" << RESET << endl;
+		exit(1);
 	}
 	
 }
 
 void subControlInt(int a, int b){
 	if (a < 0 || b < 0){
-		perror("integer overflow");
-		exit(-1);
+		cout << RED << "[ERROR] integer overflow" << RESET << endl;
+		exit(1);
 	}
 
 	if (b > a){
-		perror("integer overflow");
-		exit(-1);
+		cout << RED << "[ERROR] integer overflow" << RESET << endl;
+		exit(1);
 	}
 	
 }
 
 void IncControl(int a){
-	if ( a==INT_MAX ){
-		perror("integer overflow");
-		exit(-1);
+	if (a == INT_MAX){
+		cout << RED << "[ERROR] integer overflow" << RESET << endl;
+		exit(1);
 	}
 }
 
