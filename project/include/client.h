@@ -146,6 +146,9 @@ bool authentication(Client &clt, string username, string password) {
 
     int byte_index = 0;   
 
+    // secureSum(username.size(), sizeof(char) + sizeof(int));
+    // secureSum(username.size() + sizeof(int) + sizeof(char), nonceClient.size());
+
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
 
     unsigned char* message_sent = (unsigned char*)malloc(dim);   
@@ -267,6 +270,8 @@ bool authentication(Client &clt, string username, string password) {
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
     byte_index = 0;
+
+    // secureSum(size_cert, sizeof(char) + sizeof(int) + 2*constants::NONCE_SIZE);
     dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
     unsigned char* clear_buf = (unsigned char*)malloc(dim);
     if(!clear_buf) {
@@ -321,6 +326,7 @@ bool authentication(Client &clt, string username, string password) {
 
     // OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
 
+    // secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
     dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
 
     message_sent = (unsigned char*)malloc(dim);
@@ -329,6 +335,7 @@ bool authentication(Client &clt, string username, string password) {
         exit(1);
     }
 
+    // TODO
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
@@ -975,9 +982,12 @@ void logout(Client clt) {
     free(message);
 }
 
+// int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
+
 void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 
     int byte_index = 0;    
+    vector<unsigned char> encrypted;
 
     int dim = sizeof(char);
     unsigned char* message = (unsigned char*)malloc(dim);  
@@ -989,7 +999,7 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
     memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
     byte_index += sizeof(char);
     
-    clt.clientConn->send_message(message, dim);
+    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted);
 
     free(message);
     buffer.clear();
@@ -1000,7 +1010,7 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
     } 
 
     clt.clientConn->generateIV();
-    int ret = receive_message_enc(clt, message_received, buffer);
+    ret = receive_message_enc(clt, message_received, buffer);
 
     if (ret == 0) {
         cout << RED << "[LOG] client connection closed" << RESET << endl;
