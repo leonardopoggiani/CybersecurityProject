@@ -527,7 +527,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         dim = sizeof(char) + sizeof(int) + keyBufferDHLen;
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
-            cerr << RED << "[ERROR] malloc response error" << RESET << endl;
+            cerr << RED << "[ERROR] malloc response error" << RESET <<n endl;
             return -1;
         }
 
@@ -1024,7 +1024,8 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 
     memcpy(&(list_size), &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
-
+    
+    //Se list_size == 0 non ci sono utenti online
     if(list_size == 0) {
         cout << RED << "--- no user online ---" << RESET << endl;
     } else {
