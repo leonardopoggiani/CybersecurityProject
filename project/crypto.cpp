@@ -4,7 +4,6 @@
 
 using namespace std;
 
-//Message Digest for digital signature and hash
 const EVP_MD* md = EVP_sha256();
 
 void handleErrors(void){
@@ -22,7 +21,7 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
         exit(1);
     }
         
-    cout << "nonce generated" << endl;
+    cout << GREEN << " [LOG] nonce generated" << RESET << endl;
 }
 
 //CERTIFICATES
@@ -348,6 +347,8 @@ unsigned int CryptoOperation::digsign_sign(unsigned char *message, unsigned int 
             exit(1);
         }
 
+        secureSum(messageLen, sizeof(int));
+        secureSum(messageLen, signLen);
         memcpy(buffer, message, messageLen);
         memcpy(buffer + messageLen, &signLen, sizeof(int));
         memcpy(buffer + messageLen + sizeof(int), signature, signLen);
@@ -402,6 +403,11 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
     int len = 0;
     int ciphr_len = 0;
 
+    secureSum(constants::TAG_LEN, constants::TAG_LEN);
+    secureSum(msg_len, 2*constants::TAG_LEN);
+    secureSum(msg_len + 2*constants::TAG_LEN, constants::IV_LEN);
+    secureSum(msg_len + 2*constants::TAG_LEN + constants::IV_LEN, sizeof(char));
+
     finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(char);
 
     if(finalSize > constants::MAX_MESSAGE_SIZE) {
@@ -415,6 +421,7 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
         exit(1);
     }
     
+    secureSum(msg_len, constants::TAG_LEN);
     ciphertext = new (nothrow) unsigned char[msg_len + constants::TAG_LEN];
 
     if(!ciphertext){
@@ -458,13 +465,14 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
             exit(1);
         }
         
-        // if(ciphr_len > UINT_MAX - IV_SIZE - TAG_SIZE - sizeof(uint16_t))
-        //    throw runtime_error("An error occurred, ciphertext length too big.");
-        
+        secureSum(sizeof(char), constants::IV_LEN + ciphr_len + constants::TAG_LEN);
+        secureSum(sizeof(char) + constants::IV_LEN, ciphr_len);
+        secureSum(sizeof(char) + constants::IV_LEN + ciphr_len, constants::TAG_LEN);
+
         buffer.resize(finalSize);
 
         memcpy(buffer.data() + start, &msg[0], sizeof(char));
-        start +=sizeof(char);
+        start += sizeof(char);
 
         memcpy(buffer.data() + start, iv, constants::IV_LEN);
         start += constants::IV_LEN;
@@ -505,6 +513,10 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
         exit(1);
     }
 
+    secureSub(msg_len, constants::IV_LEN);
+    secureSub(msg_len - constants::IV_LEN, constants::TAG_LEN);
+    secureSub(msg_len - constants::IV_LEN - constants::TAG_LEN, sizeof(char));
+
     ciphr_len = msg_len - constants::IV_LEN - constants::TAG_LEN - sizeof(char);
     ciphr_msg = new (nothrow) unsigned char[ciphr_len];
 
@@ -527,6 +539,11 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     } 
 
     try {
+
+        secureSum(sizeof(char), constants::IV_LEN);
+        secureSum(sizeof(char) + constants::IV_LEN, ciphr_len);
+        secureSum(sizeof(char) + constants::IV_LEN + ciphr_len, constants::TAG_LEN);
+
         memcpy(recv_iv, msg + sizeof(char), constants::IV_LEN);
 
         memcpy(ciphr_msg, msg + constants::IV_LEN + sizeof(char), ciphr_len);
@@ -571,6 +588,7 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     EVP_CIPHER_CTX_free(ctx);
     
     if(ret > 0){
+        secureSum(pl_len, len);
         pl_len += len;
     } else {
         cout << RED << "[ERROR] error while decrypting the message (RET) " << RESET << endl;

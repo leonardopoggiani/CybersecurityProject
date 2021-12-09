@@ -50,4 +50,32 @@ class CryptoOperation {
         void secretDerivation(EVP_PKEY *my_prvkey, EVP_PKEY *peer_pubkey, unsigned char *buffer);
         void computeHash(unsigned char *msg, unsigned int msg_size, unsigned char *digest);
         static DH* get_dh2048(void);
+
+        void secureSum(int a, int b){
+            if (a > INT_MAX - b){
+                cout << RED << "[ERROR] integer overflow" << RESET << endl;
+                exit(1);
+            }
+            
+        }
+
+        void secureSub(int a, int b){
+            if (a < 0 || b < 0){
+                cout << RED << "[ERROR] integer overflow" << RESET << endl;
+                exit(1);
+            }
+
+            if (b > a){
+                cout << RED << "[ERROR] integer overflow" << RESET << endl;
+                exit(1);
+            }
+            
+        }
+
+        void secureInc(int a){
+            if (a == INT_MAX){
+                cout << RED << "[ERROR] integer overflow" << RESET << endl;
+                exit(1);
+            }
+        }
 };
