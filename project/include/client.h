@@ -534,7 +534,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         dim = sizeof(char) + sizeof(int) + keyBufferDHLen;
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
-            cerr << RED << "[ERROR] malloc response error" << RESET <<n endl;
+            cerr << RED << "[ERROR] malloc response error" << RESET << endl;
             return -1;
         }
 
