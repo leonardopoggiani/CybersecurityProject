@@ -56,6 +56,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(username_size), &buffer[byte_index],sizeof(int));
     byte_index += sizeof(int);
 
+    secureSum(username_size, sizeof(char) + sizeof(int) + constants::NONCE_SIZE + sizeof(int));
+
     username = (unsigned char*)malloc(username_size);
     if(!username) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
@@ -109,6 +111,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(signature_size), &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
+    secureSum(byte_index, signature_size);
+
     signature = (unsigned char*)malloc(signature_size);
     if(!signature) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
@@ -149,6 +153,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     }
 
     byte_index = 0;
+
     int dim = sizeof(char) + sizeof(int) + username_size + constants::NONCE_SIZE; 
     unsigned char* clear_buf = (unsigned char*)malloc(dim);
     if(!clear_buf) {
@@ -202,6 +207,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     }
 
     byte_index = 0;    
+
+    secureSum(cert_size, sizeof(char) + sizeof(int) + constants::NONCE_SIZE + constants::NONCE_SIZE);
     dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + constants::NONCE_SIZE;
     unsigned char* message = (unsigned char*)malloc(dim);  
     if(!message) {
@@ -279,6 +286,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     memcpy(&(pubKeyDHBufferLen), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
+
+    secureSum(pubKeyDHBufferLen, sizeof(int) + sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE);
 
     memcpy(pubKeyDHBuffer.data(), &message_received[byte_index], pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
@@ -439,6 +448,7 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
         if( (users_logged_in[i].username.size() == requesting_user.size()) && memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) == 0 ) {
             continue;
         } else {
+            secureSum(dim, users_logged_in[i].username.size() + sizeof(int));
             dim += users_logged_in[i].username.size();
             dim += sizeof(int);
         }
@@ -458,6 +468,11 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
 
     //Se list_size resta a 0 non ci sono utenti online
     int list_size = users_logged_in.size() - 1;
+    if(list_size < 0 || list_size > INT_MAX) {
+        cout << "[ERROR] list_size error" << RESET << endl;
+        exit(1);
+    }
+
     memcpy(&(message[byte_index]), &list_size, sizeof(int));
     byte_index += sizeof(int);
 
@@ -543,8 +558,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
             if((int) user.username.size() == username_to_talk_to_size) {
                 for(int i = 0; i < username_to_talk_to_size; i++) {
-
-                    cout << user.username[i] << " != " << username_to_talk_to[i] << endl;
                     if(user.username[i] != username_to_talk_to[i]) {
                         not_exist = 1;
                     }
@@ -552,8 +565,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
             } else {
                 not_exist = 1;
             }
-
-            cout << "not_exist " << not_exist << endl;
 
             if(not_exist == 0) {
                 break;
@@ -709,9 +720,10 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         // Serializzare chiave pubblica
         int pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
 
-        // Cambiare dim
         memcpy(&keyDHBufferLen, &(decrypted.data()[byte_index]), sizeof(int));
         byte_index += sizeof(int);
+
+        secureSum(keyDHBufferLen, pubKeyBufferLen + sizeof(int)*2 + sizeof(char));
 
         memcpy(keyClientDHBuffer.data(), &(decrypted.data()[byte_index]), keyDHBufferLen);
         byte_index+= keyDHBufferLen;
@@ -803,6 +815,8 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     memcpy(keyClientDHBuffer, &(decrypted.data()[byte_index]), keyDHBufferLen);
     byte_index += keyDHBufferLen;
 
+    secureSum(keyDHBufferLen, sizeof(int) + sizeof(char));
+
     unsigned char* usernameA = NULL;
     int usernameA_size = 0;
     vector<userChat*> chatList = srv.serverConn->getActiveChats();
@@ -882,6 +896,8 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     memcpy(&(message[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
     byte_index += pubKeyBufferLen;
 
+    secureSum(pubKeyBufferLen, sizeof(char) + sizeof(int) + sizeof(int) + keyDHBufferLen);
+
     srv.serverConn->generateIV();
     ret = send_message_enc_srv(srv.crypto, clientB_sd, srv.serverConn->getSessionKey(clientB_sd), srv.serverConn->getIV(), message, byte_index, encrypted);
 }
@@ -915,6 +931,8 @@ bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
     byte_index = sizeof(char);
     memcpy(iv.data(), &decrypted.data()[byte_index], constants::IV_LEN);
     byte_index += constants::IV_LEN;
+
+    secureSum(decrypted_size, constants::IV_LEN);
 
     int encrypted_size = send_message_enc_srv(srv.crypto, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), iv.data(), decrypted.data(), decrypted_size, encrypted);
     if(encrypted_size <= 0) {
@@ -962,6 +980,8 @@ bool closingChat(Server srv, int sd, unsigned char* buffer, int dim) {
     byte_index = sizeof(char);
     memcpy(iv.data(), &decrypted.data()[byte_index], constants::IV_LEN);
     byte_index += constants::IV_LEN;
+
+    secureSum(decrypted_size, constants::IV_LEN);
 
     int encrypted_size = send_message_enc_srv(srv.crypto, other_sd, srv.serverConn->getSessionKey(other_sd), iv.data(), decrypted.data(), decrypted_size, encrypted);
     if(encrypted_size <= 0) {
