@@ -56,6 +56,14 @@ string readPassword() {
     return password;
 }
 
+void secureSum(int a, int b){
+    if (a > INT_MAX - b){
+        cout << RED << "[ERROR] integer overflow" << RESET << endl;
+        exit(1);
+    }
+    
+}
+
 int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
     int ret = 0;
 
@@ -146,8 +154,8 @@ bool authentication(Client &clt, string username, string password) {
 
     int byte_index = 0;   
 
-    // secureSum(username.size(), sizeof(char) + sizeof(int));
-    // secureSum(username.size() + sizeof(int) + sizeof(char), nonceClient.size());
+    secureSum(username.size(), sizeof(char) + sizeof(int));
+    secureSum(username.size() + sizeof(int) + sizeof(char), nonceClient.size());
 
     int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
 
@@ -271,7 +279,7 @@ bool authentication(Client &clt, string username, string password) {
 
     byte_index = 0;
 
-    // secureSum(size_cert, sizeof(char) + sizeof(int) + 2*constants::NONCE_SIZE);
+    secureSum(size_cert, sizeof(char) + sizeof(int) + 2*constants::NONCE_SIZE);
     dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
     unsigned char* clear_buf = (unsigned char*)malloc(dim);
     if(!clear_buf) {
@@ -326,7 +334,7 @@ bool authentication(Client &clt, string username, string password) {
 
     // OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
 
-    // secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
+    secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
     dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
 
     message_sent = (unsigned char*)malloc(dim);
@@ -335,7 +343,7 @@ bool authentication(Client &clt, string username, string password) {
         exit(1);
     }
 
-    // TODO
+    secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
@@ -385,6 +393,7 @@ bool authentication(Client &clt, string username, string password) {
     char opCode;
     byte_index = 0;    
     
+    secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
     memcpy(&(opCode), &last_message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
@@ -539,6 +548,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         }
 
         byte_index = 0;
+        secureSum(keyBufferDHLen, sizeof(char) + sizeof(int));
         memcpy(&(response_to_request[byte_index]), &constants::ACCEPTED, sizeof(char));
         byte_index += sizeof(char);
 
@@ -615,6 +625,8 @@ void startingChat(Client clt, vector<unsigned char> packet) {
 
     memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
     byte_index += sizeof(int);
+
+    secureSum(peerKeyDHLen, sizeof(char) + sizeof(int) + sizeof(int));
 
     peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
     if(!peerKeyDHBuffer) {
@@ -722,6 +734,8 @@ void chat(Client clt) {
                 memcpy(&(tempBuffer[byte_index]), &constants::REFUSED, sizeof(char));
                 byte_index += sizeof(char);
             } else {
+
+                secureSum(sizeof(char), message.size());
                 memcpy(&(tempBuffer[byte_index]), &constants::CHAT, sizeof(char));
                 byte_index += sizeof(char);
 
@@ -839,6 +853,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         exit(1);
     } 
 
+    secureSum(username_to_contact.size(), sizeof(int) + sizeof(char));
     memcpy(&(message[byte_index]), &constants::REQUEST, sizeof(char));
     byte_index += sizeof(char);
 
@@ -880,6 +895,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
         byte_index += sizeof(int);
 
+        secureSum(peerKeyDHLen, sizeof(int) + sizeof(char));
+
         peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
         if(!peerKeyDHBuffer) {
             cout << RED << "[ERROR] malloc error" << RESET << endl;
@@ -912,13 +929,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         clt.crypto->keyGeneration(sessionDHKey);
         clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
 
-        // prima era
-        // clt.crypto->secretDerivation(sessionDHKey, peerKeyDH, tempBuffer.data());
-        // senza fare la keyGeneration, ma quando era inizializzato sessionDHKey?
-
         memcpy(clt.clientConn->getMyCurrentChat()->chat_key, tempBuffer.data(), EVP_MD_size(EVP_sha256()));
-
-        //Perchè così serializzata?!
         if(!clt.clientConn->getMyCurrentChat()->chat_key) {
             cout << RED << "[ERROR] malloc error" << RESET << endl;
             exit(1);    
@@ -938,6 +949,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         }
 
         byte_index = 0;
+
+        secureSum(keyDHBufferLen, sizeof(char) + sizeof(int));
         memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
         byte_index += sizeof(char);
 
@@ -981,8 +994,6 @@ void logout(Client clt) {
 
     free(message);
 }
-
-// int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
 
 void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 

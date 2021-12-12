@@ -1,7 +1,6 @@
 #include "include/crypto.h"
 #include "include/color.h"
 
-
 using namespace std;
 
 const EVP_MD* md = EVP_sha256();

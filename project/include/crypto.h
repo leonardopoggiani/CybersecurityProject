@@ -51,6 +51,7 @@ class CryptoOperation {
         void computeHash(unsigned char *msg, unsigned int msg_size, unsigned char *digest);
         static DH* get_dh2048(void);
 
+
         void secureSum(int a, int b){
             if (a > INT_MAX - b){
                 cout << RED << "[ERROR] integer overflow" << RESET << endl;
