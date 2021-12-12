@@ -20,7 +20,7 @@ void CryptoOperation::generateNonce(unsigned char* nonce) {
         exit(1);
     }
         
-    cout << GREEN << " [LOG] nonce generated" << RESET << endl;
+    cout << GREEN << "[LOG] nonce generated" << RESET << endl;
 }
 
 //CERTIFICATES

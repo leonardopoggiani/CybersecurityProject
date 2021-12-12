@@ -76,7 +76,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
                 already_logged_error = 1;
 
-                // controllo dello username un carattere alla volta
                 for(int i = 0; i < username_size; i++) {
                     if(us.username.c_str()[i] != username[i]) {
                         already_logged_error = 0;
@@ -457,12 +456,13 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     memcpy(&(message[byte_index]), &dim, sizeof(int));
     byte_index += sizeof(int);
 
+    //Se list_size resta a 0 non ci sono utenti online
     int list_size = users_logged_in.size() - 1;
     memcpy(&(message[byte_index]), &list_size, sizeof(int));
     byte_index += sizeof(int);
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {
-
+        //Lo username dell'utente che ha richiesto la lista di utenti online non viene inviato
         if( (users_logged_in[i].username.size() == requesting_user.size()) && memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) == 0) { 
             continue;
         } else {

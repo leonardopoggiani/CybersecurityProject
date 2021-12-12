@@ -1045,7 +1045,8 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 
     memcpy(&(list_size), &buffer[byte_index], sizeof(int));
     byte_index += sizeof(int);
-
+    
+    //Se list_size == 0 non ci sono utenti online
     if(list_size == 0) {
         cout << RED << "--- no user online ---" << RESET << endl;
     } else {
