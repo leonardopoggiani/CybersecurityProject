@@ -755,7 +755,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         }
 
         memcpy(&signature, &(decrypted.data()[byte_index]), signature_size);
-        byte_index += constants::signature_size
+        byte_index += signature_size;
 
 
 
@@ -803,8 +803,8 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
         const char* signature_t = reinterpret_cast<const char *>(signature);
 
-        memcpy(&(message[byte_index]), signature_t, keyDHBufferLen);
-        byte_index += signature_size
+        memcpy(&(message[byte_index]), signature_t, signature_size);
+        byte_index += signature_size;
 
 
 
