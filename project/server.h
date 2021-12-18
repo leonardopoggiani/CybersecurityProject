@@ -46,9 +46,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     int byte_index = 0;    
     char opCode;
     unsigned char* username = NULL;
+    unsigned char* signature = NULL;
     int username_size = 0;
     int signature_size = 0;
-    unsigned char* signature = NULL;
         
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
     byte_index += sizeof(char);
@@ -531,10 +531,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     vector<unsigned char> encrypted;
 
     array<unsigned char, constants::NONCE_SIZE> nonceClientA;
-    array<unsigned char, constants::NONCE_SIZE> nonceClientB;
-
-    int signature_size = 0;
-    unsigned char* signature = NULL;
+     array<unsigned char, constants::NONCE_SIZE> nonceClientB;
 
     decrypted.resize(buf_len);
     srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, buf_len, decrypted);
@@ -554,7 +551,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     memcpy(username_to_talk_to, &(decrypted.data()[byte_index]), username_to_talk_to_size);
     byte_index += username_to_talk_to_size;
 
-    memcpy(nonceClientA.data(), &(decrypted.data()[byte_index]), constants::NONCE_SIZE);
+    memcpy(nonceClient.data(), &(decrypted.data()[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
     // se lo username che voglio contattare non esiste, errore
@@ -641,7 +638,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     }
 
     byte_index = 0;    
-    int dim = sizeof(char) + sizeof(int) + username_size + constants::NONCE_SIZE;
+    int dim = sizeof(char) + sizeof(int) + username_size + constants::NONCE;
     unsigned char* message = (unsigned char*)malloc(dim); 
     if(!message) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
@@ -657,7 +654,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     memcpy(&(message[byte_index]), username, username_size);
     byte_index += username_size;
 
-    memcpy(&(message[byte_index]), nonceClientA.data(), constants::NONCE_SIZE);
+    memcpy(&(message[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
     int user_to_talk_to_sd = -1;
@@ -732,38 +729,15 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         // Serializzare chiave pubblica
         int pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_B, pubKeyClientBuffer.data());
 
-        memcpy(&nonceClientB, &(decrypted.data()[byte_index]), constants::NONCE_SIZE);
-        byte_index += constants::NONCE_SIZE;
-
         memcpy(&keyDHBufferLen, &(decrypted.data()[byte_index]), sizeof(int));
         byte_index += sizeof(int);
+
+        secureSum(keyDHBufferLen, pubKeyBufferLen + sizeof(int)*2 + sizeof(char));
 
         memcpy(keyClientDHBuffer.data(), &(decrypted.data()[byte_index]), keyDHBufferLen);
         byte_index+= keyDHBufferLen;
 
-        memcpy(&nonceClientA, &(decrypted.data()[byte_index]), constants::NONCE_SIZE);
-        byte_index += constants::NONCE_SIZE;
-
-        memcpy(&signature_size, &(decrypted.data()[byte_index]), sizeof(int));
-        byte_index += sizeof(int);
-
-
-        signature = (unsigned char*)malloc(signature_size);
-        if(!signature) {
-            cerr << RED << "[ERROR] malloc error" << RESET << endl;
-            exit(1);
-        }
-
-        memcpy(&signature, &(decrypted.data()[byte_index]), signature_size);
-        byte_index += constants::signature_size
-
-
-
-        secureSum(keyDHBufferLen, pubKeyBufferLen + signature_size + sizeof(int)*3 + constants::NONCE_SIZE*2 + sizeof(char));
-
-       
-
-        dim = keyDHBufferLen + pubKeyBufferLen + signature_size + sizeof(int)*3 + constants::NONCE_SIZE*2 + sizeof(char);
+        dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
         
         free(message);
 
@@ -777,37 +751,17 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
         byte_index += sizeof(char);
 
-        memcpy(&(message[byte_index]), nonceClientB.data(), constants::NONCE_SIZE);
-        byte_index += constants::NONCE_SIZE;
-
         memcpy(&(message[byte_index]), &keyDHBufferLen, sizeof(int));
         byte_index += sizeof(int);
 
         memcpy(&(message[byte_index]), keyClientDHBuffer.data(), keyDHBufferLen);
         byte_index += keyDHBufferLen;
 
-        memcpy(&(message[byte_index]), nonceClientA.data(), constants::NONCE_SIZE);
-        byte_index += constants::NONCE_SIZE;
-
-        //Chiave pubblica
-
         memcpy(&(message[byte_index]), &pubKeyBufferLen, sizeof(int));
         byte_index += sizeof(int);
 
         memcpy(&(message[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
         byte_index += pubKeyBufferLen;
-
-        //Firma
-        memcpy(&(message[byte_index]), &signature_size , sizeof(int));
-        byte_index += sizeof(int);
-
-        const char* signature_t = reinterpret_cast<const char *>(signature);
-
-        memcpy(&(message[byte_index]), signature_t, keyDHBufferLen);
-        byte_index += signature_size
-
-
-
    
     } else {
         // liberare tutto e inviare risposta negativa
