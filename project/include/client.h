@@ -120,6 +120,7 @@ bool authentication(Client &clt, string username, string password) {
     EVP_PKEY *pubKeyDHServer = NULL;
     EVP_PKEY *prvKeyDHClient = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBuffer;
+    array<unsigned char, MAX_MESSAGE_SIZE> pubKeyDHBufferServer;
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
     array<unsigned char, NONCE_SIZE> nonceClient;
     array<unsigned char, NONCE_SIZE> nonceServer;
@@ -129,7 +130,8 @@ bool authentication(Client &clt, string username, string password) {
     
     unsigned char* signature = NULL;
     string to_insert;
-    unsigned int pubKeyDHBufferLen;
+    unsigned int pubKeyDHBufferLen = 0;
+    unsigned int pubKeyDHBufferServerLen = 0;
 
     string filename = "./keys/private/" + username + "_prvkey.pem";
 	
@@ -237,11 +239,11 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(nonceClient_rec.data(), &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-    memcpy(&(pubKeyDHBufferLen), &message_received[byte_index], sizeof(int));
+    memcpy(&(pubKeyDHBufferServerLen), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    memcpy(pubKeyDHBuffer.data(), &message_received[byte_index], pubKeyDHBufferLen);
-    byte_index += pubKeyDHBufferLen;
+    memcpy(pubKeyDHBufferServer.data(), &message_received[byte_index], pubKeyDHBufferServerLen);
+    byte_index += pubKeyDHBufferServerLen;
     
     memcpy(&(signed_size), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
@@ -263,19 +265,6 @@ bool authentication(Client &clt, string username, string password) {
     }
     
     cout << GREEN << "[LOG] server certificate verified" << RESET << endl;  
-
-    // print the successful verification to screen, just for debug
-    char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-    if(!tmp) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-    if(!tmp2) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
@@ -375,91 +364,13 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.clientConn->send_message(message_signed, signed_size);
 
-    /*
-    unsigned char* last_message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-    if(!last_message_received) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    } 
-
-    
-    ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), last_message_received);
-    if( ret == 0) {
-        cout << RED  << "[LOG] server disconnected " << RESET << endl;
-        free(last_message_received);
-        return false;
-    }  
-
-    char opCode;
-    byte_index = 0;    
-    
-    secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
-    memcpy(&(opCode), &last_message_received[byte_index], sizeof(char));
-    byte_index += sizeof(char);
-
-    memcpy(nonceServer.data(), &last_message_received[byte_index], constants::NONCE_SIZE);
-    byte_index += constants::NONCE_SIZE;
-
-    memcpy(nonceClient.data(), &last_message_received[byte_index], constants::NONCE_SIZE);
-    byte_index += constants::NONCE_SIZE;
-
-    if(memcmp(nonceClient_t.data(), nonceClient.data(), constants::NONCE_SIZE) != 0){
-        cerr << RED << "[ERROR] nonce received is not valid" << RESET << endl;
-        exit(1);
-    } else {
-        cout << GREEN << "[LOG] nonce verified " << RESET << endl;
-    }
-
-    memcpy(&(pubKeyDHBufferLen), &last_message_received[byte_index], sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(pubKeyDHBuffer.data(), &last_message_received[byte_index], pubKeyDHBufferLen);
-    byte_index += pubKeyDHBufferLen;
-
-    */
-    
     // delete the plaintext from memory:
     memset(clear_buf, 0, dim);
     free(clear_buf);
     free(signature);
 
-    clt.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHServer);
+    clt.crypto->deserializePublicKey(pubKeyDHBufferServer.data(), pubKeyDHBufferServerLen, pubKeyDHServer);
 
-    /*
-    dim = byte_index;
-    byte_index = 0;
-    
-    clear_buf = (unsigned char*)malloc(dim);
-    if(!clear_buf) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    } 
-
-    memcpy(clear_buf, &last_message_received[byte_index], dim);
-    byte_index += dim;
-
-    sign_size = 0;
-    memcpy(&sign_size, &last_message_received[byte_index], sizeof(int));
-    byte_index += sizeof(int);
-
-    signature = (unsigned char*)malloc(sign_size);
-    if(!signature) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    } 
-
-    memcpy(signature, &last_message_received[byte_index], sign_size);
-    byte_index += sign_size;
-    
-    verify = clt.crypto->digsign_verify(signature, sign_size, clear_buf, sizeof(int), pubKeyServer);
-    if(verify < 0) {
-        cerr << RED << "[ERROR] invalid signature" << RESET << endl;
-        return false;
-    } else {
-        cout << GREEN << "[LOG] valid signature " << RESET << endl;
-    }
-
-    */
     cout << GREEN << "[LOG] Generating session key " << RESET << endl;
 
     clt.crypto->secretDerivation(prvKeyDHClient, pubKeyDHServer, tempBuffer.data());
