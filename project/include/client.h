@@ -134,6 +134,8 @@ bool authentication(Client &clt, string username, string password) {
 
 
     string filename = "./keys/private/" + username + "_prvkey.pem";
+
+    clt.clientConn->setUsernameS(username);
 	
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {
@@ -475,8 +477,7 @@ bool authentication(Client &clt, string username, string password) {
     return true;
 }
 
-int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
-
+int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned char *myNonce_save){
     unsigned int keyBufferDHLen = 0;
     EVP_PKEY *keyDH = NULL;
     unsigned char* signature = NULL;
@@ -503,7 +504,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     
 
     string filename = "./keys/private/" + clt.clientConn->getUsernameS() + "_prvkey.pem";
-	
+	cout << filename.c_str() << endl;
 
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {
@@ -580,28 +581,23 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
         // conservo il nonce per verificarlo al passo successivo
         memcpy(myNonce_t.data(), myNonce.data(), constants::NONCE_SIZE);
+        memcpy(&(myNonce_save[0]), myNonce.data(), constants::NONCE_SIZE);
 
         clt.crypto->keyGeneration(keyDH);
         keyBufferDHLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer.data());
 
         clt.clientConn->setKeyDHBufferTemp(keyDH, keyBufferDHLen);
 
-        //secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
-        //dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
-        secureSum(keyBufferDHLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
-        dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + keyBufferDHLen;
+    
+       
 
         secureSum(keyBufferDHLen, constants::NONCE_SIZE);
         dim_to_sign =  constants::NONCE_SIZE + keyBufferDHLen;
 
-        response_to_request = (unsigned char*)malloc(dim); 
-        response_to_sign = (unsigned char*)malloc(dim_to_sign); 
-       
-        if(response_to_request == NULL) {
-            cerr << RED << "[ERROR] malloc response error" << RESET << endl;
-            return -1;
-        }
+        
+        
 
+        response_to_sign = (unsigned char*)malloc(dim_to_sign); 
         if(response_to_sign == NULL) {
             cerr << RED << "[ERROR] malloc response error" << RESET << endl;
             return -1;
@@ -619,9 +615,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         memcpy(&(response_to_sign[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
         byte_index += constants::NONCE_SIZE;
 
-
-
-        
 
         //Aggiungere firma
         unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
@@ -642,6 +635,14 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
         const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
 
+        secureSum(signed_size, sizeof(char) + constants::NONCE_SIZE + sizeof(int));
+        dim = sizeof(char) + constants::NONCE_SIZE + + sizeof(int) + signed_size;
+        response_to_request = (unsigned char*)malloc(dim); 
+        if(response_to_request == NULL) {
+            cerr << RED << "[ERROR] malloc response error" << RESET << endl;
+            return -1;
+        }
+
         //OPCODE | mynonce | pubKeyDH | nonceA | signature (nonceA, pubkeyDH)
         
         byte_index = 0;
@@ -652,6 +653,11 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
 
         memcpy(&(response_to_request[byte_index]), myNonce.data(), constants::NONCE_SIZE);
         byte_index += constants::NONCE_SIZE;
+
+
+        memcpy(&(response_to_request[byte_index]), &keyBufferDHLen, sizeof(int));
+        byte_index += sizeof(int);
+
 
         memcpy(&(response_to_request[byte_index]), message_signed_t, signed_size);
         byte_index += signed_size;
@@ -703,17 +709,24 @@ void print_unsigned_array(unsigned char* array, int dim) {
     }
 }
 
-void startingChat(Client clt, vector<unsigned char> packet) {
+void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNonce) {
+
+    cout<<"Sono nella starting chat"<<endl;
     vector<unsigned char> decrypted;
     int peerKeyDHLen = 0;
     unsigned char* peerKeyDHBuffer = NULL;
     int peerPubKeyLen = 0;
     unsigned char* peerPubKeyBuffer = NULL; 
     EVP_PKEY* peerKeyDH = NULL;
-    
+    array<unsigned char, constants::NONCE_SIZE> myNonce_rec;
+    int signature_size = 0;
+    int dim = 0;
+    unsigned char* signature = NULL;
     packet.clear();
     packet.resize(constants::MAX_MESSAGE_SIZE);
+    cout<< "Sto aspettando un messaggio"<<endl;
     int received_size = receive_message_enc(clt, packet.data(), decrypted);
+    cout<< "Ricevuto"<<endl;
     if(received_size < 0) {
         cout << RED << "[ERROR] receive error" << RESET << endl;
         exit(1);
@@ -726,18 +739,32 @@ void startingChat(Client clt, vector<unsigned char> packet) {
     memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    secureSum(peerKeyDHLen, sizeof(char) + sizeof(int) + sizeof(int));
-
     peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
     if(!peerKeyDHBuffer) {
         cout << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
     }
+     cout << "Va bene!" <<endl;
+   
+    secureSum(constants::NONCE_SIZE, peerKeyDHLen);
+    dim = constants::NONCE_SIZE + peerKeyDHLen;
+
+    unsigned char* clear_buf = (unsigned char*)malloc(dim);
+    if(!clear_buf) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    cout << "Ancora tutto bene!" <<endl;
 
     memcpy(peerKeyDHBuffer, &decrypted.data()[byte_index], peerKeyDHLen);
+    memcpy(clear_buf, &decrypted.data()[byte_index], peerKeyDHLen + constants::NONCE_SIZE);
     byte_index += peerKeyDHLen;
 
     clt.crypto->deserializePublicKey(peerKeyDHBuffer, peerKeyDHLen, peerKeyDH);
+
+    memcpy(myNonce_rec.data(), &decrypted.data()[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
 
     memcpy(&(peerPubKeyLen), &decrypted.data()[byte_index], sizeof(int));
     byte_index += sizeof(int);
@@ -748,10 +775,48 @@ void startingChat(Client clt, vector<unsigned char> packet) {
         exit(1);
     }
 
+     cout << "Anche qui tutto bene!" <<endl;
     memcpy(peerPubKeyBuffer, &decrypted.data()[byte_index], peerPubKeyLen);
     byte_index += peerPubKeyLen;
 
     clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_2);
+
+    //Prendere la firma
+
+
+    memcpy(&(signature_size), &decrypted.data()[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+
+    signature = (unsigned char*)malloc(signature_size);
+    if(!signature) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+    
+    memcpy(signature, &decrypted.data()[byte_index], signature_size);
+    byte_index += signature_size;
+
+    cout << "Pure qui!" <<endl;
+    //Verificare firma
+
+    unsigned int verify = clt.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), clt.clientConn->getMyCurrentChat()->pubkey_2);
+    if(verify < 0){
+        cerr << RED << "[ERROR] invalid signature!" << endl;
+        exit(1);
+    } else { 
+        cout << GREEN << "[LOG] valid Signature " << RESET << endl;
+    }
+
+    // Verificare nonce
+    cout << myNonce <<endl;
+    if(memcmp(myNonce, myNonce_rec.data(), constants::NONCE_SIZE) != 0){
+        cerr << RED << "[ERROR] nonce received is not valid!" << RESET << endl;
+        exit(1);
+    } else {
+        cout << GREEN << "[LOG] nonce verified " << RESET << endl;
+    }
+
 
     // Costruire chiave di sessione prvDH
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
@@ -958,6 +1023,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     string filename = "./keys/private/" + clt.clientConn->getUsernameS() + "_prvkey.pem";
 	
 
+    cout << filename.c_str() << endl;
+
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {
         cerr << RED << "[ERROR] User does not have a key file" << RESET << endl; 
@@ -1015,6 +1082,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     cout << "*** waiting for response *** " << endl;
 
     ret = receive_message_enc(clt, response, decrypted);
+    //cout <<"Ricevuto!"<<endl;
     if (ret == 0) {
         cout << RED << "[LOG] client connection closed" << RESET << endl;
         free(response);
@@ -1025,7 +1093,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     if(response[0] == constants::ACCEPTED) {
 
         // Mettere dopo
-       // clt.clientConn->setCurrentChat((unsigned char*)username_to_contact.c_str(), username_to_contact.size(), (unsigned char*)username.c_str(), username.size());
+
+        clt.clientConn->setCurrentChat((unsigned char*)username_to_contact.c_str(), username_to_contact.size(), (unsigned char*)username.c_str(), username.size());
 
         byte_index = 0;
         byte_index += sizeof(char);
@@ -1067,26 +1136,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(myNonce_rec.data(), &decrypted.data()[byte_index], constants::NONCE_SIZE);
         byte_index += constants::NONCE_SIZE;
 
-        //Dimensione firma e firma
-
-
-        memcpy(&(signature_size), &decrypted.data()[byte_index], sizeof(int));
-        byte_index += sizeof(int);
-
-
-        signature = (unsigned char*)malloc(signature_size);
-        if(!signature) {
-            cerr << RED << "[ERROR] malloc error" << RESET << endl;
-            exit(1);
-        }
-        
-        memcpy(signature, &decrypted.data()[byte_index], signature_size);
-        byte_index += signature_size;
-
-
-
-
-
+       
         //Chiave pubblica di B
 
         memcpy(&(peerPubKeyLen), &decrypted.data()[byte_index], sizeof(int));
@@ -1104,6 +1154,22 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         secureSum(peerKeyDHLen, signature_size + sizeof(int)*2 + sizeof(char) + constants::NONCE_SIZE);
 
         clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_1);
+
+         //Dimensione firma e firma
+
+
+        memcpy(&(signature_size), &decrypted.data()[byte_index], sizeof(int));
+        byte_index += sizeof(int);
+
+
+        signature = (unsigned char*)malloc(signature_size);
+        if(!signature) {
+            cerr << RED << "[ERROR] malloc error" << RESET << endl;
+            exit(1);
+        }
+        
+        memcpy(signature, &decrypted.data()[byte_index], signature_size);
+        byte_index += signature_size;
 
         //Verificare firma di B
 
@@ -1143,6 +1209,10 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         keyDHBufferLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer.data());
        
 
+        secureSum(keyDHBufferLen, constants::NONCE_SIZE);
+        dim_to_sign =  constants::NONCE_SIZE + keyDHBufferLen;
+
+
         response_to_sign = (unsigned char*)malloc(dim_to_sign); 
        
         if(response_to_sign == NULL) {
@@ -1151,9 +1221,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         }
 
         //Preparare messaggio da firmare in response_to_sign
-
-         secureSum(keyDHBufferLen, constants::NONCE_SIZE);
-        dim_to_sign =  constants::NONCE_SIZE + keyDHBufferLen;
 
         byte_index = 0;
 
@@ -1186,8 +1253,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         free(message);
 
 
-        secureSum(keyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + sizeof(int)*2 + signed_size);
-        dim = sizeof(char) + sizeof(int)*2 + keyDHBufferLen + constants::NONCE_SIZE + signed_size;
+        secureSum(keyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + sizeof(int) + signed_size);
+        dim = sizeof(char) + sizeof(int) + keyDHBufferLen + constants::NONCE_SIZE + signed_size;
 
         
         message = (unsigned char*)malloc(dim); 
@@ -1207,13 +1274,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(&(message[byte_index]), &keyDHBufferLen, sizeof(int));
         byte_index += sizeof(int);
 
-        memcpy(&(message[byte_index]), keyDHBuffer.data(), keyDHBufferLen);
-        byte_index += keyDHBufferLen;
-
-        memcpy(&(message[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
-        byte_index += NONCE_SIZE;
-
-         const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
+        const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
 
         memcpy(&(message[byte_index]), message_signed_t, signed_size);
         byte_index += signed_size;

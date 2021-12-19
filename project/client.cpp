@@ -89,15 +89,25 @@ int main(int argc, char* const argv[]) {
                 cout << GREEN << "\n[LOG] Received request to talk**" << RESET << endl;
                 
                 packet.resize(ret);
+                unsigned char* myNonce_save;
+
+                 myNonce_save = (unsigned char*)malloc(constants::NONCE_SIZE); 
+            
+                if(myNonce_save == NULL) {
+                    cerr << RED << "[ERROR] malloc response error" << RESET << endl;
+                    return -1;
+                }
+
                 memcpy(packet.data(), buffer, ret);
 
-                ret = receiveRequestToTalk(clt, packet.data(), ret);
+                ret = receiveRequestToTalk(clt, packet.data(), ret, myNonce_save);
 
                 if(ret == 1) {
+                    
                     // Request to talk accettata, inizio la chat
                     cout << GREEN << "[LOG] requesto to talk accepted" << RESET << endl;
 
-                    startingChat(clt, packet);
+                    startingChat(clt, packet, myNonce_save);
                     
                     chat(clt);
 

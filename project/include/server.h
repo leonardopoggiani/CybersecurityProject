@@ -754,7 +754,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
             exit(1);
         }
 
-        memcpy(&signature, &(decrypted.data()[byte_index]), signature_size);
+        memcpy(signature, &(decrypted.data()[byte_index]), signature_size);
         byte_index += signature_size;
 
 
@@ -848,6 +848,8 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     return true;       
 }
 
+//Scambio parametri DH e chiave pubblica da server a client B
+
 void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAGE_SIZE> buffer, int ret) {
     array<unsigned char, MAX_MESSAGE_SIZE> pubKeyClientBuffer;
     vector<unsigned char> decrypted;
@@ -855,6 +857,11 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     int keyDHBufferLen = 0;
     unsigned char* keyClientDHBuffer;
     int byte_index = sizeof(char);
+    array<unsigned char, constants::NONCE_SIZE> nonceClientB;
+    int signature_size = 0;
+    unsigned char* signature = NULL;
+
+
 
     srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer.data(), ret, decrypted);         
 
@@ -870,7 +877,25 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     memcpy(keyClientDHBuffer, &(decrypted.data()[byte_index]), keyDHBufferLen);
     byte_index += keyDHBufferLen;
 
-    secureSum(keyDHBufferLen, sizeof(int) + sizeof(char));
+    memcpy(nonceClientB.data(), &(decrypted.data()[byte_index]), constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+
+    memcpy(&signature_size, &(decrypted.data()[byte_index]), sizeof(int));
+    byte_index += sizeof(int);
+
+
+    signature = (unsigned char*)malloc(signature_size);
+    if(!signature) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    memcpy(signature, &(decrypted.data()[byte_index]), signature_size);
+    byte_index += signature_size;
+
+  
+
 
     unsigned char* usernameA = NULL;
     int usernameA_size = 0;
@@ -927,11 +952,13 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
         cerr << RED << "[ERROR] error reading pubkey" << RESET << endl;
         exit(1);
     }
+    cout << "Inizio ad inviare messaggio a B!" <<endl;
 
     // Serializzare chiave pubblica
     int pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_A, pubKeyClientBuffer.data());
 
-    int dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen;
+    secureSum(keyDHBufferLen, sizeof(int)*2 + sizeof(char) + constants::NONCE_SIZE + pubKeyBufferLen);
+    int dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen + constants::NONCE_SIZE;
     byte_index = 0;
 
     unsigned char* message = (unsigned char*)malloc(dim);
@@ -945,13 +972,30 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     memcpy(&(message[byte_index]), keyClientDHBuffer, keyDHBufferLen);
     byte_index += keyDHBufferLen;
 
+    //Nonce di B
+
+    memcpy(&(message[byte_index]), nonceClientB.data(), constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+
+    //Chiave pubblica
     memcpy(&(message[byte_index]), &pubKeyBufferLen, sizeof(int));
     byte_index += sizeof(int);
 
     memcpy(&(message[byte_index]), pubKeyClientBuffer.data(), pubKeyBufferLen);
     byte_index += pubKeyBufferLen;
 
-    secureSum(pubKeyBufferLen, sizeof(char) + sizeof(int) + sizeof(int) + keyDHBufferLen);
+     //Firma
+    memcpy(&(message[byte_index]), &signature_size , sizeof(int));
+    byte_index += sizeof(int);
+
+    const char* signature_t = reinterpret_cast<const char *>(signature);
+
+    memcpy(&(message[byte_index]), signature_t, signature_size);
+    byte_index += signature_size;
+
+    cout << "Finito di inviare messaggio a B!" <<endl;
+
 
     srv.serverConn->generateIV();
     ret = send_message_enc_srv(srv.crypto, clientB_sd, srv.serverConn->getSessionKey(clientB_sd), srv.serverConn->getIV(), message, byte_index, encrypted);
