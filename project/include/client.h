@@ -236,6 +236,12 @@ bool authentication(Client &clt, string username, string password) {
 
     memcpy(nonceClient_rec.data(), &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
+
+    memcpy(&(pubKeyDHBufferLen), &message_received[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(pubKeyDHBuffer.data(), &message_received[byte_index], pubKeyDHBufferLen);
+    byte_index += pubKeyDHBufferLen;
     
     memcpy(&(signed_size), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
@@ -270,10 +276,6 @@ bool authentication(Client &clt, string username, string password) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
     }
-
-    cout << CYAN << "[DEBUG] certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n" << RESET << endl;
-    free(tmp);
-    free(tmp2);
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
@@ -334,8 +336,8 @@ bool authentication(Client &clt, string username, string password) {
 
     // OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
 
-    secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int));
-    dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+    secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + sizeof(int));
+    dim = sizeof(char) + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
 
     message_sent = (unsigned char*)malloc(dim);
     if(!message_sent) {
@@ -347,10 +349,7 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(&(message_sent[byte_index]), nonceClient.data(), nonceClient.size());
-    byte_index += constants::NONCE_SIZE;
-
-    memcpy(&(message_sent[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
+    memcpy(&(message_sent[byte_index]), nonceServer.data(), nonceServer.size());
     byte_index += constants::NONCE_SIZE;
 
     memcpy(&(message_sent[byte_index]), &pubKeyDHBufferLen, sizeof(int));
@@ -359,7 +358,6 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(message_sent[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
 
-    //Aggiungere firma
     message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     if(!message_signed) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
@@ -377,12 +375,14 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.clientConn->send_message(message_signed, signed_size);
 
+    /*
     unsigned char* last_message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     if(!last_message_received) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
     } 
 
+    
     ret = clt.clientConn->receive_message(clt.clientConn->getMasterFD(), last_message_received);
     if( ret == 0) {
         cout << RED  << "[LOG] server disconnected " << RESET << endl;
@@ -415,6 +415,8 @@ bool authentication(Client &clt, string username, string password) {
 
     memcpy(pubKeyDHBuffer.data(), &last_message_received[byte_index], pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
+
+    */
     
     // delete the plaintext from memory:
     memset(clear_buf, 0, dim);
@@ -423,6 +425,7 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHServer);
 
+    /*
     dim = byte_index;
     byte_index = 0;
     
@@ -456,6 +459,7 @@ bool authentication(Client &clt, string username, string password) {
         cout << GREEN << "[LOG] valid signature " << RESET << endl;
     }
 
+    */
     cout << GREEN << "[LOG] Generating session key " << RESET << endl;
 
     clt.crypto->secretDerivation(prvKeyDHClient, pubKeyDHServer, tempBuffer.data());
@@ -463,7 +467,6 @@ bool authentication(Client &clt, string username, string password) {
 
     cout << CYAN << "[LOG] Authentication succeeded " << RESET << endl;
 
-    memset(clear_buf, 0, dim);
     memset(tempBuffer.data(), 0, tempBuffer.size());
     free(message_sent);
     free(message_received);
