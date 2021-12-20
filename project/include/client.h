@@ -221,18 +221,6 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(&(opcode), &message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(&(size_cert), &message_received[byte_index], sizeof(int));
-    byte_index += sizeof(int);
-
-    unsigned char* cert_buf = (unsigned char*)malloc(size_cert);
-    if(!cert_buf) {
-        cerr << RED << "[ERROR] malloc error on certification buffer" << RESET << endl; 
-        exit(1);
-    }
-
-    memcpy(cert_buf, &message_received[byte_index], size_cert);
-    byte_index += size_cert;
-
     memcpy(nonceServer.data(), &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
@@ -256,6 +244,46 @@ bool authentication(Client &clt, string username, string password) {
 
     memcpy(signature, &message_received[byte_index], signed_size);
     byte_index += signed_size;
+    byte_index -= sizeof(int);
+
+    memcpy(&size_cert, &message_received[byte_index], sizeof(int));
+    byte_index += sizeof(int);
+
+    unsigned char* cert_buf = (unsigned char*)malloc(size_cert);
+    if(!cert_buf) {
+        cerr << RED << "[ERROR] malloc error on certification buffer" << RESET << endl; 
+        exit(1);
+    }
+
+    memcpy(cert_buf, &message_received[byte_index], size_cert);
+    byte_index += size_cert;
+
+    int clear_byte_index = 0;
+
+    dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE; 
+    unsigned char* clear_buf = (unsigned char*)malloc(dim);
+    if(!clear_buf) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    memcpy(clear_buf, &message_received[clear_byte_index], dim);
+    clear_byte_index += dim;
+    
+    int sign_size = 0;
+    memcpy(&sign_size, &message_received[clear_byte_index], sizeof(int));
+    clear_byte_index += sizeof(int);
+
+    unsigned char* sign = (unsigned char*)malloc(sign_size);
+    if(!sign) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    memcpy(sign, &message_received[clear_byte_index], sign_size);
+    clear_byte_index += sign_size;
+
+    // recupero pubKey
 
     cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, size_cert);
 
@@ -268,32 +296,6 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
-    byte_index = 0;
-
-    secureSum(size_cert, sizeof(char) + sizeof(int) + 2*constants::NONCE_SIZE);
-    dim = sizeof(char) + sizeof(int) + size_cert + constants::NONCE_SIZE + constants::NONCE_SIZE; 
-    unsigned char* clear_buf = (unsigned char*)malloc(dim);
-    if(!clear_buf) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    memcpy(clear_buf, &message_received[byte_index], dim);
-    byte_index += sizeof(char);
-
-    int sign_size = 0;
-    memcpy(&sign_size, &message_received[byte_index], sizeof(int));
-    byte_index += sizeof(int);
-
-    unsigned char* sign = (unsigned char*)malloc(sign_size);
-    if(!sign) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    memcpy(sign, &message_received[byte_index], sign_size);
-    byte_index += sign_size;
-    
     unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify < 0){
         cerr << RED << "[ERROR] invalid signature!" << endl;
@@ -322,8 +324,8 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(nonceClient_t.data(), nonceClient.data(), constants::NONCE_SIZE);
 
     byte_index = 0;   
-
-    // OPCODE | New_nonce_client | Nonce Server | Pub_key_DH_len | pub_key_DH | dig_sign
+    memset(clear_buf, 0, dim);
+    free(clear_buf);
 
     secureSum(pubKeyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + sizeof(int));
     dim = sizeof(char) + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
@@ -364,9 +366,6 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.clientConn->send_message(message_signed, signed_size);
 
-    // delete the plaintext from memory:
-    memset(clear_buf, 0, dim);
-    free(clear_buf);
     free(signature);
 
     clt.crypto->deserializePublicKey(pubKeyDHBufferServer.data(), pubKeyDHBufferServerLen, pubKeyDHServer);

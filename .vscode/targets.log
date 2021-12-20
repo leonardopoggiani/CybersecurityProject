@@ -8,7 +8,7 @@ make: *** No rule to make target 'all'.  Stop.
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Sun Dec 12 18:10:15 2021
+# Make data base, printed on Mon Dec 20 09:21:03 2021
 
 # Variables
 
@@ -21,7 +21,7 @@ NO_AT_BRIDGE = 1
 # environment
 GTK_RC_FILES = /etc/gtk/gtkrc:/home/poggio/.gtkrc:/home/poggio/.config/gtkrc
 # environment
-VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-f69d6cd3-3dfe-467c-9dcd-3ac1fdba51e5.sock
+VSCODE_IPC_HOOK_EXTHOST = /run/user/1000/vscode-ipc-adfb0292-9fcc-4917-81cf-4ecd2f7012b2.sock
 # environment
 VSCODE_CWD = /home/poggio
 # default
@@ -55,7 +55,7 @@ XDG_SESSION_PATH = /org/freedesktop/DisplayManager/Session1
 # environment
 LANG = C
 # environment
-XAUTHORITY = /run/user/1000/xauth_EvCQEr
+XAUTHORITY = /run/user/1000/xauth_CGhcpa
 # default
 .LOADED := 
 # default
@@ -85,7 +85,7 @@ XDG_CONFIG_DIRS = /home/poggio/.config/kdedefaults:/etc/xdg
 # automatic
 +D = $(patsubst %/,%,$(dir $+))
 # environment
-XCURSOR_THEME = breeze_cursors
+XCURSOR_THEME = KDE_Classic
 # environment
 XDG_SESSION_DESKTOP = KDE
 # environment
@@ -97,13 +97,13 @@ MAKEFILE_LIST :=
 # environment
 VSCODE_VERBOSE_LOGGING = true
 # environment
-VSCODE_PID = 10355
+VSCODE_PID = 3943
 # environment
 XDG_SESSION_TYPE = wayland
 # automatic
 ?D = $(patsubst %/,%,$(dir $?))
 # environment
-SESSION_MANAGER = local/poggio-pc:@/tmp/.ICE-unix/942,unix/poggio-pc:/tmp/.ICE-unix/942
+SESSION_MANAGER = local/poggio-pc:@/tmp/.ICE-unix/1406,unix/poggio-pc:/tmp/.ICE-unix/1406
 # automatic
 *F = $(notdir $*)
 # environment
@@ -169,7 +169,7 @@ XDG_VTNR = 2
 # makefile
 .DEFAULT_GOAL := 
 # environment
-SYSTEMD_EXEC_PID = 848
+SYSTEMD_EXEC_PID = 1289
 # environment
 DISPLAY = :1
 # environment
@@ -286,7 +286,8 @@ GNUmakefile:
 
 # strcache performance: lookups = 17 / hit rate = 17%
 # hash-table stats:
+ 
 # Load=14/8192=0%, Rehash=0, Collisions=0/17=0%
-# Finished Make data base on Sun Dec 12 18:10:15 2021
+# Finished Make data base on Mon Dec 20 09:21:03 2021
 
  
