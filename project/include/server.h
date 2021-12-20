@@ -93,6 +93,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
             }
         } 
 
+        // se già loggato invio un messaggio di errore e faccio terminare il processo
         if(already_logged_error == 1) {
             free(username);
             
@@ -208,8 +209,16 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     byte_index = 0;    
 
+    // creo la risposta, formato: OPCODE | certificate | nonce client | nonce server | dh public key server | firma
+
+    srv.crypto->keyGeneration(prvKeyDHServer);
+    pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
+
     secureSum(cert_size, sizeof(char) + sizeof(int) + constants::NONCE_SIZE + constants::NONCE_SIZE);
-    dim = sizeof(char) + sizeof(int) + cert_size + constants::NONCE_SIZE + constants::NONCE_SIZE;
+    secureSum(pubKeyDHBufferLen, sizeof(char) + sizeof(int) + constants::NONCE_SIZE + constants::NONCE_SIZE + cert_size);
+
+    dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
+
     unsigned char* message = (unsigned char*)malloc(dim);  
     if(!message) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
@@ -219,17 +228,17 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(&(message[byte_index]), &cert_size, sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&(message[byte_index]), cert_buf, cert_size);
-    byte_index += cert_size;
-
     memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
     
     memcpy(&(message[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
+    
+    memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+    byte_index += sizeof(int);
+ 
+    memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
+    byte_index += pubKeyDHBufferLen;
     
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     if(!message_signed) {
@@ -245,7 +254,15 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         cout << GREEN << "[LOG] valid signature " << RESET << endl;
     }
 
-    int ret = srv.serverConn->send_message(message, sd, dim);
+    byte_index = signed_size;
+
+    memcpy(&(message_signed[byte_index]), &cert_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message_signed[byte_index]), cert_buf, cert_size);
+    byte_index += cert_size;
+
+    int ret = srv.serverConn->send_message(message_signed, sd, signed_size + sizeof(int) + cert_size);
     if( ret <= 0) {
         cout << RED  << "[LOG] client disconnected " << RESET << endl;
         free(message);
@@ -271,9 +288,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     memcpy(&(opCode), &message_received[byte_index], sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(nonceClient.data(), &message_received[byte_index], constants::NONCE_SIZE);
-    byte_index += constants::NONCE_SIZE;
-
     memcpy(nonceServer_rec.data(), &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
@@ -284,10 +298,13 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         cout << GREEN << "[LOG] Nonce verified " << RESET << endl;
     }
 
+    memset(pubKeyDHBuffer.data(), 0, pubKeyDHBufferLen);
+
+    pubKeyDHBufferLen = 0;
     memcpy(&(pubKeyDHBufferLen), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
-    secureSum(pubKeyDHBufferLen, sizeof(int) + sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE);
+    secureSum(pubKeyDHBufferLen, sizeof(int) + sizeof(char) + constants::NONCE_SIZE);
 
     memcpy(pubKeyDHBuffer.data(), &message_received[byte_index], pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
@@ -295,7 +312,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     dim = byte_index;
 
     srv.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHClient);
-    srv.crypto->keyGeneration(prvKeyDHServer);
 
     free(clear_buf);
     free(signature);
@@ -333,53 +349,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         cout << GREEN << "[LOG] Valid Signature " << RESET << endl;
     }
 
-    // ultimo messaggio di autenticazione: 
-    // OPCODE | nonceClient | nonceServer | pubkeyDHServer_len | pubkeyDHServer | DIGSIGN
-
-    pubKeyDHBufferLen = srv.crypto->serializePublicKey(prvKeyDHServer, pubKeyDHBuffer.data());
-    
-    srv.crypto->generateNonce(nonceServer.data());
-    memcpy(nonceServer_t.data(), nonceServer.data(), nonceServer.size());
-
-    byte_index = 0;    
-    dim = sizeof(char) + 2*constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
-    unsigned char* last_message = (unsigned char*)malloc(dim);
-    if(!last_message) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    memcpy(&(last_message[byte_index]), &constants::AUTH, sizeof(char));
-    byte_index += sizeof(char);
-
-    memcpy(&(last_message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
-    byte_index += constants::NONCE_SIZE;
-    
-    memcpy(&(last_message[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
-    byte_index += constants::NONCE_SIZE;
-
-    memcpy(&(last_message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&(last_message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
-    byte_index += pubKeyDHBufferLen;
-    
-    unsigned char* last_message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-    if(!last_message_signed) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    signed_size = srv.crypto->digsign_sign(last_message, dim, last_message_signed, prvkey_server);
-    if(signed_size < 0){
-        cerr << RED << "[ERROR] Signature is not valid" << RESET << endl;
-        exit(1);
-    } else {
-        cout << GREEN << "[LOG] Valid Signature " << RESET << endl;
-    }
-
-    srv.serverConn->send_message(last_message_signed, sd, signed_size);
-
     // Generate session key
     cout << GREEN << "[LOG] Generating session key" << RESET << endl;
 
@@ -397,11 +366,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     free(temp_session_key);
     free(username);
-    free(last_message);
     free(message);
     free(signature);
     free(clear_buf);
-    free(last_message_signed);
     return true;   
 }
 
