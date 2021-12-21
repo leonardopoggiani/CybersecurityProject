@@ -20,6 +20,7 @@ struct user {
     string username;
     int sd;
     unsigned char* session_key = NULL;
+
     user(string us, int s) {
         username = us;
         sd = s;
@@ -69,11 +70,8 @@ class clientConnection {
         unsigned char* talking_to = NULL;
         unsigned char* iv = NULL;
         unsigned char* session_key = NULL;
-        string password;
         unsigned char* username = NULL;
-        string usernameS;
         int username_size;
-        int password_size;
         userChat* current_chat = NULL;
         EVP_PKEY* keyDHBufferTemp = NULL;
         int counter_send = 0;
@@ -103,13 +101,6 @@ class clientConnection {
             memcpy(username, us.c_str(), us.size());
         }
 
-        void setPassword(string pass) {
-            password = pass;
-        }
-        void setUsernameS(string us) {
-            usernameS = us;
-        }
-
         void setCurrentChat(unsigned char* username_to_contact, int us_size1, int sd1, unsigned char* username, int us_size2, int sd2) {
             current_chat = new userChat(username_to_contact, us_size1, sd1, username, us_size2, sd2);
         }
@@ -120,14 +111,6 @@ class clientConnection {
 
         unsigned char* getSessionKey() {
             return session_key;
-        }
-
-        string getPassword() {
-            return password;
-        }
-
-        string getUsernameS() {
-            return usernameS;
         }
 
         unsigned char* getIV() {
