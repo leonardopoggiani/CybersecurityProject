@@ -480,7 +480,6 @@ bool authentication(Client &clt, string username, string password) {
 int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned char *myNonce_save){
     unsigned int keyBufferDHLen = 0;
     EVP_PKEY *keyDH = NULL;
-    unsigned char* signature = NULL;
     array<unsigned char, MAX_MESSAGE_SIZE> keyDHBuffer;
     vector<unsigned char> decrypted;
     vector<unsigned char> encrypted; 
@@ -497,7 +496,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
     EVP_PKEY* user_key = NULL;
 
     array<unsigned char, constants::NONCE_SIZE> nonceClient;
-    array<unsigned char, constants::NONCE_SIZE> nonceClient_rec;
     array<unsigned char, constants::NONCE_SIZE> myNonce_t;
     array<unsigned char, constants::NONCE_SIZE> myNonce;
 
@@ -623,6 +621,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
         }
 
         signed_size = 0;
+        // signed size = dim(keyDHBuffer + nonce) + dim firma + firma
         signed_size = clt.crypto->digsign_sign(response_to_sign, dim_to_sign, message_signed, user_key);
         if(signed_size < 0){
             cerr << RED << "[ERROR] invalid signature!" << endl;
@@ -634,8 +633,8 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
 
         const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
 
-        secureSum(signed_size, sizeof(char) + constants::NONCE_SIZE + sizeof(int));
-        dim = sizeof(char) + constants::NONCE_SIZE + + sizeof(int) + signed_size;
+        secureSum(signed_size, sizeof(char) + constants::NONCE_SIZE + sizeof(int)*2);
+        dim = sizeof(char) + constants::NONCE_SIZE + sizeof(int)*2 + signed_size;
         response_to_request = (unsigned char*)malloc(dim); 
         if(response_to_request == NULL) {
             cerr << RED << "[ERROR] malloc response error" << RESET << endl;
@@ -658,8 +657,8 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
         byte_index += sizeof(int);
 
 
-        memcpy(&(response_to_request[byte_index]), message_signed_t, signed_size);
-        byte_index += signed_size;
+        memcpy(&(response_to_request[byte_index]), message_signed_t, sizeof(int) + signed_size);
+        byte_index += signed_size + sizeof(int);
 
 
 
@@ -1241,8 +1240,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         free(message);
 
 
-        secureSum(keyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + sizeof(int) + signed_size);
-        dim = sizeof(char) + sizeof(int) + keyDHBufferLen + constants::NONCE_SIZE + signed_size;
+        secureSum(keyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + sizeof(int)*2 + signed_size);
+        dim = sizeof(char) + sizeof(int)*2 + keyDHBufferLen + constants::NONCE_SIZE + signed_size;
 
         
         message = (unsigned char*)malloc(dim); 
@@ -1264,8 +1263,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
 
-        memcpy(&(message[byte_index]), message_signed_t, signed_size);
-        byte_index += signed_size;
+        memcpy(&(message[byte_index]), message_signed_t, signed_size + sizeof(int));
+        byte_index += signed_size + sizeof(int);
 
         //Inviare ultimo messaggio
         encrypted.clear();
