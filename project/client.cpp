@@ -91,7 +91,7 @@ int main(int argc, char* const argv[]) {
                 packet.resize(ret);
                 unsigned char* myNonce_save;
 
-                 myNonce_save = (unsigned char*)malloc(constants::NONCE_SIZE); 
+                myNonce_save = (unsigned char*)malloc(constants::NONCE_SIZE); 
             
                 if(myNonce_save == NULL) {
                     cerr << RED << "[ERROR] malloc response error" << RESET << endl;

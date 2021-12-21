@@ -504,7 +504,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
     
 
     string filename = "./keys/private/" + clt.clientConn->getUsernameS() + "_prvkey.pem";
-	cout << filename.c_str() << endl;
 
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {
@@ -577,11 +576,11 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
 
         //nonce generation
 
-         clt.crypto->generateNonce(myNonce.data());
+        clt.crypto->generateNonce(myNonce.data());
 
         // conservo il nonce per verificarlo al passo successivo
         memcpy(myNonce_t.data(), myNonce.data(), constants::NONCE_SIZE);
-        memcpy(&(myNonce_save[0]), myNonce.data(), constants::NONCE_SIZE);
+        memcpy(&myNonce_save[0], myNonce.data(), constants::NONCE_SIZE);
 
         clt.crypto->keyGeneration(keyDH);
         keyBufferDHLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer.data());
@@ -711,7 +710,6 @@ void print_unsigned_array(unsigned char* array, int dim) {
 
 void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNonce) {
 
-    cout<<"Sono nella starting chat"<<endl;
     vector<unsigned char> decrypted;
     int peerKeyDHLen = 0;
     unsigned char* peerKeyDHBuffer = NULL;
@@ -724,9 +722,7 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
     unsigned char* signature = NULL;
     packet.clear();
     packet.resize(constants::MAX_MESSAGE_SIZE);
-    cout<< "Sto aspettando un messaggio"<<endl;
     int received_size = receive_message_enc(clt, packet.data(), decrypted);
-    cout<< "Ricevuto"<<endl;
     if(received_size < 0) {
         cout << RED << "[ERROR] receive error" << RESET << endl;
         exit(1);
@@ -744,7 +740,6 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
         cout << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
     }
-     cout << "Va bene!" <<endl;
    
     secureSum(constants::NONCE_SIZE, peerKeyDHLen);
     dim = constants::NONCE_SIZE + peerKeyDHLen;
@@ -754,8 +749,6 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
     }
-
-    cout << "Ancora tutto bene!" <<endl;
 
     memcpy(peerKeyDHBuffer, &decrypted.data()[byte_index], peerKeyDHLen);
     memcpy(clear_buf, &decrypted.data()[byte_index], peerKeyDHLen + constants::NONCE_SIZE);
@@ -775,7 +768,6 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
         exit(1);
     }
 
-     cout << "Anche qui tutto bene!" <<endl;
     memcpy(peerPubKeyBuffer, &decrypted.data()[byte_index], peerPubKeyLen);
     byte_index += peerPubKeyLen;
 
@@ -809,7 +801,6 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
     }
 
     // Verificare nonce
-    cout << myNonce <<endl;
     if(memcmp(myNonce, myNonce_rec.data(), constants::NONCE_SIZE) != 0){
         cerr << RED << "[ERROR] nonce received is not valid!" << RESET << endl;
         exit(1);
@@ -1021,9 +1012,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
 
     string filename = "./keys/private/" + clt.clientConn->getUsernameS() + "_prvkey.pem";
-	
-
-    cout << filename.c_str() << endl;
 
 	FILE* file = fopen(filename.c_str(), "r");
 	if(!file) {

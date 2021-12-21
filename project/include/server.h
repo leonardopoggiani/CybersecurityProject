@@ -952,13 +952,12 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
         cerr << RED << "[ERROR] error reading pubkey" << RESET << endl;
         exit(1);
     }
-    cout << "Inizio ad inviare messaggio a B!" <<endl;
 
     // Serializzare chiave pubblica
     int pubKeyBufferLen = srv.crypto->serializePublicKey(pubkey_client_A, pubKeyClientBuffer.data());
 
-    secureSum(keyDHBufferLen, sizeof(int)*2 + sizeof(char) + constants::NONCE_SIZE + pubKeyBufferLen);
-    int dim = sizeof(char) + sizeof(int) + keyDHBufferLen + sizeof(int) + pubKeyBufferLen + constants::NONCE_SIZE;
+    secureSum(keyDHBufferLen, sizeof(int)*3 + sizeof(char) + constants::NONCE_SIZE + pubKeyBufferLen + signature_size);
+    int dim = sizeof(char) + sizeof(int)*3 + keyDHBufferLen + pubKeyBufferLen + constants::NONCE_SIZE + signature_size;
     byte_index = 0;
 
     unsigned char* message = (unsigned char*)malloc(dim);
@@ -993,8 +992,6 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
 
     memcpy(&(message[byte_index]), signature_t, signature_size);
     byte_index += signature_size;
-
-    cout << "Finito di inviare messaggio a B!" <<endl;
 
 
     srv.serverConn->generateIV();
