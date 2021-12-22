@@ -8,9 +8,9 @@
 #include <openssl/rand.h>
 #include <vector>
 #include <netinet/in.h>
-#include <unistd.h>   //close 
-#include <arpa/inet.h>    //close
-#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros 
+#include <unistd.h>   
+#include <arpa/inet.h>    
+#include <sys/time.h> 
 #include <errno.h>
 #include "constants.h"
 #include "color.h"
@@ -28,8 +28,8 @@ struct session {
 
     void getCounter(unsigned char *buffer){
         unsigned char sizeArray[2];
-        sizeArray[0] = counter & 0xFF; //low part
-        sizeArray[1] = counter >> 8;   //higher part
+        sizeArray[0] = counter & 0xFF; 
+        sizeArray[1] = counter >> 8;   
         memcpy(buffer, sizeArray, 2);
     }
 

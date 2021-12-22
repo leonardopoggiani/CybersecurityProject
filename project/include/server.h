@@ -194,6 +194,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         cerr << RED << "[ERROR] server_key Error" << RESET << endl;
         exit(1);
     }
+
 	fclose(file);
 
     srv.crypto->generateNonce(nonceServer.data());
@@ -726,12 +727,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         memcpy(signature, &(decrypted.data()[byte_index]), signature_size);
         byte_index += signature_size;
 
-
-
         secureSum(keyDHBufferLen, pubKeyBufferLen + signature_size + sizeof(int)*3 + constants::NONCE_SIZE*2 + sizeof(char));
-
-       
-
         dim = keyDHBufferLen + pubKeyBufferLen + signature_size + sizeof(int)*3 + constants::NONCE_SIZE*2 + sizeof(char);
         
         free(message);
@@ -774,10 +770,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
         memcpy(&(message[byte_index]), signature_t, signature_size);
         byte_index += signature_size;
-
-
-
-   
     } else {
         // liberare tutto e inviare risposta negativa
         memcpy(&(message[byte_index]), &constants::REFUSED, sizeof(char));
@@ -830,8 +822,6 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     int signature_size = 0;
     unsigned char* signature = NULL;
 
-
-
     srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer.data(), ret, decrypted, srv.serverConn->getSession(sd));         
 
     memcpy(&keyDHBufferLen, &(decrypted.data()[byte_index]), sizeof(int));
@@ -849,7 +839,6 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     memcpy(nonceClientB.data(), &(decrypted.data()[byte_index]), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
-
     memcpy(&signature_size, &(decrypted.data()[byte_index]), sizeof(int));
     byte_index += sizeof(int);
 
@@ -862,9 +851,6 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
 
     memcpy(signature, &(decrypted.data()[byte_index]), signature_size);
     byte_index += signature_size;
-
-  
-
 
     unsigned char* usernameA = NULL;
     int usernameA_size = 0;
@@ -941,7 +927,6 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     byte_index += keyDHBufferLen;
 
     //Nonce di B
-
     memcpy(&(message[byte_index]), nonceClientB.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
 
@@ -961,7 +946,6 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
 
     memcpy(&(message[byte_index]), signature_t, signature_size);
     byte_index += signature_size;
-
 
     srv.serverConn->generateIV();
     ret = send_message_enc_srv(srv, clientB_sd, srv.serverConn->getSessionKey(clientB_sd), srv.serverConn->getIV(), message, byte_index, encrypted, srv.serverConn->getSession(clientB_sd));

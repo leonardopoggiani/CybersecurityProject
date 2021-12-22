@@ -907,7 +907,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     array<unsigned char, constants::NONCE_SIZE> myNonce;
     EVP_PKEY* user_key = NULL;
 
-
     string filename = "./keys/private/" + clt.clientConn->getUsernameS() + "_prvkey.pem";
 
 	FILE* file = fopen(filename.c_str(), "r");
@@ -957,7 +956,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         return;
     }
 
-
     unsigned char* response = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
     if(!response) {
         cout << RED << "[ERROR] malloc error" << RESET << endl;
@@ -1000,7 +998,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
             exit(1);
         }
 
-
         secureSum(constants::NONCE_SIZE, peerKeyDHLen);
         dim = constants::NONCE_SIZE + peerKeyDHLen;
 
@@ -1017,13 +1014,10 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         clt.crypto->deserializePublicKey(peerKeyDHBuffer, peerKeyDHLen, peerKeyDH);
 
         //Nonce mio da verificare
-
         memcpy(myNonce_rec.data(), &decrypted.data()[byte_index], constants::NONCE_SIZE);
         byte_index += constants::NONCE_SIZE;
-
        
         //Chiave pubblica di B
-
         memcpy(&(peerPubKeyLen), &decrypted.data()[byte_index], sizeof(int));
         byte_index += sizeof(int);
 
@@ -1042,10 +1036,8 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
          //Dimensione firma e firma
 
-
         memcpy(&(signature_size), &decrypted.data()[byte_index], sizeof(int));
         byte_index += sizeof(int);
-
 
         signature = (unsigned char*)malloc(signature_size);
         if(!signature) {
@@ -1057,7 +1049,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         byte_index += signature_size;
 
         //Verificare firma di B
-
         unsigned int verify = clt.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), clt.clientConn->getMyCurrentChat()->pubkey_1);
         if(verify < 0){
             cerr << RED << "[ERROR] invalid signature!" << endl;
@@ -1074,9 +1065,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
             cout << GREEN << "[LOG] nonce verified " << RESET << endl;
         }
 
-
         // Costruire chiave di sessione prvDH
-
         array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
 
         clt.crypto->keyGeneration(keyDH);
@@ -1092,11 +1081,9 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         // opcode | keyDH | nonce B (nonceclient) | firma (keyDH e nonce B)
 
         keyDHBufferLen = clt.crypto->serializePublicKey(keyDH, keyDHBuffer.data());
-       
 
         secureSum(keyDHBufferLen, constants::NONCE_SIZE);
         dim_to_sign =  constants::NONCE_SIZE + keyDHBufferLen;
-
 
         response_to_sign = (unsigned char*)malloc(dim_to_sign); 
        
@@ -1115,9 +1102,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         memcpy(&(response_to_sign[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
         byte_index += constants::NONCE_SIZE;
 
-
         //Firmare
-        
         unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
         if(!message_signed) {
             cerr << RED << "[ERROR] malloc error" << RESET << endl;
@@ -1132,26 +1117,19 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         } else { 
             cout << GREEN << "[LOG] valid Signature " << RESET << endl;
         }
-        
-
-        
+          
         free(message);
-
 
         secureSum(keyDHBufferLen, sizeof(char) + constants::NONCE_SIZE + sizeof(int)*2 + signed_size);
         dim = sizeof(char) + sizeof(int)*2 + keyDHBufferLen + constants::NONCE_SIZE + signed_size;
 
-        
         message = (unsigned char*)malloc(dim); 
         if(message == NULL) {
             cout << RED << "[ERROR] malloc error" << RESET << endl;
             exit(1);
         }
 
-
-
         byte_index = 0;
-
 
         memcpy(&(message[byte_index]), &constants::ACCEPTED, sizeof(char));
         byte_index += sizeof(char);
@@ -1290,4 +1268,3 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
 
     buffer.clear();
 }
-
