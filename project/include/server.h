@@ -359,7 +359,6 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     }
 
     srv.crypto->secretDerivation(prvKeyDHServer, pubKeyDHClient, temp_session_key);
-
     srv.serverConn->addSessionKey(sd, temp_session_key);
     
     cout << CYAN << "[LOG] Authentication succeeded " << RESET << endl;
@@ -373,14 +372,14 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 }
 
 int decrypt_message(Server srv, int sd, unsigned char* message, int dim, vector<unsigned char> &decrypted) {
-    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), message, dim, decrypted);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), message, dim, decrypted, srv.serverConn->getSession(sd));
     return decrypted_size;
 }
 
-int send_message_enc_srv(CryptoOperation* crypto, int fd, unsigned char* key, unsigned char* iv, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
+int send_message_enc_srv(Server srv, int fd, unsigned char* key, unsigned char* iv, unsigned char* message, int dim, vector<unsigned char> &encrypted, session* s) {
     int ret = 0;
 
-    int encrypted_size = crypto->encryptMessage(key, iv, message, dim, encrypted);
+    int encrypted_size = srv.crypto->encryptMessage(key, iv, message, dim, encrypted, s);
 
     do {
         ret = send(fd, encrypted.data(), encrypted_size, 0);
@@ -396,7 +395,12 @@ int send_message_enc_srv(CryptoOperation* crypto, int fd, unsigned char* key, un
     return ret;
 }
 
-bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
+bool seeOnlineUsers(Server &srv, int sd, unsigned char *buffer, int buf_len, vector<unsigned char> received) {
+    
+    vector<unsigned char> decrypted;
+
+    decrypted.resize(buf_len);
+    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, buf_len, decrypted, srv.serverConn->getSession(sd));
 
     int byte_index = 0;    
     int dim = sizeof(char) + sizeof(int) + sizeof(int);
@@ -408,8 +412,6 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
         cerr << RED << "[ERROR] receive error" << RESET << endl;
         exit(1);
     }
-
-    buffer.clear();
 
     for(size_t i = 0; i < users_logged_in.size(); i++) {    
         if( (users_logged_in[i].username.size() == requesting_user.size()) && memcmp(requesting_user.c_str(), users_logged_in[i].username.c_str(), requesting_user.size()) == 0 ) {
@@ -459,12 +461,12 @@ bool seeOnlineUsers(Server &srv, int sd, vector<unsigned char> &buffer) {
     }   
 
     srv.serverConn->generateIV();
-    send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, buffer);
+    send_message_enc_srv(srv, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, received, srv.serverConn->getSession(sd));
 
     return true;   
 }
 
-int receive_message_enc_srv(Server srv, int sd, unsigned char* message, vector<unsigned char> &decrypted) {
+int receive_message_enc_srv(Server srv, int sd, unsigned char* message, vector<unsigned char> &decrypted, session* s) {
     int message_len;
 
     do {
@@ -479,7 +481,7 @@ int receive_message_enc_srv(Server srv, int sd, unsigned char* message, vector<u
         } 
     } while (message_len < 0);
 
-    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), message, message_len, decrypted);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), message, message_len, decrypted, s);
 
     return decrypted_size;
 }
@@ -498,7 +500,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     vector<unsigned char> encrypted;
 
     decrypted.resize(buf_len);
-    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, buf_len, decrypted);
+    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, buf_len, decrypted, srv.serverConn->getSession(sd));
 
     memcpy(&opCode, &(decrypted.data()[byte_index]), sizeof(char));
     byte_index += sizeof(char);
@@ -554,7 +556,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         not_exists[0] = 'n';
 
         encrypted.resize(sizeof(char));
-        send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), not_exists, sizeof(char), encrypted);
+        send_message_enc_srv(srv, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), not_exists, sizeof(char), encrypted, srv.serverConn->getSession(sd));
 
         free(not_exists);
         return true;
@@ -591,7 +593,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
                 already_chatting[0] = 'n';
 
                 encrypted.resize(sizeof(char));
-                send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), already_chatting, sizeof(char), encrypted);
+                send_message_enc_srv(srv, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), already_chatting, sizeof(char), encrypted, srv.serverConn->getSession(sd));
 
                 free(already_chatting);
                 return true;
@@ -619,7 +621,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     for(int i = 0; i < (int)users_logged_in.size(); i++) {
         if( strncmp(users_logged_in[i].username.c_str(), reinterpret_cast<const char*>(username_to_talk_to), users_logged_in[i].username.size()) == 0 ) {
             encrypted.clear();
-            send_message_enc_srv(srv.crypto, users_logged_in[i].sd, srv.serverConn->getSessionKey(users_logged_in[i].sd), srv.serverConn->getIV(), message, dim, encrypted);
+            send_message_enc_srv(srv, users_logged_in[i].sd, srv.serverConn->getSessionKey(users_logged_in[i].sd), srv.serverConn->getIV(), message, dim, encrypted, srv.serverConn->getSession(users_logged_in[i].sd));
             user_to_talk_to_sd = users_logged_in[i].sd;
         }
     }
@@ -632,7 +634,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
 
     decrypted.clear();
 
-    int ret = receive_message_enc_srv(srv, user_to_talk_to_sd, response, decrypted);
+    int ret = receive_message_enc_srv(srv, user_to_talk_to_sd, response, decrypted, srv.serverConn->getSession(user_to_talk_to_sd));
     if(ret == 0) {
         cout << RED <<"[LOG] client disconnected" << RESET << endl;
         return false;
@@ -650,7 +652,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     }
 
     if(opCode == constants::ACCEPTED) {   
-        //Recuperare chiave pubblica utente che ha risposto
+        // recuperare chiave pubblica utente che ha risposto
 
         byte_index += sizeof(char);
 
@@ -728,7 +730,7 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
     }
 
     encrypted.clear();
-    send_message_enc_srv(srv.crypto, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, encrypted);
+    send_message_enc_srv(srv, sd, srv.serverConn->getSessionKey(sd), srv.serverConn->getIV(), message, byte_index, encrypted, srv.serverConn->getSession(sd));
 
     if(opCode == constants::ACCEPTED) {
         int sd_1 = 0;
@@ -768,7 +770,7 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     unsigned char* keyClientDHBuffer;
     int byte_index = sizeof(char);
 
-    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer.data(), ret, decrypted);         
+    srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer.data(), ret, decrypted, srv.serverConn->getSession(sd));         
 
     memcpy(&keyDHBufferLen, &(decrypted.data()[byte_index]), sizeof(int));
     byte_index += sizeof(int);
@@ -866,7 +868,7 @@ void startingChat(Server srv, int sd, array<unsigned char, constants::MAX_MESSAG
     secureSum(pubKeyBufferLen, sizeof(char) + sizeof(int) + sizeof(int) + keyDHBufferLen);
 
     srv.serverConn->generateIV();
-    ret = send_message_enc_srv(srv.crypto, clientB_sd, srv.serverConn->getSessionKey(clientB_sd), srv.serverConn->getIV(), message, byte_index, encrypted);
+    ret = send_message_enc_srv(srv, clientB_sd, srv.serverConn->getSessionKey(clientB_sd), srv.serverConn->getIV(), message, byte_index, encrypted, srv.serverConn->getSession(clientB_sd));
 }
 
 bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
@@ -884,7 +886,7 @@ bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
         return false;
     }
 
-    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, msg_len, decrypted);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, msg_len, decrypted, srv.serverConn->getSession(sd));
 
     message_received = (unsigned char*)malloc(decrypted_size);
     if(!message_received) {
@@ -901,7 +903,7 @@ bool chatting(Server srv, int sd, unsigned char* buffer, int msg_len) {
 
     secureSum(decrypted_size, constants::IV_LEN);
 
-    int encrypted_size = send_message_enc_srv(srv.crypto, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), iv.data(), decrypted.data(), decrypted_size, encrypted);
+    int encrypted_size = send_message_enc_srv(srv, sd_to_send, srv.serverConn->getSessionKey(sd_to_send), iv.data(), decrypted.data(), decrypted_size, encrypted, srv.serverConn->getSession(sd_to_send));
     if(encrypted_size <= 0) {
         cout << RED << "[ERROR] encryption failed" << RESET << endl;
         return false;
@@ -933,7 +935,7 @@ bool closingChat(Server srv, int sd, unsigned char* buffer, int dim) {
         index++;
     }
 
-    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, dim, decrypted);
+    int decrypted_size = srv.crypto->decryptMessage(srv.serverConn->getSessionKey(sd), buffer, dim, decrypted, srv.serverConn->getSession(sd));
 
     message_received = (unsigned char*)malloc(decrypted_size);
     if(!message_received) {
@@ -950,7 +952,7 @@ bool closingChat(Server srv, int sd, unsigned char* buffer, int dim) {
 
     secureSum(decrypted_size, constants::IV_LEN);
 
-    int encrypted_size = send_message_enc_srv(srv.crypto, other_sd, srv.serverConn->getSessionKey(other_sd), iv.data(), decrypted.data(), decrypted_size, encrypted);
+    int encrypted_size = send_message_enc_srv(srv, other_sd, srv.serverConn->getSessionKey(other_sd), iv.data(), decrypted.data(), decrypted_size, encrypted, srv.serverConn->getSession(other_sd));
     if(encrypted_size <= 0) {
         cout << RED << "[ERROR] encryption failed" << RESET << endl;
         return false;

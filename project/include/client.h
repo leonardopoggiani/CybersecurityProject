@@ -64,7 +64,7 @@ void secureSum(int a, int b){
     
 }
 
-int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted) {
+int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted, session *s) {
     int ret = 0;
 
     unsigned char* session_key = clt.clientConn->getSessionKey();
@@ -77,7 +77,7 @@ int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, 
     }
 
     encrypted.resize(dim);
-    int encrypted_size = clt.crypto->encryptMessage(session_key, iv, message, dim, encrypted);
+    int encrypted_size = clt.crypto->encryptMessage(session_key, iv, message, dim, encrypted, s);
 
     do {
         ret = send(masterFD, encrypted.data(), encrypted_size, 0);
@@ -93,7 +93,7 @@ int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, 
     return ret;
 }
 
-int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted) {
+int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted, session *s) {
     int message_len = -1;
 
     do {
@@ -108,7 +108,7 @@ int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char
         } 
     } while (message_len < 0);
 
-    int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), message, message_len, decrypted);
+    int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), message, message_len, decrypted, s);
 
     return decrypted_size;
 }
@@ -398,7 +398,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
     unsigned char response = 'n';
     int dim = 0;
 
-    clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), msg, msg_len, decrypted);
+    clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), msg, msg_len, decrypted, clt.clientConn->getSessionClientServer());
 
     byte_index += sizeof(char);
 
@@ -488,7 +488,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         memcpy(&(response_to_request[byte_index]), &constants::REFUSED, sizeof(char));
         byte_index += sizeof(char);
 
-        int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted);
+        int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted, clt.clientConn->getSessionClientServer());
         if(ret <= 0) {
             return -1;
         }
@@ -499,7 +499,7 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len) {
         return 0;
     }  
 
-    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted);
+    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, response_to_request, dim, encrypted, clt.clientConn->getSessionClientServer());
     if(ret <= 0) {
         return -1;
     }
@@ -526,7 +526,7 @@ void startingChat(Client clt, vector<unsigned char> packet) {
     
     packet.clear();
     packet.resize(constants::MAX_MESSAGE_SIZE);
-    int received_size = receive_message_enc(clt, packet.data(), decrypted);
+    int received_size = receive_message_enc(clt, packet.data(), decrypted, clt.clientConn->getSessionClientServer());
     if(received_size < 0) {
         cout << RED << "[ERROR] receive error" << RESET << endl;
         exit(1);
@@ -647,7 +647,6 @@ void chat(Client clt) {
                 memcpy(&(tempBuffer[byte_index]), &constants::REFUSED, sizeof(char));
                 byte_index += sizeof(char);
             } else {
-
                 secureSum(sizeof(char), message.size());
                 memcpy(&(tempBuffer[byte_index]), &constants::CHAT, sizeof(char));
                 byte_index += sizeof(char);
@@ -656,8 +655,9 @@ void chat(Client clt) {
                 byte_index += message.size();
             }
 
+            // la prima volta che cifro, lo sto facendo con la session_key, quindi devo mettere come contatore quello tra client e client
             clt.clientConn->generateIV(iv);
-            int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, iv, tempBuffer, dim, encrypted);
+            int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, iv, tempBuffer, dim, encrypted, clt.clientConn->getSessionClientClient());
             if(encrypted_size < 0 || encrypted_size > constants::MAX_MESSAGE_SIZE) {
                 cout << RED << "[ERROR] message not valid" << RESET << endl;
                 exit(1);
@@ -675,7 +675,7 @@ void chat(Client clt) {
 
             encrypted.clear();
 
-            ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, encrypted_size, encrypted);
+            ret = send_message_enc(clt.clientConn->getMasterFD(), clt, to_send, encrypted_size, encrypted, clt.clientConn->getSessionClientServer());
 
             if(ret <= 0) {
                 cerr << RED << "[ERROR] error during the send encrypted" << RESET << endl;
@@ -687,15 +687,14 @@ void chat(Client clt) {
                 message.clear();
                 exit(1);
             }
-
         }
 
         // arrivo di un messaggio da parte dell'altro client
         if(FD_ISSET(clt.clientConn->getMasterFD(), &fds)) {
             
-            ret = receive_message_enc(clt, buffer, decrypted);
+            ret = receive_message_enc(clt, buffer, decrypted, clt.clientConn->getSessionClientServer());
 
-            int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, decrypted.data(), ret, clear);
+            int decrypted_size = clt.crypto->decryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, decrypted.data(), ret, clear, clt.clientConn->getSessionClientClient());
 
             cout << BLUE;
 
@@ -777,7 +776,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
     memcpy(&(message[byte_index]), username_to_contact.c_str(), username_to_contact.size());
     byte_index += username_to_contact.size();
 
-    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted);
+    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted, clt.clientConn->getSessionClientServer());
     if(ret <= 0) {
         return;
     }
@@ -790,7 +789,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
     cout << "*** waiting for response *** " << endl;
 
-    ret = receive_message_enc(clt, response, decrypted);
+    ret = receive_message_enc(clt, response, decrypted, clt.clientConn->getSessionClientServer());
     if (ret == 0) {
         cout << RED << "[LOG] client connection closed" << RESET << endl;
         free(response);
@@ -875,7 +874,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         //Inviare messaggio
         encrypted.clear();
-        ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, byte_index, encrypted);
+        ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, byte_index, encrypted, clt.clientConn->getSessionClientServer());
         if(ret <= 0) {
             return;
         }
@@ -923,7 +922,7 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
     memcpy(&(message[byte_index]), &constants::ONLINE, sizeof(char));
     byte_index += sizeof(char);
     
-    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted);
+    int ret = send_message_enc(clt.clientConn->getMasterFD(), clt, message, dim, encrypted, clt.clientConn->getSessionClientServer());
 
     free(message);
     buffer.clear();
@@ -934,7 +933,7 @@ void seeOnlineUsers(Client clt, vector<unsigned char> &buffer){
     } 
 
     clt.clientConn->generateIV();
-    ret = receive_message_enc(clt, message_received, buffer);
+    ret = receive_message_enc(clt, message_received, buffer, clt.clientConn->getSessionClientServer());
 
     if (ret == 0) {
         cout << RED << "[LOG] client connection closed" << RESET << endl;

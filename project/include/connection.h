@@ -16,10 +16,58 @@
 #include "color.h"
 
 using namespace std;
+
+struct session {
+    uint16_t received;
+    uint16_t counter;
+    
+    session(){
+        counter = 0;
+        received = 0;
+    }
+
+    void getCounter(unsigned char *buffer){
+        unsigned char sizeArray[2];
+        sizeArray[0] = counter & 0xFF; //low part
+        sizeArray[1] = counter >> 8;   //higher part
+        memcpy(buffer, sizeArray, 2);
+    }
+
+    bool verifyFreshness(unsigned char *counterReceived){
+        uint16_t tmp = received;
+        uint16_t cr = counterReceived[0] | uint16_t(counterReceived[1]) << 8;
+        if(increment(tmp)) {
+            if(tmp == cr) {
+                if(increment(received)) {
+                    received++;
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    bool increment(int value){
+        if(value == INT_MAX){
+            // se sto sforando il valore massimo, devo chiudere la sessione!
+            return false;
+        } else {
+            value++;
+            return true;
+        }
+    }
+
+    void dimCounter() {
+        received++;
+    }
+};
+
 struct user {
     string username;
     int sd;
     unsigned char* session_key = NULL;
+    session* s = new session();
 
     user(string us, int s) {
         username = us;
@@ -39,6 +87,7 @@ struct userChat {
     EVP_PKEY* pubkey_2 = NULL;
     unsigned char* iv = NULL;
     unsigned char* chat_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+    session* clientCounters;
 
     userChat(unsigned char* us1, int d_us1, int s1, unsigned char* us2, int d_us2, int s2) {
         username_1 = (unsigned char*)malloc(d_us1);
@@ -49,6 +98,7 @@ struct userChat {
         dim_us2 = d_us2;
         sd_1 = s1;
         sd_2 = s2;
+        clientCounters = new session();
     }
 
     userChat(unsigned char* us1, int d_us1, unsigned char* us2, int d_us2) {
@@ -58,6 +108,7 @@ struct userChat {
         memcpy(username_2, us2, d_us2);
         dim_us1 = d_us1;
         dim_us2 = d_us2;
+        clientCounters = new session();
     }
 };
 
@@ -74,10 +125,26 @@ class clientConnection {
         int username_size;
         userChat* current_chat = NULL;
         EVP_PKEY* keyDHBufferTemp = NULL;
-        int counter_send = 0;
-        int counter_recv = 0;
+        session* clientServer = new session();
+        session* clientClient = new session();
 
     public:
+
+        session* getSessionClientClient() {
+            return clientClient;
+        }
+
+        void getCounterClientClient(unsigned char* bufferCounter) {
+            clientClient->getCounter(bufferCounter);
+        }
+
+        session* getSessionClientServer() {
+            return clientServer;
+        }
+
+        void getCounterClientServer(unsigned char* bufferCounter) {
+            clientServer->getCounter(bufferCounter);
+        }
 
         void setKeyDHBufferTemp(EVP_PKEY* keyDH, unsigned int size) {
             keyDHBufferTemp = keyDH;
@@ -350,7 +417,6 @@ class serverConnection : public clientConnection {
         int addrlen;
         int port;
 
-
         vector<user> users_logged_in;
         vector<userChat*> activeChat;
         array<unsigned char, constants::IV_LEN> iv_server;
@@ -359,6 +425,32 @@ class serverConnection : public clientConnection {
 
         unsigned char* getIV() {
             return iv_server.data();
+        }
+
+        session* getSession(int sd) {
+            for(auto user : users_logged_in) {
+                if(user.sd == sd) {
+                    return user.s;
+                }
+            }
+
+            return NULL;
+        }
+
+        void getCounter(int sd, unsigned char* temp_counter) {
+            for(auto user : users_logged_in) {
+                if(user.sd == sd) {
+                    user.s->getCounter(temp_counter);
+                }
+            }
+        }
+
+        void dimCounter(int sd) {
+            for(auto user : users_logged_in) {
+                if(user.sd == sd) {
+                    user.s->dimCounter();
+                }
+            }
         }
 
         void generateIV() {

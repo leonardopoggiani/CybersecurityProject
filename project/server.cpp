@@ -66,7 +66,7 @@ int main(int argc, char* const argv[]) {
                     } else if(buffer[0] == constants::ONLINE) {
                         cout << GREEN << "\n**** ONLINE USERS REQUEST ****" << RESET << endl;
 
-                        if (!seeOnlineUsers(srv, sd, received)) {
+                        if (!seeOnlineUsers(srv, sd, buffer.data(), ret, received)) {
                             cerr << RED << "Online user request failed on Server" << RESET << endl;
                             exit(1);
                         };
