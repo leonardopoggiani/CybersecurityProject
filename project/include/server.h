@@ -48,6 +48,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     unsigned char* username = NULL;
     int username_size = 0;
     int signature_size = 0;
+    int dim_to_sign;
+    unsigned char* message_to_sign;
     unsigned char* signature = NULL;
         
     memcpy(&(opCode), &buffer[byte_index], sizeof(char));
@@ -216,29 +218,28 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     secureSum(cert_size, sizeof(char) + sizeof(int) + constants::NONCE_SIZE + constants::NONCE_SIZE);
     secureSum(pubKeyDHBufferLen, sizeof(char) + sizeof(int) + constants::NONCE_SIZE + constants::NONCE_SIZE + cert_size);
+    
+    secureSum(pubKeyDHBufferLen, sizeof(char) + sizeof(int) + constants::NONCE_SIZE);
+    dim_to_sign = username_size + sizeof(int) + sizeof(char) + constants::NONCE_SIZE;
 
-    dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferLen;
-
-    unsigned char* message = (unsigned char*)malloc(dim);  
-    if(!message) {
+    message_to_sign = (unsigned char*)malloc(dim_to_sign);   
+    if(!message_to_sign) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
-    }
+    }   
 
-    memcpy(&(message[byte_index]), &constants::AUTH, sizeof(char));
+    memcpy(&(message_to_sign[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
-    memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
+    memcpy(&(message_to_sign[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
-    
-    memcpy(&(message[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
-    byte_index += constants::NONCE_SIZE;
-    
-    memcpy(&(message[byte_index]), &pubKeyDHBufferLen, sizeof(int));
+
+    memcpy(&(message_to_sign[byte_index]), &pubKeyDHBufferLen, sizeof(int));
     byte_index += sizeof(int);
  
-    memcpy(&(message[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
+    memcpy(&(message_to_sign[byte_index]), pubKeyDHBuffer.data(), pubKeyDHBufferLen);
     byte_index += pubKeyDHBufferLen;
+    
     
     unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     if(!message_signed) {
@@ -254,15 +255,33 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         cout << GREEN << "[LOG] valid signature " << RESET << endl;
     }
 
-    byte_index = signed_size;
+    dim = sizeof(int) + cert_size + constants::NONCE_SIZE + signed_size;
 
-    memcpy(&(message_signed[byte_index]), &cert_size, sizeof(int));
+    unsigned char* message = (unsigned char*)malloc(dim);  
+    if(!message) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    byte_index = 0;
+
+    memcpy(&(message[byte_index]), &cert_size, sizeof(int));
     byte_index += sizeof(int);
 
-    memcpy(&(message_signed[byte_index]), cert_buf, cert_size);
+    memcpy(&(message[byte_index]), cert_buf, cert_size);
     byte_index += cert_size;
 
-    int ret = srv.serverConn->send_message(message_signed, sd, signed_size + sizeof(int) + cert_size);
+    memcpy(&(message[byte_index]), nonceServer.data(), constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+    
+    
+    const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
+
+    memcpy(&(message[byte_index]), message_signed_t, signed_size + sizeof(int));
+    byte_index += signed_size + sizeof(int);
+
+
+    int ret = srv.serverConn->send_message(message_signed, sd, byte_index);
     if( ret <= 0) {
         cout << RED  << "[LOG] client disconnected " << RESET << endl;
         free(message);
