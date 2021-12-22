@@ -412,8 +412,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
     array<unsigned char, constants::NONCE_SIZE> myNonce_t;
     array<unsigned char, constants::NONCE_SIZE> myNonce;
 
-    
-
     string filename = "./keys/private/" + clt.clientConn->getUsernameS() + "_prvkey.pem";
 
 	FILE* file = fopen(filename.c_str(), "r");
@@ -429,8 +427,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
     }
 
 	fclose(file);
-    
-
 
     clt.crypto->decryptMessage(clt.clientConn->getSessionKey(), msg, msg_len, decrypted);
 
@@ -498,22 +494,14 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
 
         clt.clientConn->setKeyDHBufferTemp(keyDH, keyBufferDHLen);
 
-    
-       
-
         secureSum(keyBufferDHLen, constants::NONCE_SIZE);
         dim_to_sign =  constants::NONCE_SIZE + keyBufferDHLen;
-
-        
-        
 
         response_to_sign = (unsigned char*)malloc(dim_to_sign); 
         if(response_to_sign == NULL) {
             cerr << RED << "[ERROR] malloc response error" << RESET << endl;
             return -1;
         }
-
-
 
         //Preparare messaggio da firmare in response_to_sign
         byte_index = 0;
@@ -524,7 +512,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
 
         memcpy(&(response_to_sign[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
         byte_index += constants::NONCE_SIZE;
-
 
         //Aggiungere firma
         unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
@@ -572,7 +559,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
 
         memcpy(&(response_to_request[byte_index]), message_signed_t, sizeof(int) + signed_size);
         byte_index += signed_size + sizeof(int);
-
 
 
         cout << "***********************************" << endl;
