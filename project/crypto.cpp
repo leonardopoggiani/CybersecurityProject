@@ -396,7 +396,7 @@ bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int sign
 unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer, session* s) {
     unsigned char *ciphertext;
     unsigned char tag[constants::TAG_LEN];
-    unsigned char bufferCounter[sizeof(uint16_t)];
+    unsigned char bufferCounter[sizeof(char) + sizeof(uint16_t)];
     EVP_CIPHER_CTX *ctx = NULL;
     unsigned int finalSize = 0;
     unsigned int start = 0;
@@ -408,7 +408,7 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
     secureSum(msg_len + 2*constants::TAG_LEN, constants::IV_LEN);
     secureSum(msg_len + 2*constants::TAG_LEN + constants::IV_LEN, sizeof(char));
 
-    finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(char) + sizeof(uint16_t);
+    finalSize = msg_len + 2*constants::TAG_LEN + constants::IV_LEN + sizeof(char)*2 + sizeof(uint16_t);
 
     if(finalSize > constants::MAX_MESSAGE_SIZE) {
         cout << RED << "[ERROR] message too big" << RESET << endl;
@@ -434,7 +434,7 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
             cout << RED << "[ERROR] error during the initialization of the context" << RESET << endl;
             exit(1);
         }
-            
+
         if(EVP_EncryptUpdate(ctx, NULL, &len, iv, constants::IV_LEN) != 1){
             cout << RED << "[ERROR] error during the encryption of the message (iv)" << RESET << endl;
             exit(1);
@@ -442,7 +442,8 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
 
         s->getCounter(bufferCounter);
         s->counter++;
-        if(EVP_EncryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t)) != 1){
+        bufferCounter[sizeof(uint16_t)] = msg[0];
+        if(EVP_EncryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t) + sizeof(char)) != 1){
             cout << RED << "[ERROR] error during the encryption of the message (counter)" << RESET << endl;
             exit(1);
         }
@@ -481,8 +482,8 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
         memcpy(buffer.data() + start, iv, constants::IV_LEN);
         start += constants::IV_LEN;
 
-        memcpy(buffer.data() + start, bufferCounter, sizeof(uint16_t));
-        start += sizeof(uint16_t);
+        memcpy(buffer.data() + start, bufferCounter, sizeof(uint16_t) + sizeof(char));
+        start += sizeof(uint16_t) + sizeof(char);
 
         memcpy(buffer.data() + start, ciphertext, ciphr_len);
         start += ciphr_len;
@@ -510,6 +511,8 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     int ret = 0;
     int len = 0;
     unsigned int pl_len = 0;
+    unsigned char opcode;
+    unsigned char opcode_clear = msg[0];
 
     if (msg_len < (constants::IV_LEN + constants::TAG_LEN)){
         cout << RED << "[ERROR] message length not valid " << RESET << endl;
@@ -525,7 +528,7 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
     secureSub(msg_len - constants::IV_LEN, constants::TAG_LEN);
     secureSub(msg_len - constants::IV_LEN - constants::TAG_LEN, sizeof(char));
 
-    ciphr_len = msg_len - constants::IV_LEN - constants::TAG_LEN - sizeof(char) - sizeof(uint16_t);
+    ciphr_len = msg_len - constants::IV_LEN - constants::TAG_LEN - sizeof(char)*2 - sizeof(uint16_t);
     ciphr_msg = new (nothrow) unsigned char[ciphr_len];
 
     if(!ciphr_msg){
@@ -552,8 +555,14 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
         secureSum(sizeof(char) + constants::IV_LEN, ciphr_len);
         secureSum(sizeof(char) + constants::IV_LEN + ciphr_len, constants::TAG_LEN);
 
-        memcpy(recv_iv, msg + sizeof(char), constants::IV_LEN);
+        memcpy(&opcode, msg + sizeof(char) + constants::IV_LEN + sizeof(uint16_t), sizeof(char));
+        if(opcode != opcode_clear) {
+            cout << RED << "[ERROR] Opcode has been corrupted" << RESET << endl;
+            exit(1);
+        }
 
+        memcpy(recv_iv, msg + sizeof(char), constants::IV_LEN);
+        
         // recupero il contatore del sender
         memcpy(bufferCounter, msg + constants::IV_LEN + sizeof(char), sizeof(uint16_t));
 
@@ -563,9 +572,9 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
             exit(1);
         }
 
-        memcpy(ciphr_msg, msg + constants::IV_LEN + sizeof(char) + sizeof(uint16_t), ciphr_len);
+        memcpy(ciphr_msg, msg + constants::IV_LEN + sizeof(char)*2 + sizeof(uint16_t), ciphr_len);
 
-        memcpy(recv_tag, msg + ciphr_len + constants::IV_LEN + sizeof(char) + sizeof(uint16_t), constants::TAG_LEN);
+        memcpy(recv_tag, msg + ciphr_len + constants::IV_LEN + sizeof(char)*2 + sizeof(uint16_t), constants::TAG_LEN);
 
         if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), session_key, recv_iv)){
             cout << RED << "[ERROR] error during the initialization of decryption" << RESET << endl;
@@ -577,8 +586,13 @@ unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigne
             exit(1);
         }   
 
-         if(!EVP_DecryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t))){
+        if(!EVP_DecryptUpdate(ctx, NULL, &len, bufferCounter, sizeof(uint16_t))){
             cout << RED << "[ERROR] error while decrypting the message (COUNTER)" << RESET << endl;
+            exit(1);
+        }
+
+        if(!EVP_DecryptUpdate(ctx, NULL, &len, &opcode, sizeof(char))){
+            cout << RED << "[ERROR] error while decrypting the message (OPCODE)" << RESET << endl;
             exit(1);
         }
 
