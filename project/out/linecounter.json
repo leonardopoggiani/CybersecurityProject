@@ -133,7 +133,7 @@
                     "blank": 4,
                     "code": 37,
                     "comment": 13,
-                    "filename": "include/session.h"
+                    "filename": "include/counterSession.h"
                 },
                 {
                     "blank": 8,
@@ -212,7 +212,7 @@
                     "blank": 1,
                     "code": 1,
                     "comment": 25,
-                    "filename": "session.cpp"
+                    "filename": "counterSession.cpp"
                 }
             ]
         }

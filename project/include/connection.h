@@ -17,27 +17,27 @@
 
 using namespace std;
 
-struct session {
+struct counterSession {
     uint16_t received;
     uint16_t counter;
     
-    session(){
+    counterSession(){
         counter = 0;
         received = 0;
     }
 
     void getCounter(unsigned char *buffer){
-        unsigned char sizeArray[2];
-        sizeArray[0] = counter & 0xFF; 
-        sizeArray[1] = counter >> 8;   
-        memcpy(buffer, sizeArray, 2);
+        unsigned char counterArray[2];
+        counterArray[0] = counter & 0xFF; 
+        counterArray[1] = counter >> 8;   
+        memcpy(buffer, counterArray, 2);
     }
 
     bool verifyFreshness(unsigned char *counterReceived){
-        uint16_t tmp = received;
-        uint16_t cr = counterReceived[0] | uint16_t(counterReceived[1]) << 8;
-        if(increment(tmp)) {
-            if(tmp == cr) {
+        uint16_t temp = received;
+        uint16_t temp_received = counterReceived[0] | uint16_t(counterReceived[1]) << 8;
+        if(increment(temp)) {
+            if(temp == temp_received) {
                 if(increment(received)) {
                     received++;
                     return true;
@@ -67,7 +67,7 @@ struct user {
     string username;
     int sd;
     unsigned char* session_key = NULL;
-    session* s = new session();
+    counterSession* s = new counterSession();
 
     user(string us, int s) {
         username = us;
@@ -87,7 +87,7 @@ struct userChat {
     EVP_PKEY* pubkey_2 = NULL;
     unsigned char* iv = NULL;
     unsigned char* chat_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
-    session* clientCounters;
+    counterSession* clientCounters;
 
     userChat(unsigned char* us1, int d_us1, int s1, unsigned char* us2, int d_us2, int s2) {
         username_1 = (unsigned char*)malloc(d_us1);
@@ -98,7 +98,7 @@ struct userChat {
         dim_us2 = d_us2;
         sd_1 = s1;
         sd_2 = s2;
-        clientCounters = new session();
+        clientCounters = new counterSession();
     }
 
     userChat(unsigned char* us1, int d_us1, unsigned char* us2, int d_us2) {
@@ -108,7 +108,7 @@ struct userChat {
         memcpy(username_2, us2, d_us2);
         dim_us1 = d_us1;
         dim_us2 = d_us2;
-        clientCounters = new session();
+        clientCounters = new counterSession();
     }
 };
 
@@ -128,12 +128,12 @@ class clientConnection {
         int password_size;
         userChat* current_chat = NULL;
         EVP_PKEY* keyDHBufferTemp = NULL;
-        session* clientServer = new session();
-        session* clientClient = new session();
+        counterSession* clientServer = new counterSession();
+        counterSession* clientClient = new counterSession();
 
     public:
 
-        session* getSessionClientClient() {
+        counterSession* getSessionClientClient() {
             return clientClient;
         }
 
@@ -141,7 +141,7 @@ class clientConnection {
             clientClient->getCounter(bufferCounter);
         }
 
-        session* getSessionClientServer() {
+        counterSession* getSessionClientServer() {
             return clientServer;
         }
 
@@ -413,9 +413,9 @@ class clientConnection {
             talking_to = talking_to;
         }
 
-        void addSessionKey(unsigned char* sessionKey) {
+        void addSessionKey(unsigned char* temp_session_key) {
             session_key = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
-            memcpy(session_key, sessionKey, EVP_MD_size(EVP_sha256()));
+            memcpy(session_key, temp_session_key, EVP_MD_size(EVP_sha256()));
         }
 
         userChat* getMyCurrentChat() {
@@ -445,7 +445,7 @@ class serverConnection : public clientConnection {
             return iv_server.data();
         }
 
-        session* getSession(int sd) {
+        counterSession* getSession(int sd) {
             for(auto user : users_logged_in) {
                 if(user.sd == sd) {
                     return user.s;
@@ -746,10 +746,10 @@ class serverConnection : public clientConnection {
             return NULL;
         }
 
-        void addSessionKey(int sd, unsigned char* sessionKey) {
+        void addSessionKey(int sd, unsigned char* session_key) {
             for(auto user : users_logged_in) {
                 if(user.sd == sd) {
-                    memcpy(user.session_key, sessionKey, EVP_MD_size(EVP_sha256()));
+                    memcpy(user.session_key, session_key, EVP_MD_size(EVP_sha256()));
                 }
             }
         }

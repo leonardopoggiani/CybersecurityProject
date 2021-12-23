@@ -33,7 +33,7 @@ include/connection.h, code is 15, comment is 3, blank is 6.
 include/constants.h, code is 22, comment is 0, blank is 2.
 include/crypto.h, code is 81, comment is 4, blank is 11.
 include/server.h, code is 473, comment is 4, blank is 153.
-include/session.h, code is 37, comment is 13, blank is 4.
+include/counterSession.h, code is 37, comment is 13, blank is 4.
 include/utils.h, code is 35, comment is 1, blank is 8.
 keys/private/clarissa_prvkey.pem, code is 41, comment is 2, blank is 1.
 keys/private/gaia_prvkey.pem, code is 41, comment is 1, blank is 1.
@@ -46,5 +46,5 @@ Makefile, code is 20, comment is 0, blank is 8.
 rsa_privkey.pem, code is 27, comment is 0, blank is 0.
 server, it is a binary file.
 server.cpp, code is 79, comment is 0, blank is 27.
-session.cpp, code is 1, comment is 25, blank is 1.
+counterSession.cpp, code is 1, comment is 25, blank is 1.
 ===============================================================================

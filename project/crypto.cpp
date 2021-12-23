@@ -393,7 +393,7 @@ bool CryptoOperation::digsign_verify(unsigned char *signature, unsigned int sign
     return true;
 }
 
-unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer, session* s) {
+unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigned char* iv, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer, counterSession* s) {
     unsigned char *ciphertext;
     unsigned char tag[constants::TAG_LEN];
     unsigned char bufferCounter[sizeof(char) + sizeof(uint16_t)];
@@ -500,7 +500,7 @@ unsigned int CryptoOperation::encryptMessage(unsigned char* session_key, unsigne
     return start;
 }
 
-unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer, session* s) {
+unsigned int CryptoOperation::decryptMessage(unsigned char* session_key, unsigned char *msg, unsigned int msg_len, vector<unsigned char> &buffer, counterSession* s) {
     unsigned char recv_iv[constants::IV_LEN];
     unsigned char recv_tag[constants::TAG_LEN];
     unsigned char bufferCounter[sizeof(uint16_t)];

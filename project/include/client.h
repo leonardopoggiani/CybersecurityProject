@@ -64,7 +64,7 @@ void secureSum(int a, int b){
     
 }
 
-int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted, session *s) {
+int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, vector<unsigned char> &encrypted, counterSession *s) {
     int ret = 0;
 
     unsigned char* session_key = clt.clientConn->getSessionKey();
@@ -93,7 +93,7 @@ int send_message_enc(int masterFD, Client clt, unsigned char* message, int dim, 
     return ret;
 }
 
-int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted, session *s) {
+int receive_message_enc(Client clt, unsigned char* message, vector<unsigned char> &decrypted, counterSession *s) {
     int message_len = -1;
 
     do {
@@ -804,7 +804,7 @@ void chat(Client clt) {
                 byte_index += message.size();
             }
 
-            // la prima volta che cifro, lo sto facendo con la session_key, quindi devo mettere come contatore quello tra client e client
+            // la prima volta che cifro, lo sto facendo con la session key, quindi devo mettere come contatore quello tra client e client
             clt.clientConn->generateIV(iv);
             int encrypted_size = clt.crypto->encryptMessage(clt.clientConn->getMyCurrentChat()->chat_key, iv, tempBuffer, dim, encrypted, clt.clientConn->getSessionClientClient());
             if(encrypted_size < 0 || encrypted_size > constants::MAX_MESSAGE_SIZE) {

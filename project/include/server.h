@@ -383,7 +383,7 @@ int decrypt_message(Server srv, int sd, unsigned char* message, int dim, vector<
     return decrypted_size;
 }
 
-int send_message_enc_srv(Server srv, int fd, unsigned char* key, unsigned char* iv, unsigned char* message, int dim, vector<unsigned char> &encrypted, session* s) {
+int send_message_enc_srv(Server srv, int fd, unsigned char* key, unsigned char* iv, unsigned char* message, int dim, vector<unsigned char> &encrypted, counterSession* s) {
     int ret = 0;
 
     int encrypted_size = srv.crypto->encryptMessage(key, iv, message, dim, encrypted, s);
@@ -473,7 +473,7 @@ bool seeOnlineUsers(Server &srv, int sd, unsigned char *buffer, int buf_len, vec
     return true;   
 }
 
-int receive_message_enc_srv(Server srv, int sd, unsigned char* message, vector<unsigned char> &decrypted, session* s) {
+int receive_message_enc_srv(Server srv, int sd, unsigned char* message, vector<unsigned char> &decrypted, counterSession* s) {
     int message_len;
 
     do {
