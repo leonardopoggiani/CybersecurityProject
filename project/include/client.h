@@ -129,6 +129,10 @@ bool authentication(Client &clt, string username, string password) {
     vector<unsigned char> buffer;
     
     unsigned char* signature = NULL;
+    unsigned char* message_signed = NULL;
+    int dim_to_sign;
+    int signature_size;
+    unsigned char* message_to_sign;
     string to_insert;
     unsigned int pubKeyDHBufferLen = 0;
     unsigned int pubKeyDHBufferServerLen = 0;
@@ -162,37 +166,37 @@ bool authentication(Client &clt, string username, string password) {
 
     int byte_index = 0;   
 
+    
+
     secureSum(username.size(), sizeof(char) + sizeof(int));
     secureSum(username.size() + sizeof(int) + sizeof(char), nonceClient.size());
 
-    int dim = sizeof(char) + sizeof(int) + username.size() + nonceClient.size();
+    dim_to_sign = username.size() + sizeof(char) + sizeof(int);
 
-    unsigned char* message_sent = (unsigned char*)malloc(dim);   
-    if(!message_sent) {
+    message_to_sign = (unsigned char*)malloc(dim_to_sign);   
+    if(!message_to_sign) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
     }   
 
-    memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
+
+    memcpy(&(message_to_sign[byte_index]), &constants::AUTH, sizeof(char));
     byte_index += sizeof(char);
 
     int username_size = username.size();
-    memcpy(&(message_sent[byte_index]), &username_size, sizeof(int));
+    memcpy(&(message_to_sign[byte_index]), &username_size, sizeof(int));
     byte_index += sizeof(int);
 
-    memcpy(&(message_sent[byte_index]), username.c_str(), username.size());
+    memcpy(&(message_to_sign[byte_index]), username.c_str(), username.size());
     byte_index += username.size();
 
-    memcpy(&(message_sent[byte_index]), nonceClient.data(), nonceClient.size());
-    byte_index += nonceClient.size();
-
-    unsigned char* message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
+    message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
     if(!message_signed) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
-    }   
+    }
 
-    int signed_size = clt.crypto->digsign_sign(message_sent, dim, message_signed, user_key);
+    unsigned int signed_size = clt.crypto->digsign_sign(message_to_sign, dim_to_sign, message_signed, user_key);
     if(signed_size < 0) {
         cerr << RED << "[ERROR] invalid signature!" << RESET << endl;
         return false;
@@ -200,7 +204,26 @@ bool authentication(Client &clt, string username, string password) {
         cout << GREEN << "[LOG] valid signature " << RESET << endl;
     }
 
-    clt.clientConn->send_message(message_signed, signed_size);
+    byte_index = 0;
+
+    int dim = signed_size + sizeof(int) + constants::NONCE_SIZE;
+
+    unsigned char* message_sent = (unsigned char*)malloc(dim);   
+    if(!message_sent) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }   
+
+    const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
+
+    memcpy(&(message_sent[byte_index]), message_signed_t, signed_size + sizeof(int));
+    byte_index += signed_size + sizeof(int);
+
+    memcpy(&(message_sent[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
+
+
+    clt.clientConn->send_message(message_sent, byte_index);
 
     free(message_sent);
     free(message_signed);
@@ -221,14 +244,22 @@ bool authentication(Client &clt, string username, string password) {
 
     byte_index = 0;
     signed_size = 0;
-    char opcode;
     size_t size_cert = 0;
 
-    memcpy(&(opcode), &message_received[byte_index], sizeof(char));
-    byte_index += sizeof(char);
+    //Cose firmate
 
-    memcpy(nonceServer.data(), &message_received[byte_index], constants::NONCE_SIZE);
-    byte_index += constants::NONCE_SIZE;
+    int clear_byte_index = byte_index;
+    dim = sizeof(char) + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferServerLen; 
+    unsigned char* clear_buf = (unsigned char*)malloc(dim);
+    if(!clear_buf) {
+        cerr << RED << "[ERROR] malloc error" << RESET << endl;
+        exit(1);
+    }
+
+    memcpy(clear_buf, &message_received[clear_byte_index], dim);
+    clear_byte_index += dim;
+
+    byte_index += sizeof(char);
 
     memcpy(nonceClient_rec.data(), &message_received[byte_index], constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
@@ -239,19 +270,18 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(pubKeyDHBufferServer.data(), &message_received[byte_index], pubKeyDHBufferServerLen);
     byte_index += pubKeyDHBufferServerLen;
     
-    memcpy(&(signed_size), &message_received[byte_index], sizeof(int));
+    memcpy(&(signature_size), &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
     
-    signature = (unsigned char*)malloc(signed_size);
+    signature = (unsigned char*)malloc(signature_size);
     if(!signature) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
     } 
 
-    memcpy(signature, &message_received[byte_index], signed_size);
-    byte_index += signed_size;
-    byte_index -= sizeof(int);
-
+    memcpy(signature, &message_received[byte_index], signature_size);
+    byte_index += signature_size;
+    
     memcpy(&size_cert, &message_received[byte_index], sizeof(int));
     byte_index += sizeof(int);
 
@@ -264,32 +294,10 @@ bool authentication(Client &clt, string username, string password) {
     memcpy(cert_buf, &message_received[byte_index], size_cert);
     byte_index += size_cert;
 
-    int clear_byte_index = 0;
 
-    dim = sizeof(char) + constants::NONCE_SIZE + constants::NONCE_SIZE; 
-    unsigned char* clear_buf = (unsigned char*)malloc(dim);
-    if(!clear_buf) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
+    memcpy(nonceServer.data(), &message_received[byte_index], constants::NONCE_SIZE);
+    byte_index += constants::NONCE_SIZE;
 
-    memcpy(clear_buf, &message_received[clear_byte_index], dim);
-    clear_byte_index += dim;
-    
-    int sign_size = 0;
-    memcpy(&sign_size, &message_received[clear_byte_index], sizeof(int));
-    clear_byte_index += sizeof(int);
-
-    unsigned char* sign = (unsigned char*)malloc(sign_size);
-    if(!sign) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    memcpy(sign, &message_received[clear_byte_index], sign_size);
-    clear_byte_index += sign_size;
-
-    // recupero pubKey
 
     cert = d2i_X509(NULL, (const unsigned char**)&cert_buf, size_cert);
 
@@ -302,7 +310,7 @@ bool authentication(Client &clt, string username, string password) {
 
     clt.crypto->getPublicKeyFromCertificate(cert, pubKeyServer);
 
-    unsigned int verify = clt.crypto->digsign_verify(sign, sign_size, clear_buf, sizeof(int), pubKeyServer);
+    unsigned int verify = clt.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubKeyServer);
     if(verify < 0){
         cerr << RED << "[ERROR] invalid signature!" << endl;
         return false;
