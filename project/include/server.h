@@ -49,6 +49,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     int username_size = 0;
     int signature_size = 0;
     int dim_to_sign;
+    int dim;
     unsigned char* message_to_sign;
     unsigned char* signature = NULL;
         
@@ -108,22 +109,8 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
         }
     }
 
-    memcpy(&(signature_size), &buffer[byte_index], sizeof(int));
-    byte_index += sizeof(int);
-
-    secureSum(byte_index, signature_size);
-
-    signature = (unsigned char*)malloc(signature_size);
-    if(!signature) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    memcpy(signature, &buffer[byte_index], signature_size);
-    byte_index += signature_size;
-
     memcpy(nonceClient.data(), &buffer[byte_index], constants::NONCE_SIZE);
-    cout<<"sto per leggere nonce client " << byte_index <<endl;
+    
     byte_index += constants::NONCE_SIZE;
 
     std::stringstream filename_stream;
@@ -158,24 +145,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     byte_index = 0;
 
-    int dim = sizeof(char) + sizeof(int) + username_size; 
-    unsigned char* clear_buf = (unsigned char*)malloc(dim);
-    if(!clear_buf) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    memcpy(clear_buf, &buffer[byte_index], dim);
-    byte_index += sizeof(char);
-    
-    unsigned int verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_client);
-    if(verify < 0) {
-        cerr << RED << "[ERROR] invalid signature!" << RESET << endl;
-        return false;
-    } else {
-        cout << GREEN << "[LOG] valid signature " << RESET << endl;
-    }
-    
+  
     srv.serverConn->insertUser(username_string.str(), sd);
     srv.serverConn->printOnlineUsers();
 	
@@ -320,10 +290,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     srv.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHClient);
 
-    free(clear_buf);
     free(signature);
     
-    clear_buf = (unsigned char*)malloc(dim);
+    unsigned char* clear_buf = (unsigned char*)malloc(dim);
     if(!clear_buf) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
@@ -348,7 +317,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     byte_index += signature_size;
 
     // verificare firma con chieve pubblica del client
-    verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_client);
+    int verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_client);
     if(verify < 0){
         cerr << RED << "[ERROR] Signature is not valid" << RESET << endl;
         exit(1);
