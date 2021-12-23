@@ -49,6 +49,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     int username_size = 0;
     int signature_size = 0;
     int dim_to_sign;
+    int dim;
     unsigned char* message_to_sign;
     unsigned char* signature = NULL;
         
@@ -289,10 +290,9 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
 
     srv.crypto->deserializePublicKey(pubKeyDHBuffer.data(), pubKeyDHBufferLen, pubKeyDHClient);
 
-    free(clear_buf);
     free(signature);
     
-    clear_buf = (unsigned char*)malloc(dim);
+    unsigned char* clear_buf = (unsigned char*)malloc(dim);
     if(!clear_buf) {
         cerr << RED << "[ERROR] malloc error" << RESET << endl;
         exit(1);
@@ -317,7 +317,7 @@ bool authentication(Server &srv, int sd, unsigned char* buffer) {
     byte_index += signature_size;
 
     // verificare firma con chieve pubblica del client
-    verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_client);
+    int verify = srv.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), pubkey_client);
     if(verify < 0){
         cerr << RED << "[ERROR] Signature is not valid" << RESET << endl;
         exit(1);

@@ -130,9 +130,7 @@ bool authentication(Client &clt, string username, string password) {
     
     unsigned char* signature = NULL;
     unsigned char* message_signed = NULL;
-    int dim_to_sign;
     int signature_size;
-    unsigned char* message_to_sign;
     string to_insert;
     unsigned int pubKeyDHBufferLen = 0;
     unsigned int pubKeyDHBufferServerLen = 0;
@@ -194,7 +192,6 @@ bool authentication(Client &clt, string username, string password) {
     clt.clientConn->send_message(message_sent, byte_index);
 
     free(message_sent);
-    free(message_signed);
 
     // ricevere certificato
     unsigned char* message_received = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE); 
@@ -211,7 +208,7 @@ bool authentication(Client &clt, string username, string password) {
     }
 
     byte_index = 0;
-    signed_size = 0;
+    int signed_size = 0;
     size_t size_cert = 0;
 
     //Cose firmate
