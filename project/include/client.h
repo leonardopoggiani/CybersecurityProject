@@ -166,47 +166,9 @@ bool authentication(Client &clt, string username, string password) {
 
     int byte_index = 0;   
 
-    
-
-    secureSum(username.size(), sizeof(char) + sizeof(int));
-    secureSum(username.size() + sizeof(int) + sizeof(char), nonceClient.size());
-
-    dim_to_sign = username.size() + sizeof(char) + sizeof(int);
-
-    message_to_sign = (unsigned char*)malloc(dim_to_sign);   
-    if(!message_to_sign) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }   
-
-
-    memcpy(&(message_to_sign[byte_index]), &constants::AUTH, sizeof(char));
-    byte_index += sizeof(char);
-
-    int username_size = username.size();
-    memcpy(&(message_to_sign[byte_index]), &username_size, sizeof(int));
-    byte_index += sizeof(int);
-
-    memcpy(&(message_to_sign[byte_index]), username.c_str(), username.size());
-    byte_index += username.size();
-
-    message_signed = (unsigned char*)malloc(constants::MAX_MESSAGE_SIZE);
-    if(!message_signed) {
-        cerr << RED << "[ERROR] malloc error" << RESET << endl;
-        exit(1);
-    }
-
-    unsigned int signed_size = clt.crypto->digsign_sign(message_to_sign, dim_to_sign, message_signed, user_key);
-    if(signed_size < 0) {
-        cerr << RED << "[ERROR] invalid signature!" << RESET << endl;
-        return false;
-    } else {
-        cout << GREEN << "[LOG] valid signature " << RESET << endl;
-    }
-
+    secureSum(username.size() + sizeof(int) + sizeof(char), constants::NONCE_SIZE);
     byte_index = 0;
-
-    int dim = signed_size + sizeof(int) + constants::NONCE_SIZE;
+    int dim =  username.size() + sizeof(int) + sizeof(char) + constants::NONCE_SIZE;
 
     unsigned char* message_sent = (unsigned char*)malloc(dim);   
     if(!message_sent) {
@@ -214,10 +176,16 @@ bool authentication(Client &clt, string username, string password) {
         exit(1);
     }   
 
-    const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
+    
+    memcpy(&(message_sent[byte_index]), &constants::AUTH, sizeof(char));
+    byte_index += sizeof(char);
 
-    memcpy(&(message_sent[byte_index]), message_signed_t, signed_size + sizeof(int));
-    byte_index += signed_size + sizeof(int);
+    int username_size = username.size();
+    memcpy(&(message_sent[byte_index]), &username_size, sizeof(int));
+    byte_index += sizeof(int);
+
+    memcpy(&(message_sent[byte_index]), username.c_str(), username.size());
+    byte_index += username.size();
 
     memcpy(&(message_sent[byte_index]), nonceClient.data(), constants::NONCE_SIZE);
     byte_index += constants::NONCE_SIZE;
