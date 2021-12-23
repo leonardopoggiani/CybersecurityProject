@@ -692,7 +692,6 @@ bool requestToTalk(Server &srv, int sd, unsigned char* buffer, int buf_len) {
         memcpy(&signature_size, &(decrypted.data()[byte_index]), sizeof(int));
         byte_index += sizeof(int);
 
-
         signature = (unsigned char*)malloc(signature_size);
         if(!signature) {
             cerr << RED << "[ERROR] malloc error" << RESET << endl;

@@ -135,8 +135,6 @@ bool authentication(Client &clt, string username, string password) {
     unsigned int pubKeyDHBufferLen = 0;
     unsigned int pubKeyDHBufferServerLen = 0;
 
-
-
     string filename = "./keys/private/" + username + "_prvkey.pem";
 
     clt.clientConn->setUsernameS(username);
@@ -210,8 +208,6 @@ bool authentication(Client &clt, string username, string password) {
     byte_index = 0;
     int signed_size = 0;
     size_t size_cert = 0;
-
-    //Cose firmate
 
     int clear_byte_index = byte_index;
     dim = sizeof(char) + constants::NONCE_SIZE + sizeof(int) + pubKeyDHBufferServerLen; 
@@ -494,7 +490,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
         }
 
         signed_size = 0;
-        // signed size = dim(keyDHBuffer + nonce) + dim firma + firma
         signed_size = clt.crypto->digsign_sign(response_to_sign, dim_to_sign, message_signed, user_key);
         if(signed_size < 0){
             cerr << RED << "[ERROR] invalid signature!" << endl;
@@ -502,7 +497,6 @@ int receiveRequestToTalk(Client &clt, unsigned char* msg, int msg_len, unsigned 
         } else { 
             cout << GREEN << "[LOG] valid Signature " << RESET << endl;
         }
-        
 
         const char* message_signed_t = reinterpret_cast<const char *>(message_signed);
 
@@ -591,6 +585,7 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
     int signature_size = 0;
     int dim = 0;
     unsigned char* signature = NULL;
+
     packet.clear();
     packet.resize(constants::MAX_MESSAGE_SIZE);
     int received_size = receive_message_enc(clt, packet.data(), decrypted, clt.clientConn->getSessionClientServer());
@@ -646,10 +641,8 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
 
     //Prendere la firma
 
-
     memcpy(&(signature_size), &decrypted.data()[byte_index], sizeof(int));
     byte_index += sizeof(int);
-
 
     signature = (unsigned char*)malloc(signature_size);
     if(!signature) {
@@ -660,7 +653,6 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
     memcpy(signature, &decrypted.data()[byte_index], signature_size);
     byte_index += signature_size;
 
-    cout << "Pure qui!" <<endl;
     //Verificare firma
 
     unsigned int verify = clt.crypto->digsign_verify(signature, signature_size, clear_buf, sizeof(int), clt.clientConn->getMyCurrentChat()->pubkey_2);
@@ -678,7 +670,6 @@ void startingChat(Client clt, vector<unsigned char> packet, unsigned char* myNon
     } else {
         cout << GREEN << "[LOG] nonce verified " << RESET << endl;
     }
-
 
     // Costruire chiave di sessione prvDH
     array<unsigned char, MAX_MESSAGE_SIZE> tempBuffer;
@@ -898,7 +889,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
     // M1 OPCODE | sizeof(username) | username | nonceA
 
-     clt.crypto->generateNonce(myNonce.data());
+    clt.crypto->generateNonce(myNonce.data());
 
     // conservo il nonce per verificarlo al passo successivo
     memcpy(myNonce_t.data(), myNonce.data(), constants::NONCE_SIZE);
@@ -955,7 +946,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
         byte_index = 0;
         byte_index += sizeof(char);
 
-
         //Nonce di B da tenere e riutilizzare
 
         memcpy(nonceClient.data(), &decrypted.data()[byte_index], constants::NONCE_SIZE);
@@ -963,7 +953,6 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         memcpy(&(peerKeyDHLen), &decrypted.data()[byte_index], sizeof(int));
         byte_index += sizeof(int);
-
 
         peerKeyDHBuffer = (unsigned char*)malloc(peerKeyDHLen);
         if(!peerKeyDHBuffer) {
@@ -1007,7 +996,7 @@ void sendRequestToTalk(Client clt, string username_to_contact, string username) 
 
         clt.crypto->deserializePublicKey(peerPubKeyBuffer, peerPubKeyLen, clt.clientConn->getMyCurrentChat()->pubkey_1);
 
-         //Dimensione firma e firma
+        //Dimensione firma e firma
 
         memcpy(&(signature_size), &decrypted.data()[byte_index], sizeof(int));
         byte_index += sizeof(int);
